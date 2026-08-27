@@ -1,0 +1,3041 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>La Colección App</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#131d30">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Colección">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+  :root{
+    --paper:#f2f1ee; --navy:#1b1e27; --navy-deep:#05060a; --ink:#1c1e24; --heading:#14161b;
+    --brick:#a44a34; --sage:#3f8677; --gold:#b8863c; --line: rgba(20,22,27,0.12);
+    --green-yes:#3f8677; --red-no:#a44a34; --amber:#b8863c; --violet:#6b5b95;
+    --ink-dim: rgba(20,22,27,0.5); --card-bg: rgba(20,22,27,0.05); --card-bg-active: rgba(20,22,27,0.09);
+    --field-bg: #ffffff;
+  }
+  html[data-theme="dark"]{
+    --paper:#111318; --navy:#5fb0a3; --navy-deep:#05060a; --ink:#eceef1; --heading:#f2f3f5;
+    --brick:#c96a4a; --sage:#5fb0a3; --gold:#e8a94a; --line: rgba(255,255,255,0.09);
+    --ink-dim: rgba(236,238,241,0.5); --card-bg: rgba(255,255,255,0.045); --card-bg-active: rgba(255,255,255,0.09);
+    --field-bg: #191c23;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;background:var(--navy-deep);background-image:radial-gradient(circle at 15% 0%, rgba(255,255,255,0.04), transparent 45%);min-height:100vh;font-family:'Space Grotesk', sans-serif;color:var(--ink);padding:16px 12px 90px;-webkit-overflow-scrolling:touch;}
+  .shell{max-width:1100px;margin:0 auto;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .lens{width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #fff 0%, var(--brick) 40%, #6b2f22 100%);box-shadow:0 0 0 3px rgba(255,255,255,0.08);flex-shrink:0;}
+  .brand-text{color:#f1ede3;font-size:14px;letter-spacing:0.12em;text-transform:uppercase;}
+  .app-version-corner{position:fixed;right:10px;bottom:56px;color:rgba(255,255,255,0.35);font-size:8px;font-family:'Space Grotesk',sans-serif;letter-spacing:0.03em;z-index:55;pointer-events:none;}
+  @media (min-width:820px){ .app-version-corner{bottom:9px;} }
+  .btn.theme-toggle{width:34px;height:34px;padding:0;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1.5px solid rgba(255,255,255,0.25);color:#fff;}
+  .theme-toggle svg, .lang-toggle svg{width:18px;height:18px;display:block;vertical-align:middle;}
+  .theme-toggle.mode-sun{background:#c98a2e;border-color:#e0a94f;}
+  .theme-toggle.mode-moon{background:#3a4f8c;border-color:#5c72ad;}
+  .lang-wrap{position:relative;}
+  .btn.lang-toggle{width:34px;height:34px;padding:0;font-size:15px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#4d7a63;border:1.5px solid #6e9c81;color:#fff;}
+  .btn.currency-toggle{width:34px;height:34px;padding:0;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#a3773f;border:1.5px solid #c4935a;color:#fff;}
+  .lang-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--paper);border:1px solid var(--line);border-radius:9px;box-shadow:0 14px 34px -12px rgba(0,0,0,0.5);display:none;flex-direction:column;min-width:120px;overflow:hidden;z-index:120;}
+  .lang-menu.open{display:flex;}
+  .lang-menu button{background:none;border:none;text-align:left;padding:9px 13px;font-family:inherit;font-size:12.5px;color:var(--ink);cursor:pointer;}
+  .lang-menu button:hover{background:var(--card-bg);}
+  .brand-text b{color:var(--sage);}
+  .crumbs{font-size:11px;color:rgba(241,237,227,0.5);line-height:1.6;}
+  .crumbs button{background:none;border:none;color:rgba(241,237,227,0.8);font-family:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:5px 0;}
+  .crumbs .sep{margin:0 5px;color:rgba(241,237,227,0.3);}
+  .crumbs .current{color:var(--sage);}
+
+  /* ===== Navegación ===== */
+  .topnav{display:none;}
+  .bottomnav{position:fixed;left:0;right:0;bottom:0;background:var(--navy-deep);border-top:1px solid rgba(255,255,255,0.08);display:flex;z-index:50;padding-bottom:env(safe-area-inset-bottom);}
+  .navitem{flex:1;background:none;border:none;color:rgba(241,237,227,0.55);font-family:inherit;font-size:9px;letter-spacing:0.02em;text-transform:uppercase;padding:9px 2px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .navitem .navicon{font-size:15px;line-height:1;}
+  .navitem.active{color:var(--sage);}
+  @media (min-width:820px){
+    .bottomnav{display:none;}
+    .topnav{display:flex;gap:2px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:0;}
+    .navitem{flex:none;flex-direction:row;font-size:11px;padding:9px 14px;border-radius:5px 5px 0 0;}
+    .navitem.active{background:var(--paper);color:var(--heading);}
+    body{padding-bottom:40px;}
+  }
+
+  .frame{background:var(--paper);border-radius:8px;padding:2px;box-shadow:0 40px 70px -25px rgba(0,0,0,0.65);}
+  .frame-inner{border:1px solid var(--line);border-radius:7px;padding:16px 14px;position:relative;min-height:300px;}
+  .kicker{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--brick);margin-bottom:7px;}
+  .kicker .dot{width:7px;height:7px;border-radius:50%;background:var(--brick);flex-shrink:0;}
+  h1{font-family:'Space Grotesk', sans-serif;font-weight:600;font-size:24px;color:var(--heading);margin:0 0 14px 0;line-height:1.25;}
+  .h1-edit{display:block;width:100%;font-family:'Space Grotesk', sans-serif;font-weight:600;font-size:24px;color:var(--heading);margin:0 0 14px 0;line-height:1.25;border:none;border-bottom:1px dashed var(--line);background:transparent;padding:0 0 4px 0;}
+  .h1-edit:focus{outline:none;border-bottom-color:var(--heading);}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:17px;color:var(--heading);margin:0 0 4px 0;}
+  h3{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13.5px;color:var(--heading);margin:18px 0 8px 0;padding-top:12px;border-top:1px solid var(--line);}
+  h3:first-child{margin-top:0;padding-top:0;border-top:none;}
+  .section-sub{font-size:12px;color:var(--ink-dim);margin-bottom:12px;line-height:1.5;}
+
+  /* ===== Dashboard stats ===== */
+  .stat-strip{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-bottom:16px;}
+  .stat{padding:13px 13px;border-right:1px solid var(--line);background:var(--card-bg);}
+  .stat:last-child{border-right:none;}
+  .stat:last-child{border-right:none;}
+  .stat-label{font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:6px;}
+  .stat-value{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:19px;color:var(--heading);}
+  .stat-sub{font-size:10px;color:var(--ink-dim);margin-top:3px;}
+  .ring{width:40px;height:40px;border-radius:50%;background:conic-gradient(var(--brick) 0% var(--p,0%), rgba(28,42,66,0.12) var(--p,0%) 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 1.1s ease;}
+  .ring-hole{width:29px;height:29px;border-radius:50%;background:var(--paper);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:9px;color:var(--heading);}
+  .ring-row{display:flex;align-items:center;gap:9px;}
+  .ring-hero{width:168px;height:168px;margin:4px auto 6px;}
+  .ring-hero .ring-hole{width:136px;height:136px;flex-direction:column;}
+  .ring-hero-pct{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:38px;color:var(--heading);line-height:1;}
+  .ring-hero-sub{font-size:10.5px;color:var(--ink-dim);margin-top:5px;text-align:center;}
+  .hero-wrap{text-align:center;margin-bottom:16px;}
+  @media (min-width:641px){ .stat-strip{grid-template-columns:1fr 1fr;} }
+  @media (max-width:640px){ .stat-strip{grid-template-columns:1fr 1fr;} }
+
+  .bar-row{margin-bottom:11px;}
+  .accordion-toggle{display:block;width:100%;text-align:left;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;color:var(--heading);background:var(--card-bg);border:1px solid var(--line);border-radius:6px;padding:11px 13px;margin:10px 0 4px;cursor:pointer;}
+
+  /* Pantalla de Ayuda — tarjetas visuales con icono y texto de lectura
+     (serif), para que se sienta como una guía y no como un panel técnico. */
+  .ayuda-intro{font-family:'Space Grotesk',sans-serif;font-size:14px;color:var(--ink-dim);line-height:1.6;margin-bottom:18px;}
+  .ayuda-card{background:var(--card-bg);border:1px solid var(--line);border-radius:12px;margin-bottom:11px;overflow:hidden;}
+  .ayuda-card-head{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;padding:13px 14px;cursor:pointer;font-family:inherit;}
+  .ayuda-icon{width:36px;height:36px;border-radius:10px;background:var(--navy);color:#f1ede3;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .ayuda-title{flex:1;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;color:var(--heading);}
+  .ayuda-chevron{color:var(--ink-dim);font-size:11px;flex-shrink:0;}
+  .ayuda-body{padding:2px 16px 18px 62px;font-family:'Space Grotesk',sans-serif;font-size:14px;line-height:1.7;color:var(--ink);}
+  .ayuda-body b{color:var(--heading);}
+
+  /* Los dos botones grandes de Exportar/Importar todo, en la pantalla de
+     Copia de seguridad */
+  .backup-hero{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 0 6px;}
+  .backup-btn{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:22px 12px;border-radius:14px;border:1px solid var(--line);cursor:pointer;font-family:inherit;}
+  .backup-btn-export{background:var(--navy);color:#f1ede3;}
+  .backup-btn-import{background:var(--card-bg);color:var(--heading);}
+  .backup-btn-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;}
+  .backup-btn-export .backup-btn-icon{background:rgba(255,255,255,0.14);}
+  .backup-btn-import .backup-btn-icon{background:var(--navy);color:#f1ede3;}
+  .backup-btn-label{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;}
+  .backup-btn-sub{font-size:9.5px;opacity:0.75;line-height:1.4;}
+
+  /* Tour guiado de bienvenida */
+  .tour-spotlight{position:relative !important;z-index:600 !important;box-shadow:0 0 0 6000px rgba(10,15,24,0.78), 0 0 0 3px var(--gold) !important;border-radius:10px;animation:tourPulse 1.6s ease-in-out infinite;}
+  .tour-spotlight-fixed{z-index:600 !important;box-shadow:0 0 0 6000px rgba(10,15,24,0.78), 0 0 0 3px var(--gold) !important;border-radius:50% !important;animation:tourPulse 1.6s ease-in-out infinite;}
+  @keyframes tourPulse{0%,100%{box-shadow:0 0 0 6000px rgba(10,15,24,0.78), 0 0 0 3px var(--gold), 0 0 0 0 rgba(184,146,90,0.55);}50%{box-shadow:0 0 0 6000px rgba(10,15,24,0.78), 0 0 0 3px var(--gold), 0 0 0 14px rgba(184,146,90,0);}}
+  .tour-caption{position:fixed;left:12px;right:12px;bottom:145px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:15px 17px 13px;z-index:601;box-shadow:0 16px 40px -14px rgba(0,0,0,0.55);}
+  .tour-caption-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .tour-caption-icon{width:32px;height:32px;border-radius:9px;background:var(--navy);color:#f1ede3;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .tour-dots{display:flex;gap:5px;}
+  .tour-dot{width:6px;height:6px;border-radius:50%;background:var(--line);}
+  .tour-dot-done{background:var(--sage);}
+  .tour-dot-current{background:var(--gold);width:16px;border-radius:3px;}
+  .tour-caption-text{font-family:'Space Grotesk',sans-serif;font-size:14px;line-height:1.6;color:var(--ink);margin-bottom:11px;}
+  .tour-caption-text b{color:var(--heading);}
+  .tour-caption-foot{display:flex;justify-content:space-between;align-items:center;}
+  .tour-caption-count{font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:var(--ink-dim);}
+  .tour-skip{font-size:11px;color:var(--ink-dim);background:none;border:none;cursor:pointer;text-decoration:underline;font-family:inherit;}
+  .tour-modal-backdrop{position:fixed;inset:0;background:rgba(10,15,24,0.82);z-index:700;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .tour-modal{background:var(--paper);border-radius:18px;padding:30px 24px 26px;max-width:360px;text-align:center;}
+  .tour-modal-icon{width:56px;height:56px;border-radius:50%;background:var(--navy);color:#f1ede3;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+  .tour-modal-icon svg{width:26px;height:26px;}
+  .tour-modal-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:var(--heading);margin-bottom:11px;}
+  .tour-modal-body{font-family:'Space Grotesk',sans-serif;font-size:14px;line-height:1.65;color:var(--ink);margin-bottom:22px;}
+
+  /* Cuadro de diálogo propio — sustituye a prompt()/confirm() del navegador,
+     que no funcionan de forma fiable dentro de una PWA instalada. */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,15,24,0.78);z-index:800;display:none;align-items:center;justify-content:center;padding:24px;}
+  .modal-overlay.open{display:flex;}
+  .modal-card{background:var(--paper);border-radius:16px;padding:22px 20px;max-width:340px;width:100%;box-shadow:0 24px 60px -18px rgba(0,0,0,0.55);}
+  .modal-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15.5px;color:var(--heading);margin-bottom:14px;line-height:1.4;}
+  .modal-input{width:100%;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--ink);background:var(--field-bg);border:1px solid var(--line);border-radius:7px;padding:11px 12px;margin-bottom:16px;}
+  .modal-actions{display:flex;gap:9px;justify-content:flex-end;}
+  .modal-actions .btn{margin:0;}
+
+  /* Botón grande de "crear" — usado para categoría nueva y similares, en
+     vez del botón de texto plano que quedaba pobre a la vista. */
+  .create-btn{display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:var(--card-bg);border:1.5px dashed var(--navy);border-radius:12px;padding:15px 16px;margin-top:12px;cursor:pointer;font-family:inherit;}
+  .create-btn-icon{width:38px;height:38px;border-radius:50%;background:var(--navy);color:#f1ede3;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:600;}
+  .create-btn-label{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;color:var(--heading);}
+  .create-btn-sub{font-size:10px;color:var(--ink-dim);margin-top:2px;}
+  .accordion-body{padding:10px 2px 2px;}
+  .bar-labels{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;}
+  .bar-labels .name{color:var(--heading);font-weight:600;}
+  .bar-labels .pct{color:var(--ink-dim);}
+  .bar-track{height:6px;background:var(--line);border-radius:3px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--sage);border-radius:3px;width:0;transition:width 1.1s cubic-bezier(.2,.7,.2,1);}
+  .bar-fill.brick{background:var(--brick);}
+
+  .quick-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .btn{font-family:inherit;font-size:10.5px;background:none;border:1px solid var(--line);color:var(--heading);padding:8px 12px;border-radius:5px;cursor:pointer;text-decoration:none;display:inline-block;}
+  .btn:active{background:rgba(28,42,66,0.06);}
+  .btn.primary{background:var(--navy);color:#f1ede3;border-color:var(--heading);}
+
+
+  /* barras de progreso finas — categorías (Dashboard/Colección) */
+  .prow{background:var(--card-bg);border-radius:6px;padding:12px 14px;margin-bottom:8px;cursor:pointer;}
+  .prow:active{background:var(--card-bg-active);}
+  .prow-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px;}
+  .prow-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;color:var(--heading);}
+  .prow-desc{font-size:10.5px;color:var(--ink-dim);margin-top:2px;line-height:1.4;}
+  .prow-pct{font-size:10.5px;color:var(--heading);font-weight:600;font-variant-numeric:tabular-nums;flex-shrink:0;}
+  .microbar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;}
+  .microbar-fill{height:100%;background:var(--sage);border-radius:2px;width:0;transition:width 1.1s cubic-bezier(.2,.7,.2,1);}
+  .microbar-fill.brick{background:var(--brick);}
+
+  /* plataformas dentro de una categoría — tarjeta grande, insignia con código */
+  .plat-card{display:flex;align-items:center;gap:13px;background:var(--card-bg);border-radius:8px;padding:12px 14px;margin-bottom:9px;cursor:pointer;min-height:64px;}
+  .plat-card:active{background:var(--card-bg-active);}
+  .plat-badge{width:46px;height:46px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:11.5px;letter-spacing:0.02em;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.18);}
+  .plat-badge.navy{background:var(--navy);}
+  .plat-badge.sage{background:var(--sage);}
+  .plat-badge.brick{background:var(--brick);}
+  .plat-badge.gold{background:var(--gold);}
+  .plat-card-body{flex:1;min-width:0;}
+  .plat-name-lg{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:17px;color:var(--heading);line-height:1.25;margin-bottom:6px;}
+  .plat-card-bottom{display:flex;align-items:center;gap:8px;}
+  .plat-card-bottom .microbar{flex:1;min-width:0;}
+  .plat-move{display:flex;flex-direction:column;gap:2px;flex-shrink:0;margin-left:4px;}
+  .plat-move button{width:26px;height:24px;font-size:10px;background:var(--card-bg);border:1px solid var(--line);border-radius:4px;color:var(--heading);cursor:pointer;}
+  .plat-move button:disabled{opacity:0.25;cursor:default;}
+
+  /* búsqueda local del Dashboard */
+  #dash-search-results{margin-bottom:14px;}
+  .search-hit{background:var(--card-bg);border-radius:6px;padding:10px 13px;margin-bottom:6px;cursor:pointer;}
+  .search-hit:active{background:var(--card-bg-active);}
+  .search-hit-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:var(--heading);}
+  .search-hit-meta{font-size:10px;color:var(--ink-dim);margin-top:2px;}
+
+  .fab{position:fixed;right:18px;bottom:74px;width:52px;height:52px;border-radius:50%;background:var(--navy);color:#fff;border:none;font-size:26px;line-height:1;font-family:'Space Grotesk',sans-serif;box-shadow:0 10px 24px -6px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.15);cursor:pointer;z-index:60;align-items:center;justify-content:center;}
+  .fab:active{background:var(--navy-deep);}
+  .fab-left{right:auto;left:18px;background:var(--card-bg-active);color:var(--heading);font-size:24px;}
+  .fab-left:active{background:#fff;}
+
+  .pinch-overlay{position:fixed;inset:0;background:rgba(19,29,48,0.94);z-index:200;display:none;align-items:center;justify-content:center;touch-action:none;}
+  .pinch-overlay img{max-width:92vw;max-height:92vh;transform-origin:center center;will-change:transform;border-radius:4px;}
+
+  .badge-region{background:rgba(124,148,115,0.18);color:var(--sage);}
+  .chip-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;-webkit-overflow-scrolling:touch;}
+  .chip{flex-shrink:0;font-family:'Space Grotesk',sans-serif;font-size:10.5px;background:var(--card-bg);border:1px solid var(--line);color:var(--heading);padding:7px 12px;border-radius:20px;cursor:pointer;white-space:nowrap;}
+  .chip.active{background:var(--navy);color:#fff;border-color:var(--heading);}
+  .plat-pct-lg{font-size:11px;color:var(--ink-dim);font-weight:600;font-variant-numeric:tabular-nums;flex-shrink:0;width:32px;text-align:right;}
+
+  .empty-state{border:1px dashed var(--line);border-radius:6px;padding:22px 18px;text-align:center;}
+  .empty-state p{font-size:12px;color:var(--ink-dim);margin:0 0 5px 0;line-height:1.6;}
+  .empty-state .small{font-size:10.5px;color:var(--ink-dim);}
+
+  .real-note{font-size:11px;color:var(--ink-dim);background:rgba(124,148,115,0.12);border:1px solid rgba(124,148,115,0.35);border-radius:5px;padding:10px 11px;margin-bottom:13px;line-height:1.6;}
+  .warn-note{font-size:11px;color:var(--ink-dim);background:rgba(184,135,63,0.12);border:1px solid rgba(184,135,63,0.4);border-radius:5px;padding:10px 11px;margin-bottom:13px;line-height:1.6;}
+  .file-warning{font-size:11px;color:var(--ink-dim);background:rgba(184,135,63,0.15);border:1px solid rgba(184,135,63,0.4);border-radius:5px;padding:10px 11px;margin-bottom:13px;line-height:1.6;}
+
+  /* ===== Grid de productos ===== */
+  .title-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;}
+  .gallery-cell{aspect-ratio:1/1;border-radius:6px;overflow:hidden;cursor:pointer;background:var(--card-bg);}
+  .gallery-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+  @media (min-width:641px){ .gallery-grid{grid-template-columns:repeat(5,1fr);} }
+  @media (min-width:641px){ .title-grid{grid-template-columns:repeat(3,1fr);} }
+  @media (min-width:980px){ .title-grid{grid-template-columns:repeat(4,1fr);} }
+  .title-card{border:1px solid var(--line);background:var(--card-bg);border-radius:6px;overflow:hidden;display:flex;flex-direction:column;}
+  .title-card:active{border-color:var(--brick);}
+  .title-body{padding:10px 11px 12px;cursor:pointer;}
+  .title-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13.5px;color:var(--heading);margin-bottom:3px;line-height:1.32;}
+  .title-meta{font-size:9.5px;color:var(--ink-dim);}
+  .title-variants{font-size:9.5px;color:var(--ink-dim);margin-top:3px;}
+  .badge-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+  .badge{display:inline-block;font-size:8.5px;letter-spacing:0.03em;text-transform:uppercase;padding:3px 6px;border-radius:3px;}
+  .badge-standalone{background:var(--navy);color:#f1ede3;}
+  .badge-jp{background:rgba(184,135,63,0.18);color:var(--amber);}
+  .badge-dlc{background:rgba(163,84,63,0.15);color:var(--brick);}
+  .badge-special{background:rgba(184,146,90,0.22);color:var(--gold);}
+  .badge-unconfirmed{background:rgba(107,91,149,0.15);color:var(--violet);}
+  .badge-possess-yes{background:rgba(92,125,84,0.15);color:var(--green-yes);}
+  .badge-possess-no{background:rgba(163,84,63,0.1);color:var(--red-no);}
+
+  .subtabs{display:flex;gap:6px;margin-bottom:16px;}
+  .subtab{font-family:inherit;font-size:11px;background:var(--card-bg);border:1px solid var(--line);color:var(--heading);padding:9px 14px;border-radius:6px;cursor:pointer;}
+  .subtab.active{background:var(--navy);color:#f1ede3;border-color:var(--heading);}
+
+  .photoedit-row{display:flex;gap:12px;align-items:center;margin-bottom:12px;}
+  .photoedit-thumb{width:64px;height:64px;border-radius:5px;overflow:hidden;background:linear-gradient(180deg,#28405f,#1c2a42);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .photoedit-thumb img{width:100%;height:100%;object-fit:cover;}
+  .photoedit-controls{display:flex;flex-direction:column;gap:6px;align-items:flex-start;}
+  .photoedit-label{font-size:10.5px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.04em;}
+  .photoedit-btnrow{display:flex;gap:6px;}
+
+  .possess-toggle{display:block;width:100%;font-family:inherit;font-size:11px;font-weight:600;border:none;border-top:1px solid var(--line);padding:10px 8px;cursor:pointer;margin-top:auto;}
+  .tone-have{background:var(--sage) !important;color:#fff !important;}
+  .tone-not-have{background:rgba(28,42,66,0.06) !important;color:var(--heading) !important;}
+  .tone-sealed{background:#f1e2ac !important;color:#7a5f1e !important;}
+
+  /* ===== Flip card fotos ===== */
+  .flip-card{position:relative;width:100%;aspect-ratio:1/1;perspective:1200px;-webkit-perspective:1200px;cursor:pointer;}
+  .flip-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;-webkit-transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,.2,.2,1);}
+  .flip-card.flipped .flip-inner{transform:rotateY(180deg);}
+  .flip-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:5px;background:linear-gradient(180deg,#28405f,#1c2a42);}
+  .flip-back{transform:rotateY(180deg);}
+  .flip-face img{width:100%;height:100%;object-fit:cover;display:block;}
+  .flip-placeholder{color:rgba(241,237,227,0.55);font-size:9.5px;text-transform:uppercase;letter-spacing:0.04em;text-align:center;padding:0 8px;line-height:1.45;}
+  .flip-hint{position:absolute;bottom:5px;right:5px;font-size:9px;color:rgba(241,237,227,0.7);background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;pointer-events:none;z-index:3;}
+  .flip-upload-btn{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.4);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;z-index:4;border:none;cursor:pointer;}
+  .photo-pair{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;}
+  .photo-pair .flip-card{width:110px;flex-shrink:0;}
+  .photo-cell-label{font-size:9px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-dim);margin-top:4px;text-align:center;}
+
+  /* ===== Formularios de edición ===== */
+  .field{margin-bottom:10px;}
+  .field label{display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-dim);margin-bottom:4px;}
+  .field input, .field select, .field textarea{width:100%;font-family:inherit;font-size:13px;color:var(--ink);background:var(--field-bg);border:1px solid var(--line);border-radius:5px;padding:9px 10px;}
+  .field textarea{min-height:64px;resize:vertical;}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;}
+  @media (max-width:480px){ .field-grid{grid-template-columns:1fr;} }
+
+  .chip-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+  .chip{font-family:inherit;font-size:10.5px;background:var(--card-bg);border:1px solid var(--line);color:var(--heading);padding:7px 11px;border-radius:16px;cursor:pointer;}
+  .chip.active{background:var(--navy);color:#f1ede3;border-color:var(--heading);}
+
+  .searchbar{margin-bottom:12px;}
+  .searchbar input{width:100%;font-family:inherit;font-size:13px;padding:11px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;}
+
+  .checklist{display:flex;flex-direction:column;gap:2px;}
+  .check-item{display:flex;align-items:center;gap:9px;padding:8px 2px;border-bottom:1px solid rgba(28,42,66,0.06);font-size:12.5px;}
+  .check-item input{width:18px;height:18px;accent-color:var(--sage);flex-shrink:0;}
+  .check-item.sealed{color:var(--brick);}
+
+  .completo-badge{display:inline-block;font-size:11px;font-weight:600;padding:5px 10px;border-radius:4px;margin:6px 0 4px;}
+  .completo-yes{background:rgba(92,125,84,0.15);color:var(--green-yes);}
+  .completo-no{background:rgba(163,84,63,0.12);color:var(--red-no);}
+
+  .stars{display:flex;gap:3px;}
+  .star{font-size:18px;cursor:pointer;color:rgba(28,42,66,0.2);}
+  .star.filled{color:var(--amber);}
+
+  .edition-card{border:1px solid var(--line);border-radius:7px;padding:13px;margin-bottom:14px;background:var(--card-bg);}
+  .edition-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px;}
+  .edition-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;color:var(--heading);}
+  .edition-toggle{background:none;border:1px solid var(--line);color:var(--heading);font-family:inherit;font-size:10px;padding:6px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;}
+  .vtag{font-size:9px;letter-spacing:0.03em;text-transform:uppercase;border:1px solid var(--line);padding:3px 7px;border-radius:3px;color:var(--ink-dim);display:inline-block;margin:2px 4px 2px 0;}
+  .vtag.region{border-color:var(--brick);color:var(--brick);font-weight:600;}
+  .vtag.year{border-color:var(--amber);color:var(--amber);font-weight:600;}
+  .edition-detail{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);}
+  .edition-detail.collapsed{display:none;}
+  .src-line{font-size:10px;color:var(--ink-dim);margin-top:4px;}
+
+  .inv-item{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:10px 2px;}
+  .inv-item .flip-card{width:52px;}
+  .inv-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;color:var(--heading);}
+  .inv-meta{font-size:9.5px;color:var(--ink-dim);margin-top:2px;}
+  .inv-id{font-size:8.5px;color:var(--ink-dim);}
+
+  .obj-item{border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:10px;background:var(--card-bg);}
+  .obj-head{display:flex;justify-content:space-between;align-items:center;}
+  .obj-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13.5px;color:var(--heading);}
+
+  .research-block{border:1px solid rgba(107,91,149,0.35);background:rgba(107,91,149,0.06);border-radius:6px;padding:12px;margin-top:10px;}
+  .research-block h4{font-family:'Space Grotesk',sans-serif;font-size:12.5px;color:var(--violet);margin:0 0 8px 0;}
+
+  .loading-note{font-size:12px;color:var(--ink-dim);padding:30px 0;text-align:center;}
+  .load-more{display:block;width:100%;text-align:center;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="brand" onclick="goPage('dashboard')" style="cursor:pointer;" title="Ir al Dashboard"><div class="lens"></div><div class="brand-text">La Colección <b>App</b></div></div>
+    <button id="themeToggle" class="btn theme-toggle" onclick="toggleTheme()" title="Cambiar entre modo claro y oscuro"></button>
+    <div class="lang-wrap">
+      <button id="langToggle" class="btn lang-toggle" onclick="toggleLangMenu()" title="Idioma / Language"></button>
+      <div id="langMenu" class="lang-menu">
+        <button onclick="setLang('es')">Español</button>
+        <button onclick="setLang('en')">English</button>
+        <button onclick="setLang('de')">Deutsch</button>
+        <button onclick="setLang('ja')">日本語</button>
+      </div>
+    </div>
+    <div class="lang-wrap">
+      <button id="currencyToggle" class="btn currency-toggle" onclick="toggleCurrencyMenu()" title="Moneda / Currency"></button>
+      <div id="currencyMenu" class="lang-menu">
+        <button onclick="setCurrency('€')">€ Euro</button>
+        <button onclick="setCurrency('$')">$ Dólar</button>
+        <button onclick="setCurrency('£')">£ Libra</button>
+        <button onclick="setCurrency('¥')">¥ Yen</button>
+      </div>
+    </div>
+    <div class="crumbs" id="crumbs"></div>
+  </div>
+  <div class="topnav" id="topnav"></div>
+  <span class="app-version-corner">v.10.0.0</span>
+  <div class="frame"><div class="frame-inner" id="panel"></div></div>
+</div>
+<div class="bottomnav" id="bottomnav"></div>
+<button id="fabBack" class="fab fab-left" style="display:none;" onclick="goBack()">‹</button>
+<button id="fab" class="fab" style="display:none;" onclick="fabAction()">+</button>
+<div id="pinchOverlay" class="pinch-overlay"><img id="pinchImg" src="" alt=""></div>
+<div id="tourOverlay"></div>
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-title" id="modalTitle"></div>
+    <input type="text" id="modalInput" class="modal-input" onkeydown="if(event.key==='Enter'){event.preventDefault();modalConfirmAction();}">
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="modalCancelAction()" id="modalCancelBtn"></button>
+      <button type="button" class="btn primary" onclick="modalConfirmAction()" id="modalOkBtn"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   ARCHIVO · SERGIO — v2
+   Arquitectura: PRODUCTO (el juego/objeto en sí) → EDICIÓN (región/idioma/
+   versión concreta) → UNIDAD (la pieza física que posee Sergio: posesión,
+   checklist de componentes, conservación, procedencia, valoración, fotos).
+   Los datos ya investigados (categorías, plataformas, títulos, variantes)
+   se conservan tal cual como "semilla" de solo lectura; encima se aplican
+   los "overrides" (tus ediciones), guardados en IndexedDB del navegador.
+   ========================================================================= */
+
+/* ---------- 1. DATOS SEMILLA (todo lo investigado hasta ahora) ---------- */
+
+const SEED_CATEGORIES = [];
+
+const SEED_PLATFORMS = [];
+
+// Productos "sueltos" de Juguetes electrónicos (sin plataforma intermedia)
+const SEED_JUGUETES = [];
+
+// title: {id, name, year, jp, standalone, dlc}
+const SEED_PRODUCTS = {};
+
+// ediciones por producto: {name, region, year, tags, src, have}
+const SEED_EDITIONS = {};
+
+function seedDefaultEdition(prod){
+  return [{ name:"Edición estándar", region: prod.jp ? "Japón" : "", year:prod.year, tags:[], src:"pendiente de tu volcado", have:false }];
+}
+
+/* ---------- 2. ALMACENAMIENTO: IndexedDB (fotos + overrides del usuario) ---------- */
+/* No depende del chat de Claude: funciona en cualquier navegador si abres
+   este archivo directamente (recomendado: Safari/Chrome, no la vista
+   previa incrustada del chat, para que el selector de galería no esté
+   restringido). */
+
+const DB_NAME = 'archivo_sergio_db';
+const PHOTOS_STORE = 'fotos';
+const KV_STORE = 'kv';
+
+function openDB(){
+  return new Promise((resolve, reject)=>{
+    if(!window.indexedDB){ reject(new Error('Este navegador no soporta almacenamiento local')); return; }
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = (e)=>{
+      const db = req.result;
+      if(!db.objectStoreNames.contains(PHOTOS_STORE)) db.createObjectStore(PHOTOS_STORE);
+      if(!db.objectStoreNames.contains(KV_STORE)) db.createObjectStore(KV_STORE);
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+function idbGet(store, key){
+  return openDB().then(db=>new Promise((resolve,reject)=>{
+    const tx = db.transaction(store,'readonly');
+    const r = tx.objectStore(store).get(key);
+    r.onsuccess = ()=>resolve(r.result || null);
+    r.onerror = ()=>reject(r.error);
+  })).catch(()=>null);
+}
+function idbSet(store, key, val){
+  return openDB().then(db=>new Promise((resolve,reject)=>{
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).put(val, key);
+    tx.oncomplete = ()=>resolve(true);
+    tx.onerror = ()=>reject(tx.error);
+  })).catch(()=>false);
+}
+function idbDelete(store, key){
+  return openDB().then(db=>new Promise((resolve,reject)=>{
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).delete(key);
+    tx.oncomplete = ()=>resolve(true);
+    tx.onerror = ()=>reject(tx.error);
+  })).catch(()=>false);
+}
+function idbGetAll(store){
+  return openDB().then(db=>new Promise((resolve,reject)=>{
+    const tx = db.transaction(store,'readonly');
+    const os = tx.objectStore(store);
+    const keysReq = os.getAllKeys();
+    const valsReq = os.getAll();
+    let keys, vals;
+    keysReq.onsuccess = ()=>{ keys = keysReq.result; if(vals!==undefined) resolve({keys, vals}); };
+    valsReq.onsuccess = ()=>{ vals = valsReq.result; if(keys!==undefined) resolve({keys, vals}); };
+    tx.onerror = ()=>reject(tx.error);
+  })).catch(()=>({keys:[], vals:[]}));
+}
+
+// overrides en memoria: { products:{id:{...}}, editions:{id:{...}} }
+let OVERRIDES = { products:{}, editions:{} };
+let overridesLoaded = false;
+async function ensureOverridesLoaded(){
+  if(overridesLoaded) return;
+  const saved = await idbGet(KV_STORE, 'overrides');
+  if(saved){
+    try{ OVERRIDES = JSON.parse(saved); }catch(e){}
+  } else {
+    // Primera vez que se abre esta copia del archivo en este navegador:
+    // arranca completamente en blanco, como si fueras un coleccionista
+    // nuevo — sin el catálogo de ejemplo cargado. Importa una copia de
+    // seguridad (o crea tus propias categorías) para empezar a llenarla.
+    OVERRIDES.seedEnabled = false;
+  }
+  overridesLoaded = true;
+}
+async function persistOverrides(){
+  await idbSet(KV_STORE, 'overrides', JSON.stringify(OVERRIDES));
+}
+function getProductOverride(id){ return OVERRIDES.products[id] || {}; }
+function getEditionOverride(id){ return OVERRIDES.editions[id] || {}; }
+async function setProductField(id, field, value){
+  if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {};
+  OVERRIDES.products[id][field] = value;
+  await persistOverrides();
+}
+/* A partir de este aplanado, "producto" y "edición" son la misma entidad:
+   todo lo que antes era un campo de "edición" (checklist, posesión,
+   conservación, procedencia, valoración, objetivo) se guarda ahora en el
+   mismo cajón que el resto de campos del ítem (OVERRIDES.products), para
+   que nunca se pierda al recargar. OVERRIDES.editions se conserva solo
+   para poder leer datos de versiones anteriores de la app. */
+async function setEditionField(id, field, value){
+  if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {};
+  OVERRIDES.products[id][field] = value;
+  await persistOverrides();
+}
+async function setEditionNested(id, group, field, value){
+  if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {};
+  if(!OVERRIDES.products[id][group]) OVERRIDES.products[id][group] = {};
+  OVERRIDES.products[id][group][field] = value;
+  await persistOverrides();
+}
+
+// Fotos: recorte a cuadrado 1200x1200 sobre fondo blanco
+function compressImage(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const size = 1200;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0,0,size,size);
+        const scale = Math.min(size/img.width, size/img.height);
+        const w = img.width*scale, h = img.height*scale;
+        ctx.drawImage(img, (size-w)/2, (size-h)/2, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      };
+      img.onerror = ()=>reject(new Error('No se pudo leer la imagen'));
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=>reject(new Error('No se pudo leer el archivo'));
+    reader.readAsDataURL(file);
+  });
+}
+async function loadPhoto(key){ return idbGet(PHOTOS_STORE, key); }
+async function savePhotoFile(key, file){
+  try{
+    const dataUrl = await compressImage(file);
+    const ok = await idbSet(PHOTOS_STORE, key, dataUrl);
+    if(!ok){ alert('No se pudo guardar la foto en este navegador. Ábrelo directamente en Safari/Chrome, no en la vista previa del chat.'); return null; }
+    return dataUrl;
+  }catch(err){ alert('No se pudo guardar la foto: ' + err.message); return null; }
+}
+async function removePhoto(key){ await idbDelete(PHOTOS_STORE, key); }
+
+/* ---------- 3. CONSTRUCCIÓN DEL MODELO: PRODUCTOS con EDICIONES ---------- */
+
+const DEFAULT_REQUIRED = ['tengo'];
+/* La lista de componentes del checklist por defecto — a partir de ahora,
+   de fábrica, solo trae "Lo tengo" (además de "Está sellado", que es fijo
+   y aparte). Marcar cualquiera de las dos pone la posesión en "tengo";
+   destildar las dos la vuelve a poner en "no tengo". Cada categoría puede
+   ampliarla con más componentes si quiere un checklist más detallado. */
+const DEFAULT_CHECKLIST_ITEMS = [
+  { key:'tengo', label:'Lo tengo' },
+];
+function checklistForCategory(catId){
+  return (OVERRIDES.categoryChecklist && OVERRIDES.categoryChecklist[catId]) || DEFAULT_CHECKLIST_ITEMS;
+}
+async function addChecklistItem(catId){
+  const label = await showPromptModal(t('dlg.new_component'));
+  if(!label) return;
+  const current = checklistForCategory(catId).slice();
+  const key = 'c' + Math.random().toString(36).slice(2,8);
+  current.push({ key, label });
+  if(!OVERRIDES.categoryChecklist) OVERRIDES.categoryChecklist = {};
+  OVERRIDES.categoryChecklist[catId] = current;
+  await persistOverrides();
+  buildProducts();
+  render();
+}
+async function renameChecklistItemPrompt(catId, idx){
+  const items = checklistForCategory(catId);
+  const item = items[idx]; if(!item) return;
+  const newLabel = await showPromptModal(t('dlg.rename_component'), item.label);
+  if(!newLabel) return;
+  const current = items.slice();
+  current[idx] = Object.assign({}, current[idx], { label: newLabel.trim() });
+  if(!OVERRIDES.categoryChecklist) OVERRIDES.categoryChecklist = {};
+  OVERRIDES.categoryChecklist[catId] = current;
+  await persistOverrides();
+  render();
+}
+async function removeChecklistItem(catId, idx){
+  const current = checklistForCategory(catId).slice();
+  if(current.length<=1){ alert('Tiene que quedar al menos un componente en la lista.'); return; }
+  current.splice(idx,1);
+  if(!OVERRIDES.categoryChecklist) OVERRIDES.categoryChecklist = {};
+  OVERRIDES.categoryChecklist[catId] = current;
+  await persistOverrides();
+  buildProducts();
+  render();
+}
+async function resetChecklist(catId){
+  if(!await showConfirmModal(t('dlg.reset_checklist_confirm'))) return;
+  if(OVERRIDES.categoryChecklist) delete OVERRIDES.categoryChecklist[catId];
+  await persistOverrides();
+  buildProducts();
+  render();
+}
+function checklistEditorHTML(catId){
+  const items = checklistForCategory(catId);
+  const isCustom = !!(OVERRIDES.categoryChecklist && OVERRIDES.categoryChecklist[catId]);
+  let html = `<div class="section-sub">${t('checklist.intro')}</div>`;
+  items.forEach((item, idx)=>{
+    html += `<div class="field"><label>${item.label} <button type="button" onclick="renameChecklistItemPrompt('${catId}',${idx})" style="background:none;border:none;color:var(--heading);cursor:pointer;font-size:9px;">✎ ${t('checklist.rename')}</button> <button type="button" onclick="removeChecklistItem('${catId}',${idx})" style="background:none;border:none;color:var(--brick);cursor:pointer;font-size:9px;">× ${t('checklist.remove')}</button></label></div>`;
+  });
+  html += `<div class="quick-actions">
+    <button class="btn" onclick="addChecklistItem('${catId}')">${t('checklist.add')}</button>
+    ${isCustom ? `<button class="btn" onclick="resetChecklist('${catId}')">${t('checklist.reset')}</button>` : ``}
+  </div>`;
+  return html;
+}
+/* ---------- Datos investigados: fecha exacta, resumen y rareza estimada ----------
+   Primera pasada: sagas principales (RPG numerados). El resto de fichas
+   (spin-offs, CD-ROMs, juguetes) se irán completando en pasadas futuras. */
+/* Etiquetas de región disponibles para marcar en cada juego */
+const REGION_OPTIONS = [['jp','region.jp'],['eu','region.eu'],['us','region.us'],['cn','region.cn'],['es','region.es']];
+const REGION_CODES = { jp:'JAP', eu:'EUR', us:'USA', cn:'CHN', es:'ESP' };
+function regionBadgesHTML(p){
+  return (p.regionTags||[]).map(code=>{
+    const label = REGION_CODES[code] || code;
+    return `<span class="badge badge-region">${label}</span>`;
+  }).join('');
+}
+function regionChipsHTML(p){
+  return `<div class="chip-scroll">` + REGION_OPTIONS.map(([code,labelKey])=>{
+    const active = (p.regionTags||[]).includes(code);
+    return `<button type="button" class="chip ${active?'active':''}" onclick="toggleRegionTag('${p.id}','${code}')">${t(labelKey)}</button>`;
+  }).join('') + `</div>`;
+}
+async function toggleRegionTag(id, code){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const arr = (p.regionTags||[]).slice();
+  const idx = arr.indexOf(code);
+  if(idx>=0) arr.splice(idx,1); else arr.push(code);
+  p.regionTags = arr;
+  await setProductField(id, 'regionTags', arr);
+  refreshProductMeta(id);
+}
+
+/* Iconos propios en línea (nada de emoji) — heredan el color del texto
+   que los rodea, así encajan igual en modo claro y oscuro. */
+function icon(name){
+  const icons = {
+    moon: '<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" fill="currentColor"/></svg>',
+    sun: '<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="19.1" y2="4.9"/></g></svg>',
+    folder: '<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-3px;"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h5l2 2h8A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    camera: '<svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-3px;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
+    archive: '<svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-3px;"><rect x="3.5" y="7" width="17" height="13" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 7 5.5 4h13l2 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><line x1="9.5" y1="11.5" x2="14.5" y2="11.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+    shuffle: '<svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-3px;"><path d="M7 7h10l-3-3M17 17H7l3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;"><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.55 1.55M7.15 16.85 5.6 18.4M18.4 18.4l-1.55-1.55M7.15 7.15 5.6 5.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+    help: '<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-3px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9.3 9.3a2.7 2.7 0 1 1 3.9 2.4c-.9.5-1.2 1-1.2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none"/><circle cx="12" cy="16.7" r="0.9" fill="currentColor"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" width="17" height="17" style="vertical-align:-3px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="currentColor" stroke-width="1.7"/><line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.7"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3 3 8l9 5 9-5-9-5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 13l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+    plusCircle: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="12" y1="7.5" x2="12" y2="16.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="7.5" y1="12" x2="16.5" y2="12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 20l1-4.5L15.5 5 19 8.5 8.5 19 4 20Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    checkCircle: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 12.3l2.6 2.6L16.3 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    sortIcon: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 5v14M7 5l-3 3M7 5l3 3M17 19V5M17 19l-3-3M17 19l3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    toggleIcon: '<svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="8" width="18" height="8" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16" cy="12" r="2.4" fill="currentColor"/></svg>',
+  };
+  return icons[name] || '';
+}
+
+const SEED_RESEARCH = {};
+
+function requiredComponentsFor(prod){
+  if(prod.dlc) return ['juego'];
+  if(prod.jp && prod.categoryId==='media') return ['juego'];
+  const custom = OVERRIDES.categoryChecklist && OVERRIDES.categoryChecklist[prod.categoryId];
+  if(custom) return custom.map(item=>item.key);
+  return DEFAULT_REQUIRED;
+}
+
+let PRODUCTS = []; // se rellena en buildProducts()
+let PRODUCTS_BY_ID = {};
+let EDITIONS_BY_ID = {};
+
+function buildProducts(){
+  PRODUCTS = [];
+  const seqByCode = {};
+
+  function pushProduct(base){
+    const catId = base.categoryId;
+    const requiredComponents = base.requiredComponents || requiredComponentsFor(base);
+    const rawEditions = (base.editions && base.editions.length) ? base.editions : seedDefaultEdition(base);
+    const multi = rawEditions.length > 1;
+    const code = base.platformCode || 'X';
+    const sharedOverride = getProductOverride(base.id);
+    if(sharedOverride.deleted) return; // borrar el juego entero borra también sus variantes
+    const research = SEED_RESEARCH[base.id] || {};
+
+    rawEditions.forEach((e, idx)=>{
+      const flatId = multi ? (base.id + '__e' + idx) : base.id;
+      const legacyEditionId = base.id + '__e' + idx;
+      if(getProductOverride(flatId).deleted) return; // borrar solo esta variante concreta
+
+      seqByCode[code] = (seqByCode[code]||0) + 1;
+      const displayId = 'PKM-' + code + '-' + String(seqByCode[code]).padStart(3,'0');
+      const seedExistence = e.existence || base.existence || (base.flagged ? 'sin_confirmar' : 'confirmado');
+      const name = multi ? (base.name + ' — ' + e.name) : base.name;
+
+      const catChecklist = checklistForCategory(catId);
+      const componentsDefault = {};
+      catChecklist.forEach(item=>{ componentsDefault[item.key] = false; });
+      if(e.have && catChecklist===DEFAULT_CHECKLIST_ITEMS){
+        componentsDefault.tengo = true;
+      }
+      const defaults = {
+        id: flatId, displayId, name, nameJp:'', categoryId: catId,
+        platformId: base.platformId || null, platformName: base.platformName || '',
+        year: e.year || base.year,
+        genre:'', developer:'', publisher:'', manufacturer: base.maker || '',
+        existence: seedExistence,
+        standalone: !!base.standalone, dlc: !!base.dlc, jp: !!base.jp, special: !!base.special,
+        regionTags: base.jp ? ['jp'] : [],
+        summary: research.summary || '', notes:'', research: base.research || null,
+        rareza: research.rareza || '',
+        requiredComponents,
+        region: e.region, language:null,
+        tags: e.tags || [], src: e.src,
+        catalogNumber:'', productCode:'', barcode:'', releaseDateExact: research.releaseDateExact || '',
+        possession: e.have ? 'tengo' : 'no',
+        components: componentsDefault,
+        sealed:false,
+        conservation: { caja:null, manual:null, cartucho:null, general:null, notas:'' },
+        valuation: { valorAdquisicion:null, valorActual:null, fechaActualizacion:'', fuente:'', notas:'' },
+        customFields: [], folderId: base.folderId || null,
+      };
+      const legacyEditionOverride = getEditionOverride(legacyEditionId);
+      const ownOverride = getProductOverride(flatId);
+      const item = Object.assign({}, defaults, legacyEditionOverride, sharedOverride, ownOverride);
+      delete item.deleted;
+      PRODUCTS.push(item);
+    });
+  }
+
+  // videojuegos + media: productos agrupados por plataforma (el catálogo de
+  // ejemplo no se carga en una copia recién estrenada — solo cuando ya
+  // tienes datos propios, o los has importado desde una copia de seguridad)
+  if(OVERRIDES.seedEnabled !== false){
+    SEED_PLATFORMS.forEach(plat=>{
+      const list = SEED_PRODUCTS[plat.id] || [];
+      list.forEach(t=>{
+        pushProduct(Object.assign({}, t, {
+          categoryId: plat.categoryId, platformId: plat.id, platformName: plat.name,
+          platformCode: plat.code, maker: plat.maker,
+          editions: SEED_EDITIONS[t.id],
+        }));
+      });
+    });
+
+    // juguetes: productos sueltos
+    SEED_JUGUETES.forEach(j=>{
+      pushProduct(Object.assign({}, j, { platformCode:'TOY', editions: SEED_EDITIONS[j.id] }));
+    });
+  }
+
+  // productos añadidos manualmente por Sergio (juegos, CD-ROMs, DVDs, lo que sea)
+  (OVERRIDES.customProducts || []).forEach(cp=> pushProduct(cp));
+
+  // el nombre de la plataforma de cada producto se resuelve SIEMPRE en vivo
+  // aquí al final, para que un renombre posterior (renamePlatform) se vea
+  // reflejado en todas partes sin quedarse con el nombre antiguo guardado.
+  const platformsById = {};
+  getAllPlatforms().forEach(pl=> platformsById[pl.id] = pl);
+  PRODUCTS.forEach(item=>{
+    if(item.platformId && platformsById[item.platformId]){
+      item.platformName = platformsById[item.platformId].name;
+    }
+  });
+
+  PRODUCTS_BY_ID = {};
+  PRODUCTS.forEach(p=> PRODUCTS_BY_ID[p.id] = p);
+  EDITIONS_BY_ID = {};
+  PRODUCTS.forEach(p=> EDITIONS_BY_ID[p.id] = { product:p, edition:p });
+}
+
+function allEditions(){
+  return PRODUCTS.map(p=> ({ product:p, edition:p }));
+}
+/* Igual que allEditions(), pero sin las piezas de plataformas marcadas como
+   "no cuenta para la colección" (solo inventario/logística) — se usa para
+   los totales globales y por categoría, nunca para las páginas propias de
+   cada plataforma ni para Inventario/búsqueda, que siguen mostrándolo todo. */
+function allEditionsForStats(){
+  return PRODUCTS.filter(p => platformCountsInCollection(p.platformId)).map(p=> ({ product:p, edition:p }));
+}
+function platformCountsInCollection(platId){
+  if(!platId) return true;
+  return !(OVERRIDES.platformFlags && OVERRIDES.platformFlags[platId] && OVERRIDES.platformFlags[platId].countsInCollection === false);
+}
+async function togglePlatformCounts(platId){
+  if(!OVERRIDES.platformFlags) OVERRIDES.platformFlags = {};
+  if(!OVERRIDES.platformFlags[platId]) OVERRIDES.platformFlags[platId] = {};
+  OVERRIDES.platformFlags[platId].countsInCollection = !platformCountsInCollection(platId);
+  await persistOverrides();
+  render();
+}
+
+/* año de salida primero, alfabético después — se aplica en toda la app */
+function sortGames(list){
+  return list.slice().sort((a,b)=>{
+    const ya = parseInt(a.year, 10); const yb = parseInt(b.year, 10);
+    const na = isNaN(ya) ? 9999 : ya;
+    const nb = isNaN(yb) ? 9999 : yb;
+    if(na !== nb) return na - nb;
+    return (a.name||'').localeCompare(b.name||'', 'es', {sensitivity:'base'});
+  });
+}
+
+/* plataformas/consolas propias de Sergio, sumadas a las de serie, con
+   posibles renombres aplicados encima */
+function getAllPlatforms(){
+  const seedPart = OVERRIDES.seedEnabled === false ? [] : SEED_PLATFORMS;
+  const all = seedPart.concat(OVERRIDES.customPlatforms || []);
+  return all
+    .filter(p => !(OVERRIDES.platformFlags && OVERRIDES.platformFlags[p.id] && OVERRIDES.platformFlags[p.id].deleted))
+    .map(p => (OVERRIDES.platformNames && OVERRIDES.platformNames[p.id]) ? Object.assign({}, p, {name: OVERRIDES.platformNames[p.id]}) : p);
+}
+/* Orden de plataformas dentro de una categoría: las que tienen año se
+   ordenan siempre de más antigua a más nueva; las que no tienen año
+   (ej. "PC", "CD-ROM") se quedan fijas en la posición que el usuario les
+   haya dado a mano con las flechas ▲▼, sin desordenar a las demás. */
+function platformHasYear(p){
+  return !isNaN(parseInt(p.year, 10));
+}
+function orderedPlatformsForCategory(catId, plats){
+  const savedOrder = (OVERRIDES.categoryOrder && OVERRIDES.categoryOrder[catId]) || null;
+  let base = plats.slice();
+  if(savedOrder){
+    const byId = {}; base.forEach(p=> byId[p.id]=p);
+    let ordered = savedOrder.map(id=> byId[id]).filter(Boolean);
+    const seen = new Set(ordered.map(p=>p.id));
+    base.forEach(p=>{ if(!seen.has(p.id)) ordered.push(p); });
+    base = ordered;
+  }
+  const datedSorted = base.filter(platformHasYear).slice().sort((a,b)=> parseInt(a.year,10)-parseInt(b.year,10));
+  let di = 0;
+  return base.map(p=> platformHasYear(p) ? datedSorted[di++] : p);
+}
+async function movePlatform(catId, platId, dir){
+  const plats = orderedPlatformsForCategory(catId, getAllPlatforms().filter(p=>p.categoryId===catId));
+  const idx = plats.findIndex(p=>p.id===platId);
+  const newIdx = idx + dir;
+  if(idx<0 || newIdx<0 || newIdx>=plats.length) return;
+  const arr = plats.map(p=>p.id);
+  const tmp = arr[idx]; arr[idx] = arr[newIdx]; arr[newIdx] = tmp;
+  if(!OVERRIDES.categoryOrder) OVERRIDES.categoryOrder = {};
+  OVERRIDES.categoryOrder[catId] = arr;
+  await persistOverrides();
+  render();
+}
+async function deletePlatform(catId, platId){
+  const plat = getAllPlatforms().find(p=>p.id===platId);
+  if(!plat) return;
+  const prods = PRODUCTS.filter(p=>p.platformId===platId);
+  if(!await showConfirmModal(t('dlg.delete_platform_confirm').replace('{name}', plat.name).replace('{n}', prods.length))) return;
+  for(const p of prods){ await setProductField(p.id, 'deleted', true); }
+  if(!OVERRIDES.platformFlags) OVERRIDES.platformFlags = {};
+  if(!OVERRIDES.platformFlags[platId]) OVERRIDES.platformFlags[platId] = {};
+  OVERRIDES.platformFlags[platId].deleted = true;
+  await persistOverrides();
+  buildProducts();
+  goCategory(catId);
+}
+
+/* Carpetas — un nivel extra dentro de una plataforma, para cuando se llena
+   de cosas muy distintas entre sí. Se usan mucho menos que añadir un
+   producto, así que su botón de creación vive abajo del todo, discreto. */
+function foldersForPlatform(platId){
+  return (OVERRIDES.folders && OVERRIDES.folders[platId]) || [];
+}
+async function addFolder(catId, platId){
+  const name = await showPromptModal(t('dlg.new_folder'));
+  if(!name) return;
+  if(!OVERRIDES.folders) OVERRIDES.folders = {};
+  if(!OVERRIDES.folders[platId]) OVERRIDES.folders[platId] = [];
+  const id = 'folder-' + slugify(name) + '-' + Math.random().toString(36).slice(2,7);
+  OVERRIDES.folders[platId].push({ id, name });
+  await persistOverrides();
+  goFolder(catId, platId, id);
+}
+async function renameFolder(platId, folderId, newName){
+  newName = (newName||'').trim();
+  if(!newName) return;
+  const f = foldersForPlatform(platId).find(x=>x.id===folderId);
+  if(!f) return;
+  f.name = newName;
+  await persistOverrides();
+  render();
+}
+async function deleteFolder(catId, platId, folderId){
+  const prods = PRODUCTS.filter(p=>p.platformId===platId && p.folderId===folderId);
+  if(!await showConfirmModal(`${t('dlg.delete_folder_q')} ${prods.length ? t('dlg.delete_folder_has').replace('{n}', prods.length) : t('dlg.delete_folder_empty')}`)) return;
+  for(const p of prods){ p.folderId = null; await setProductField(p.id, 'folderId', null); }
+  const arr = foldersForPlatform(platId);
+  const idx = arr.findIndex(x=>x.id===folderId);
+  if(idx>=0) arr.splice(idx,1);
+  await persistOverrides();
+  goPlatform(catId, platId);
+}
+/* categorías: las de serie + las que crees tú, con posibles renombres
+   aplicados encima, y sin las que hayas borrado */
+function getAllCategories(){
+  const seedPart = OVERRIDES.seedEnabled === false ? [] : SEED_CATEGORIES;
+  const all = seedPart.concat(OVERRIDES.customCategories || []);
+  return all
+    .filter(c => !(OVERRIDES.categoryFlags && OVERRIDES.categoryFlags[c.id] && OVERRIDES.categoryFlags[c.id].deleted))
+    .map(c => (OVERRIDES.categoryNames && OVERRIDES.categoryNames[c.id]) ? Object.assign({}, c, {name: OVERRIDES.categoryNames[c.id]}) : c);
+}
+async function addCategory(){
+  const name = await showPromptModal(t('dlg.new_category'));
+  if(!name) return;
+  if(!OVERRIDES.customCategories) OVERRIDES.customCategories = [];
+  const id = 'cat-' + slugify(name) + '-' + Math.random().toString(36).slice(2,7);
+  OVERRIDES.customCategories.push({ id, name });
+  await persistOverrides();
+  goCategory(id);
+}
+async function deleteCategory(catId){
+  const cat = getAllCategories().find(c=>c.id===catId);
+  if(!cat) return;
+  const plats = getAllPlatforms().filter(p=>p.categoryId===catId);
+  const prods = PRODUCTS.filter(p=>p.categoryId===catId);
+  if(!await showConfirmModal(t('dlg.delete_category_confirm').replace('{name}', cat.name).replace('{p}', plats.length).replace('{n}', prods.length))) return;
+  for(const p of prods){ await setProductField(p.id, 'deleted', true); }
+  if(!OVERRIDES.platformFlags) OVERRIDES.platformFlags = {};
+  plats.forEach(pl=>{
+    if(!OVERRIDES.platformFlags[pl.id]) OVERRIDES.platformFlags[pl.id] = {};
+    OVERRIDES.platformFlags[pl.id].deleted = true;
+  });
+  if(!OVERRIDES.categoryFlags) OVERRIDES.categoryFlags = {};
+  if(!OVERRIDES.categoryFlags[catId]) OVERRIDES.categoryFlags[catId] = {};
+  OVERRIDES.categoryFlags[catId].deleted = true;
+  await persistOverrides();
+  buildProducts();
+  goPage('coleccion');
+}
+/* La descripción de cada categoría ya no es un texto fijo — se genera sola
+   a partir de las plataformas/subcampos que de verdad tiene dentro, para
+   que valga igual para cualquier tipo de colección, no solo Pokémon. */
+function categoryAutoDesc(catId){
+  const plats = getAllPlatforms().filter(p=>p.categoryId===catId);
+  if(!plats.length) return 'Todavía sin plataformas/secciones dentro.';
+  const names = plats.map(p=>p.name);
+  if(names.length<=3) return names.join(', ');
+  return names.slice(0,3).join(', ') + ' y ' + (names.length-3) + ' más';
+}
+async function renameCategory(catId, newName){
+  newName = (newName||'').trim();
+  if(!newName) return;
+  if(!OVERRIDES.categoryNames) OVERRIDES.categoryNames = {};
+  OVERRIDES.categoryNames[catId] = newName;
+  await persistOverrides();
+  render();
+}
+async function renamePlatform(platId, newName){
+  newName = (newName||'').trim();
+  if(!newName) return;
+  if(!OVERRIDES.platformNames) OVERRIDES.platformNames = {};
+  OVERRIDES.platformNames[platId] = newName;
+  await persistOverrides();
+  buildProducts();
+  render();
+}
+
+function isComplete(product, edition){
+  if(edition.possession !== 'tengo') return null;
+  return product.requiredComponents.every(c => !!edition.components[c]);
+}
+
+/* ---------- 4. ESTADÍSTICAS CALCULADAS (nunca hardcodeadas) ---------- */
+
+function computeGlobalStats(){
+  const eds = allEditionsForStats();
+  const total = eds.length;
+  const have = eds.filter(x=>x.edition.possession==='tengo').length;
+  const pending = total - have;
+  const pct = total ? Math.round((have/total)*100) : 0;
+  let valor = 0;
+  eds.forEach(x=>{
+    if(x.edition.possession==='tengo' && x.edition.valuation && typeof x.edition.valuation.valorActual === 'number'){
+      valor += x.edition.valuation.valorActual;
+    }
+  });
+  let lastUpdate = null;
+  eds.forEach(x=>{
+    const f = x.edition.valuation && x.edition.valuation.fechaActualizacion;
+    if(f && (!lastUpdate || f > lastUpdate)) lastUpdate = f;
+  });
+  return { total, have, pending, pct, valor, lastUpdate };
+}
+function computeStatsFor(editionsSubset){
+  const total = editionsSubset.length;
+  const have = editionsSubset.filter(x=>x.edition.possession==='tengo').length;
+  return { total, have, pct: total? Math.round((have/total)*100):0 };
+}
+function statsByCategory(){
+  const eds = allEditionsForStats();
+  return getAllCategories().map(c=>{
+    const subset = eds.filter(x=>x.product.categoryId===c.id);
+    return Object.assign({ id:c.id, name:c.name }, computeStatsFor(subset));
+  });
+}
+function statsByPlatform(){
+  const eds = allEditions();
+  return getAllPlatforms().map(p=>{
+    const subset = eds.filter(x=>x.product.platformId===p.id);
+    return Object.assign({ id:p.id, name:p.name }, computeStatsFor(subset));
+  }).filter(s=>s.total>0);
+}
+function statsByRegion(){
+  const eds = allEditions();
+  const map = {};
+  eds.forEach(x=>{
+    const r = (x.edition.region||'Sin especificar').split(' — ')[0].split(' (')[0];
+    const key = r.includes('Japón')?'Japón': r.includes('España')?'España': r.includes('Europa')?'Europa': r.includes('EE.UU')?'EE.UU.': (r||'Otras');
+    if(!map[key]) map[key] = {total:0, have:0};
+    map[key].total++;
+    if(x.edition.possession==='tengo') map[key].have++;
+  });
+  return Object.keys(map).map(k=>({ name:k, total:map[k].total, have:map[k].have, pct: Math.round((map[k].have/map[k].total)*100) }));
+}
+
+/* ---------- 5. NAVEGACIÓN Y RENDER ---------- */
+
+/* ---------- Idioma de la interfaz (ES/EN/DE/JA) ---------- */
+/* Traduce SOLO el texto propio de la app (menús, botones, títulos fijos).
+   Lo que tú escribes — nombres de categorías, notas, resúmenes — se queda
+   siempre en el idioma en que lo escribiste. */
+const I18N = {
+  es: {
+    'nav.dashboard':'Dashboard', 'nav.coleccion':'Colección', 'nav.inventario':'Inventario',
+    'nav.estadisticas':'Estadísticas', 'nav.investigacion':'Investigación', 'nav.ayuda':'Ayuda',
+    'dash.kicker':'Panel general', 'dash.search':'Buscar en tu colección',
+    'dash.pending':'Te faltan',
+    'dash.pending.sub':'piezas pendientes', 'dash.value':'Valor estimado', 'dash.value.updated':'actualizado {d}', 'dash.value.novalue':'solo piezas que posees, sin valorar aún', 'dash.no_results':'Sin resultados para "{q}".', 'dash.gallery_link':'Galería de fotos',
+    'gallery.kicker':'Galería', 'gallery.title':'Todas tus fotos', 'gallery.empty':'Todavía no has subido ninguna foto.',
+    'dash.progress':'Progreso por categoría', 'dash.backup_link':'Copia de seguridad y datos',
+    'dash.pieces':'piezas documentadas',
+    'backup.kicker':'Ajustes', 'backup.title':'Copia de seguridad y datos',
+    'backup.intro':'Un único archivo con todos tus datos y todas tus fotos juntos — pensado para mover tu colección entera de un sitio a otro.',
+    'backup.export':'Exportar todo', 'backup.export.sub':'App + datos + fotos en un ZIP',
+    'backup.import':'Importar todo', 'backup.import.sub':'Restaura un ZIP exportado antes',
+    'backup.advanced':'Opciones avanzadas (por separado)', 'backup.shortcuts':'Accesos directos',
+    'common.cancel':'Cancelar', 'common.confirm':'Confirmar', 'common.accept':'Aceptar',
+    'common.create_category':'Crear categoría nueva', 'common.create_category.sub':'El primer nivel de tu colección',
+    'common.create_folder':'Crear carpeta nueva aquí dentro', 'common.danger_zone':'Zona de peligro',
+    'common.move_here':'Mover aquí', 'common.delete':'Eliminar',
+    'ayuda.kicker':'Ayuda', 'ayuda.title':'Cómo funciona esto',
+    'ayuda.intro':'Pensada para cualquier tipo de colección, no solo una en concreto — todo lo de aquí abajo aplica igual sea lo que sea lo que estés catalogando.',
+    'ayuda.organize':'Categorías, plataformas y carpetas', 'ayuda.add':'Añadir un objeto nuevo',
+    'ayuda.move':'Mover un objeto de sitio', 'ayuda.rename':'Renombrar cualquier cosa',
+    'ayuda.complete':'Marcar como completo', 'ayuda.photos':'Fotos: voltear y ampliar',
+    'ayuda.order':'Ordenar y organizar', 'ayuda.exclude':'Que algo no cuente en las estadísticas',
+    'ayuda.backup':'Copia de seguridad', 'ayuda.language':'Cambiar el idioma de la interfaz',
+    'lang.name':'Español',
+    'cat.kicker':'Categoría', 'cat.empty.title':'Todavía no hay ninguna plataforma/sección creada aquí.', 'cat.empty.sub':'Usa el botón de abajo para crear la primera y luego ve añadiendo piezas dentro.',
+    'checklist.title':'Checklist de esta categoría', 'checklist.intro':'Esta es la lista que verás al marcar componentes en cada producto de esta categoría. Cambiarla aquí no afecta a otras categorías.',
+    'checklist.rename':'renombrar', 'checklist.remove':'quitar', 'checklist.add':'+ Añadir componente', 'checklist.reset':'↺ Volver a la lista por defecto',
+    'common.delete_category':'Eliminar esta categoría entera', 'common.delete_platform':'Eliminar esta plataforma entera (con sus {n} producto(s) dentro)', 'common.delete_folder':'Eliminar esta carpeta', 'common.delete_product':'Eliminar este producto de tu archivo',
+    'common.add_platform':'+ Añadir plataforma/consola nueva', 'common.add_product':'+ Añadir producto nuevo',
+    'plat.empty':'Sin productos todavía en esta plataforma.', 'plat.counts_yes':'✓ Cuenta para la colección', 'plat.counts_no':'☐ No cuenta para la colección (solo inventario)',
+    'folder.kicker':'Carpeta', 'folder.empty':'Carpeta vacía por ahora.',
+    'sort.label':'Ordenar por', 'sort.year':'Año de salida', 'sort.alpha':'Alfabético', 'sort.have':'Si lo tengo o no',
+    'p.tab.ficha':'Ficha', 'p.tab.fotos':'Modificar fotos', 'p.source':'Fuente', 'p.complete':'Completo', 'p.yes':'Sí', 'p.no':'No',
+    'p.identification':'Identificación', 'p.general':'Información general', 'p.checklist':'Checklist de componentes', 'p.conservation':'Estado de conservación', 'p.valuation':'Valoración', 'p.notes':'Notas', 'p.move':'Mover a otra plataforma/categoría',
+    'p.year':'Año', 'p.language':'Idioma', 'p.catalog_num':'Número de catálogo', 'p.product_code':'Código de producto', 'p.barcode':'Código de barras', 'p.exact_date':'Fecha exacta (si se conoce)',
+    'p.existence':'Existencia documentada', 'p.existence.confirmed':'Confirmado', 'p.existence.probable':'Probable', 'p.existence.unconfirmed':'Sin confirmar', 'p.existence.unknown':'Desconocido',
+    'p.rarity':'Rareza estimada', 'p.rarity.undefined':'Sin definir', 'p.rarity.common':'Común', 'p.rarity.uncommon':'Poco común', 'p.rarity.rare':'Raro', 'p.rarity.veryrare':'Muy raro',
+    'p.add_custom_field':'+ Añadir campo personalizado', 'p.show_hidden_fields':'↺ Mostrar campos ocultos ({n})',
+    'p.mark_complete':'✓ Marcar todo como completo', 'p.sealed':'Está sellado',
+    'p.condition_general':'Estado general (1-10)', 'p.condition_notes':'Notas de conservación (arañazos, desgaste, roturas, decoloración, reparaciones…)',
+    'p.value_bought':'Valor de adquisición', 'p.value_now':'Valor estimado actual', 'p.last_updated':'Última actualización',
+    'p.summary':'Descripción breve del producto', 'p.notes_field':'Cualquier información particular de tu unidad',
+    'p.move_category':'Categoría', 'p.move_platform':'Plataforma', 'p.move_folder':'Carpeta (opcional)', 'p.move_here':'Mover aquí', 'p.move_no_folder':'(sin carpeta)',
+    'p.have_yes':'✓ Lo tengo', 'p.have_no':'+ Marcar como que lo tengo', 'p.no_photo_front':'Sin foto<br>delantera', 'p.no_photo_back':'Sin foto<br>trasera',
+    'p.dual':'Edición dual', 'p.dlc':'DLC / expansión', 'p.special_ed':'Edición especial', 'p.cond_undefined':'Sin definir',
+    'region.jp':'Japón', 'region.eu':'Europa', 'region.us':'Estados Unidos', 'region.cn':'China', 'region.es':'España',
+    'inv.kicker':'Inventario', 'inv.title':'Todas las piezas', 'inv.search.ph':'Buscar por nombre, plataforma, región…',
+    'inv.chip.all':'Todos', 'inv.chip.have':'Tengo', 'inv.chip.missing':'Me falta', 'inv.chip.unconfirmed':'Sin confirmar', 'inv.chip.sealed':'Sellado',
+    'inv.sort.year':'Ordenar por año', 'inv.sort.name':'Ordenar por nombre', 'inv.sort.platform':'Ordenar por plataforma',
+    'inv.results':'resultados', 'inv.have':'Tengo', 'inv.missing':'Falta', 'inv.load_more':'Cargar más ({n} restantes)', 'inv.print_missing':'Imprimir / guardar como PDF', 'inv.print_title':'Lo que me falta',
+    'stats.kicker':'Estadísticas', 'stats.title':'Colección en cifras', 'stats.global':'Colección global',
+    'stats.by_category':'Por categoría', 'stats.by_platform':'Por plataforma', 'stats.by_region':'Por región',
+    'research.kicker':'Investigación', 'research.title':'Piezas sin confirmar', 'research.empty':'Nada pendiente de investigar por ahora.',
+    'research.products':'Productos completos sin confirmar', 'research.editions':'Ediciones concretas sin confirmar',
+    'modal.cancel':'Cancelar', 'modal.accept':'Aceptar', 'modal.confirm':'Confirmar',
+    'dlg.new_component':'Nombre del nuevo componente a marcar (ej. "Tengo el certificado de autenticidad"):', 'dlg.rename_component':'Nuevo texto para este componente:',
+    'dlg.reset_checklist_confirm':'¿Volver a la lista de componentes por defecto en esta categoría?',
+    'dlg.delete_platform_confirm':'¿Seguro que quieres eliminar "{name}" y {n} producto(s) de dentro? Esta acción no se puede deshacer.',
+    'dlg.new_folder':'Nombre de la carpeta nueva:', 'dlg.delete_folder_q':'¿Eliminar esta carpeta?',
+    'dlg.delete_folder_has':'Los {n} producto(s) de dentro se quedan sin carpeta (no se borran).', 'dlg.delete_folder_empty':'Está vacía, no pasa nada al quitarla.',
+    'dlg.new_category':'Nombre de la categoría nueva:',
+    'dlg.delete_category_confirm':'¿Eliminar "{name}" entera? Se borrarán también sus {p} plataforma(s) y los {n} producto(s) de dentro. Esta acción no se puede deshacer.',
+    'dlg.new_product':'Nombre del nuevo producto:', 'dlg.year_optional':'Año (opcional):',
+    'dlg.new_platform':'Nombre de la plataforma/consola/serie nueva:', 'dlg.maker_optional':'Fabricante (opcional):',
+    'dlg.delete_product_confirm':'¿Seguro que quieres eliminar este producto de tu archivo? Puedes exportar antes una copia de seguridad desde el Dashboard.',
+    'dlg.new_field':'Nombre del nuevo campo:', 'dlg.rename_field':'Nuevo nombre para este campo:',
+    'poss.have':'Tengo el producto', 'poss.no':'No lo tengo', 'poss.incoming':'En camino', 'poss.reserved':'Reservado', 'poss.sold':'Vendido', 'poss.lost':'Perdido / no localizado',
+    'backup.export_json':'⬇ Exportar solo datos (JSON)', 'backup.export_csv':'⬇ Exportar CSV (inventario)', 'backup.import_json':'⬆ Importar solo datos (JSON)',
+    'backup.export_photos':'Exportar solo fotos (ZIP)', 'backup.import_photos':'Importar solo fotos (ZIP)',
+    'backup.shortcut_collection':'Ver colección', 'backup.shortcut_inventory':'Inventario completo', 'backup.shortcut_research':'Piezas sin confirmar',
+    'ayuda.organize.body':'Tu colección se organiza en tres niveles, de más general a más concreto.<br><br><b>Categoría</b> — el nivel más alto (por ejemplo, "Videojuegos" o "Cómics"). Se crean, renombran y borran desde la pantalla "Categorías", dentro de Colección.<br><br><b>Plataforma</b> — un subgrupo dentro de una categoría (por ejemplo, "Game Boy" dentro de "Videojuegos"). Entra en una categoría y usa el botón "+" flotante para crear una nueva.<br><br><b>Carpeta</b> — un subgrupo dentro de una plataforma, para cuando se llena de cosas muy distintas entre sí. Entra en una plataforma y busca el botón de crear carpeta, al final de la página.',
+    'ayuda.add.body':'Dentro de cualquier plataforma o carpeta, usa el botón redondo con un "+" que te sigue por la pantalla, abajo a la derecha. Se adapta solo a dónde estés — si estás dentro de una carpeta, el objeto se crea ahí mismo.',
+    'ayuda.move.body':'Entra en la ficha del objeto y despliega "Mover a otra plataforma/categoría". Puedes cambiarlo de categoría, plataforma y carpeta a la vez, sin perder nada de lo que ya tenías guardado: fotos, checklist, notas, todo se queda intacto.',
+    'ayuda.rename.body':'Categorías, plataformas, carpetas y el nombre de cada objeto son campos de texto normales — tócalos justo donde los veas escritos en grande y edítalos ahí mismo, sin ningún botón especial.',
+    'ayuda.complete.body':'El botón grande de "Lo tengo" en cada ficha alterna entre tengo/no tengo con un solo toque. Dentro del checklist, "Marcar todo como completo" te ahorra ir marcando componente a componente.',
+    'ayuda.photos.body':'Toca o desliza cualquier foto para ver su reverso. Con dos dedos, pellízcala para ampliarla en grande justo en el punto donde tocas — al soltar, vuelve sola a su tamaño normal. Para subir o cambiar una foto de verdad, entra en la pestaña "Modificar fotos" de la ficha.',
+    'ayuda.order.body':'Dentro de cada plataforma o carpeta puedes elegir el orden: por año, alfabético, o si lo tienes. Las plataformas sin año se mueven a mano con las flechas, mientras que las que sí tienen año se ordenan solas.',
+    'ayuda.exclude.body':'Dentro de cualquier plataforma hay un interruptor para que sus piezas no sumen en los porcentajes globales — útil para lo que quieres inventariar pero no consideras parte de "la colección" en sí.',
+    'ayuda.backup.body':'Desde el Dashboard, entra en "Copia de seguridad y datos" para exportar tanto tus datos como tus fotos — van por separado. Guárdalo siempre antes de abrir una versión nueva del archivo.',
+    'ayuda.language.body':'Arriba a la derecha, junto al interruptor de tema claro/oscuro, tienes el icono de un globo — tócalo para cambiar entre español, inglés, alemán y japonés. Solo cambia el texto propio de la app; lo que tú escribas (nombres, notas) se queda tal cual lo pusiste.',
+    'tour.welcome.title':'¡Bienvenido a tu colección!',
+    'tour.welcome.body':'Esta app se adapta a cualquier tipo de colección — videojuegos, cómics, monedas, lo que sea. Todo se organiza en cuatro niveles: categoría, plataforma, carpeta y objeto. Vamos a crear uno de cada, para que veas cómo encajan — solo lleva un minuto.',
+    'tour.welcome.cta':'Empezar tour',
+    'tour.skip':'Saltar el tour',
+    'tour.step':'Paso',
+    'tour.of':'de',
+    'tour.category.body':'Las <b>categorías</b> son el nivel más alto de tu colección — por ejemplo "Videojuegos" o "Cómics". Toca aquí para crear la primera.',
+    'tour.platform.body':'Dentro de cada categoría creas <b>plataformas</b> o secciones — por ejemplo "Game Boy" dentro de "Videojuegos". Toca el "+" para añadir la primera.',
+    'tour.folder.body':'Si una plataforma se llena de cosas muy distintas, puedes crear <b>carpetas</b> dentro para organizarla mejor — es opcional, pero pruébalo una vez. Toca aquí para crear la primera.',
+    'tour.object.body':'Y dentro va tu primer <b>objeto</b> de verdad — el juego, el cómic, la moneda, lo que estés catalogando. Toca otra vez el "+" para crearlo.',
+    'tour.final.title':'¡Ya sabes lo esencial!',
+    'tour.final.body':'Así se organiza toda tu colección: categoría → plataforma → carpeta (opcional) → objeto. Puedes moverlos, renombrarlos o borrarlos cuando quieras — y en "Ayuda" tienes el resto de trucos (fotos, checklist personalizado, idiomas…).',
+    'tour.final.cta':'Empezar a usarla',
+  },
+  en: {
+    'nav.dashboard':'Dashboard', 'nav.coleccion':'Collection', 'nav.inventario':'Inventory',
+    'nav.estadisticas':'Statistics', 'nav.investigacion':'Research', 'nav.ayuda':'Help',
+    'dash.kicker':'Overview', 'dash.search':'Search your collection',
+    'dash.pending':'You need',
+    'dash.pending.sub':'pieces pending', 'dash.value':'Estimated value', 'dash.value.updated':'updated {d}', 'dash.value.novalue':'only items you own, not yet valued', 'dash.no_results':'No results for "{q}".', 'dash.gallery_link':'Photo gallery',
+    'gallery.kicker':'Gallery', 'gallery.title':'All your photos', 'gallery.empty':'You haven\'t uploaded any photos yet.',
+    'dash.progress':'Progress by category', 'dash.backup_link':'Backup and data',
+    'dash.pieces':'pieces documented',
+    'backup.kicker':'Settings', 'backup.title':'Backup and data',
+    'backup.intro':'A single file with all your data and photos together — made for moving your whole collection from one place to another.',
+    'backup.export':'Export everything', 'backup.export.sub':'App + data + photos in a ZIP',
+    'backup.import':'Import everything', 'backup.import.sub':'Restore a ZIP exported before',
+    'backup.advanced':'Advanced options (separately)', 'backup.shortcuts':'Shortcuts',
+    'common.cancel':'Cancel', 'common.confirm':'Confirm', 'common.accept':'Accept',
+    'common.create_category':'Create new category', 'common.create_category.sub':'The top level of your collection',
+    'common.create_folder':'Create new folder in here', 'common.danger_zone':'Danger zone',
+    'common.move_here':'Move here', 'common.delete':'Delete',
+    'ayuda.kicker':'Help', 'ayuda.title':'How this works',
+    'ayuda.intro':'Built for any kind of collection, not just one in particular — everything below applies no matter what you are cataloguing.',
+    'ayuda.organize':'Categories, platforms and folders', 'ayuda.add':'Adding a new object',
+    'ayuda.move':'Moving an object', 'ayuda.rename':'Renaming anything',
+    'ayuda.complete':'Marking something as complete', 'ayuda.photos':'Photos: flip and zoom',
+    'ayuda.order':'Sorting and organizing', 'ayuda.exclude':'Excluding something from statistics',
+    'ayuda.backup':'Backup', 'ayuda.language':'Changing the interface language',
+    'lang.name':'English',
+    'cat.kicker':'Category', 'cat.empty.title':'No platforms/sections created here yet.', 'cat.empty.sub':'Use the button below to create the first one, then start adding pieces inside.',
+    'checklist.title':'Checklist for this category', 'checklist.intro':'This is the list you\'ll see when checking components on each product in this category. Changing it here doesn\'t affect other categories.',
+    'checklist.rename':'rename', 'checklist.remove':'remove', 'checklist.add':'+ Add component', 'checklist.reset':'↺ Back to default list',
+    'common.delete_category':'Delete this entire category', 'common.delete_platform':'Delete this entire platform (with its {n} item(s) inside)', 'common.delete_folder':'Delete this folder', 'common.delete_product':'Delete this item from your archive',
+    'common.add_platform':'+ Add new platform/console', 'common.add_product':'+ Add new item',
+    'plat.empty':'No items in this platform yet.', 'plat.counts_yes':'✓ Counts towards the collection', 'plat.counts_no':'☐ Doesn\'t count towards the collection (inventory only)',
+    'folder.kicker':'Folder', 'folder.empty':'This folder is empty for now.',
+    'sort.label':'Sort by', 'sort.year':'Release year', 'sort.alpha':'Alphabetical', 'sort.have':'Whether you have it',
+    'p.tab.ficha':'Details', 'p.tab.fotos':'Edit photos', 'p.source':'Source', 'p.complete':'Complete', 'p.yes':'Yes', 'p.no':'No',
+    'p.identification':'Identification', 'p.general':'General information', 'p.checklist':'Component checklist', 'p.conservation':'Condition', 'p.valuation':'Valuation', 'p.notes':'Notes', 'p.move':'Move to another platform/category',
+    'p.year':'Year', 'p.language':'Language', 'p.catalog_num':'Catalog number', 'p.product_code':'Product code', 'p.barcode':'Barcode', 'p.exact_date':'Exact date (if known)',
+    'p.existence':'Documented existence', 'p.existence.confirmed':'Confirmed', 'p.existence.probable':'Probable', 'p.existence.unconfirmed':'Unconfirmed', 'p.existence.unknown':'Unknown',
+    'p.rarity':'Estimated rarity', 'p.rarity.undefined':'Not set', 'p.rarity.common':'Common', 'p.rarity.uncommon':'Uncommon', 'p.rarity.rare':'Rare', 'p.rarity.veryrare':'Very rare',
+    'p.add_custom_field':'+ Add custom field', 'p.show_hidden_fields':'↺ Show hidden fields ({n})',
+    'p.mark_complete':'✓ Mark everything as complete', 'p.sealed':'Sealed',
+    'p.condition_general':'Overall condition (1-10)', 'p.condition_notes':'Condition notes (scratches, wear, tears, discoloration, repairs…)',
+    'p.value_bought':'Purchase value', 'p.value_now':'Current estimated value', 'p.last_updated':'Last updated',
+    'p.summary':'Short product description', 'p.notes_field':'Any particular info about your copy',
+    'p.move_category':'Category', 'p.move_platform':'Platform', 'p.move_folder':'Folder (optional)', 'p.move_here':'Move here', 'p.move_no_folder':'(no folder)',
+    'p.have_yes':'✓ I have it', 'p.have_no':'+ Mark as owned', 'p.no_photo_front':'No front<br>photo', 'p.no_photo_back':'No back<br>photo',
+    'p.dual':'Dual edition', 'p.dlc':'DLC / expansion', 'p.special_ed':'Special edition', 'p.cond_undefined':'Not set',
+    'region.jp':'Japan', 'region.eu':'Europe', 'region.us':'United States', 'region.cn':'China', 'region.es':'Spain',
+    'inv.kicker':'Inventory', 'inv.title':'All items', 'inv.search.ph':'Search by name, platform, region…',
+    'inv.chip.all':'All', 'inv.chip.have':'Have', 'inv.chip.missing':'Missing', 'inv.chip.unconfirmed':'Unconfirmed', 'inv.chip.sealed':'Sealed',
+    'inv.sort.year':'Sort by year', 'inv.sort.name':'Sort by name', 'inv.sort.platform':'Sort by platform',
+    'inv.results':'results', 'inv.have':'Have', 'inv.missing':'Missing', 'inv.load_more':'Load more ({n} remaining)', 'inv.print_missing':'Print / save as PDF', 'inv.print_title':'What I still need',
+    'stats.kicker':'Statistics', 'stats.title':'Collection in numbers', 'stats.global':'Overall collection',
+    'stats.by_category':'By category', 'stats.by_platform':'By platform', 'stats.by_region':'By region',
+    'research.kicker':'Research', 'research.title':'Unconfirmed items', 'research.empty':'Nothing pending to research right now.',
+    'research.products':'Complete items unconfirmed', 'research.editions':'Specific editions unconfirmed',
+    'modal.cancel':'Cancel', 'modal.accept':'Accept', 'modal.confirm':'Confirm',
+    'dlg.new_component':'Name of the new component to check (e.g. "Has certificate of authenticity"):', 'dlg.rename_component':'New text for this component:',
+    'dlg.reset_checklist_confirm':'Go back to the default component list for this category?',
+    'dlg.delete_platform_confirm':'Are you sure you want to delete "{name}" and {n} item(s) inside? This cannot be undone.',
+    'dlg.new_folder':'Name of the new folder:', 'dlg.delete_folder_q':'Delete this folder?',
+    'dlg.delete_folder_has':'The {n} item(s) inside will be left without a folder (not deleted).', 'dlg.delete_folder_empty':'It\'s empty, no harm in removing it.',
+    'dlg.new_category':'Name of the new category:',
+    'dlg.delete_category_confirm':'Delete "{name}" entirely? Its {p} platform(s) and {n} item(s) inside will also be deleted. This cannot be undone.',
+    'dlg.new_product':'Name of the new item:', 'dlg.year_optional':'Year (optional):',
+    'dlg.new_platform':'Name of the new platform/console/series:', 'dlg.maker_optional':'Manufacturer (optional):',
+    'dlg.delete_product_confirm':'Are you sure you want to delete this item from your archive? You can export a backup first from the Dashboard.',
+    'dlg.new_field':'Name of the new field:', 'dlg.rename_field':'New name for this field:',
+    'poss.have':'I have the item', 'poss.no':'I don\'t have it', 'poss.incoming':'On its way', 'poss.reserved':'Reserved', 'poss.sold':'Sold', 'poss.lost':'Lost / not located',
+    'backup.export_json':'⬇ Export data only (JSON)', 'backup.export_csv':'⬇ Export CSV (inventory)', 'backup.import_json':'⬆ Import data only (JSON)',
+    'backup.export_photos':'Export photos only (ZIP)', 'backup.import_photos':'Import photos only (ZIP)',
+    'backup.shortcut_collection':'View collection', 'backup.shortcut_inventory':'Full inventory', 'backup.shortcut_research':'Unconfirmed items',
+    'ayuda.organize.body':'Your collection is organized in three levels, from most general to most specific.<br><br><b>Category</b> — the top level (for example, "Video games" or "Comics"). Created, renamed and deleted from the "Categories" screen, inside Collection.<br><br><b>Platform</b> — a subgroup within a category (for example, "Game Boy" within "Video games"). Go into a category and use the floating "+" button to create a new one.<br><br><b>Folder</b> — a subgroup within a platform, for when it fills up with very different things. Go into a platform and look for the create-folder button at the bottom of the page.',
+    'ayuda.add.body':'Inside any platform or folder, use the round "+" button that follows you around the screen, bottom right. It adapts to where you are — if you\'re inside a folder, the object is created right there.',
+    'ayuda.move.body':'Go into the object\'s page and expand "Move to another platform/category". You can change its category, platform and folder all at once, without losing anything you had saved: photos, checklist, notes, everything stays intact.',
+    'ayuda.rename.body':'Categories, platforms, folders and each object\'s name are normal text fields — tap them right where you see them written large and edit them right there, no special button needed.',
+    'ayuda.complete.body':'The big "I have it" button on each page toggles between have/don\'t have with a single tap. Inside the checklist, "Mark everything as complete" saves you from checking each component one by one.',
+    'ayuda.photos.body':'Tap or swipe any photo to see its back. With two fingers, pinch it to zoom in right at the point you touch — release and it goes back to normal size on its own. To actually upload or change a photo, go into the "Edit photos" tab of the item page.',
+    'ayuda.order.body':'Inside each platform or folder you can choose the order: by year, alphabetically, or by whether you have it. Platforms without a year are moved by hand with the arrows, while the ones with a year sort themselves.',
+    'ayuda.exclude.body':'Inside any platform there\'s a switch so its pieces don\'t count toward the overall percentages — useful for things you want to inventory but don\'t consider part of "the collection" itself.',
+    'ayuda.backup.body':'From the Dashboard, go into "Backup and data" to export both your data and your photos — they go separately. Always save it before opening a new version of the file.',
+    'ayuda.language.body':'Top right, next to the light/dark theme switch, there\'s a globe icon — tap it to switch between Spanish, English, German and Japanese. It only changes the app\'s own text; whatever you type yourself (names, notes) stays exactly as you wrote it.',
+    'tour.welcome.title':'Welcome to your collection!',
+    'tour.welcome.body':'This app adapts to any kind of collection — video games, comics, coins, whatever it is. Everything is organized in four levels: category, platform, folder and object. Let\'s create one of each, so you see how they fit together — it only takes a minute.',
+    'tour.welcome.cta':'Start tour',
+    'tour.skip':'Skip tour',
+    'tour.step':'Step',
+    'tour.of':'of',
+    'tour.category.body':'<b>Categories</b> are the top level of your collection — for example "Video games" or "Comics". Tap here to create the first one.',
+    'tour.platform.body':'Inside each category you create <b>platforms</b> or sections — for example "Game Boy" inside "Video games". Tap the "+" to add the first one.',
+    'tour.folder.body':'If a platform fills up with very different things, you can create <b>folders</b> inside it to organize it better — it\'s optional, but try it once. Tap here to create the first one.',
+    'tour.object.body':'And inside goes your first real <b>object</b> — the game, the comic, the coin, whatever you\'re cataloguing. Tap the "+" again to create it.',
+    'tour.final.title':'You know the essentials now!',
+    'tour.final.body':'That\'s how your whole collection is organized: category → platform → folder (optional) → object. You can move, rename or delete them whenever you want — and in "Help" you\'ll find the rest of the tricks (photos, custom checklist, languages…).',
+    'tour.final.cta':'Start using it',
+  },
+  de: {
+    'nav.dashboard':'Übersicht', 'nav.coleccion':'Sammlung', 'nav.inventario':'Inventar',
+    'nav.estadisticas':'Statistik', 'nav.investigacion':'Recherche', 'nav.ayuda':'Hilfe',
+    'dash.kicker':'Übersicht', 'dash.search':'Sammlung durchsuchen',
+    'dash.pending':'Es fehlen',
+    'dash.pending.sub':'ausstehende Stücke', 'dash.value':'Geschätzter Wert', 'dash.value.updated':'aktualisiert am {d}', 'dash.value.novalue':'nur Objekte, die du besitzt, noch nicht bewertet', 'dash.no_results':'Keine Ergebnisse für "{q}".', 'dash.gallery_link':'Fotogalerie',
+    'gallery.kicker':'Galerie', 'gallery.title':'Alle deine Fotos', 'gallery.empty':'Du hast noch keine Fotos hochgeladen.',
+    'dash.progress':'Fortschritt nach Kategorie', 'dash.backup_link':'Sicherung und Daten',
+    'dash.pieces':'Stücke dokumentiert',
+    'backup.kicker':'Einstellungen', 'backup.title':'Sicherung und Daten',
+    'backup.intro':'Eine einzige Datei mit allen Daten und Fotos zusammen — gedacht, um deine ganze Sammlung an einen anderen Ort zu bringen.',
+    'backup.export':'Alles exportieren', 'backup.export.sub':'App + Daten + Fotos in einem ZIP',
+    'backup.import':'Alles importieren', 'backup.import.sub':'Ein zuvor exportiertes ZIP wiederherstellen',
+    'backup.advanced':'Weitere Optionen (einzeln)', 'backup.shortcuts':'Schnellzugriff',
+    'common.cancel':'Abbrechen', 'common.confirm':'Bestätigen', 'common.accept':'OK',
+    'common.create_category':'Neue Kategorie', 'common.create_category.sub':'Die oberste Ebene deiner Sammlung',
+    'common.create_folder':'Neuen Ordner hier erstellen', 'common.danger_zone':'Gefahrenzone',
+    'common.move_here':'Hierher verschieben', 'common.delete':'Löschen',
+    'ayuda.kicker':'Hilfe', 'ayuda.title':'So funktioniert es',
+    'ayuda.intro':'Für jede Art von Sammlung geeignet, nicht nur für eine bestimmte — alles unten gilt unabhängig davon, was du katalogisierst.',
+    'ayuda.organize':'Kategorien, Plattformen und Ordner', 'ayuda.add':'Ein neues Objekt hinzufügen',
+    'ayuda.move':'Ein Objekt verschieben', 'ayuda.rename':'Alles umbenennen',
+    'ayuda.complete':'Als vollständig markieren', 'ayuda.photos':'Fotos: umdrehen und zoomen',
+    'ayuda.order':'Sortieren und organisieren', 'ayuda.exclude':'Etwas aus der Statistik ausschließen',
+    'ayuda.backup':'Sicherung', 'ayuda.language':'Die Sprache der Oberfläche ändern',
+    'lang.name':'Deutsch',
+    'cat.kicker':'Kategorie', 'cat.empty.title':'Hier wurde noch keine Plattform/Bereich erstellt.', 'cat.empty.sub':'Nutze den Button unten, um die erste zu erstellen, und füge dann nach und nach Stücke hinzu.',
+    'checklist.title':'Checkliste dieser Kategorie', 'checklist.intro':'Das ist die Liste, die du beim Abhaken von Komponenten bei jedem Produkt dieser Kategorie siehst. Änderungen hier wirken sich nicht auf andere Kategorien aus.',
+    'checklist.rename':'umbenennen', 'checklist.remove':'entfernen', 'checklist.add':'+ Komponente hinzufügen', 'checklist.reset':'↺ Zur Standardliste zurückkehren',
+    'common.delete_category':'Diese ganze Kategorie löschen', 'common.delete_platform':'Diese ganze Plattform löschen (mit ihren {n} Objekt(en) darin)', 'common.delete_folder':'Diesen Ordner löschen', 'common.delete_product':'Dieses Objekt aus deinem Archiv löschen',
+    'common.add_platform':'+ Neue Plattform/Konsole hinzufügen', 'common.add_product':'+ Neues Objekt hinzufügen',
+    'plat.empty':'Noch keine Objekte auf dieser Plattform.', 'plat.counts_yes':'✓ Zählt zur Sammlung', 'plat.counts_no':'☐ Zählt nicht zur Sammlung (nur Inventar)',
+    'folder.kicker':'Ordner', 'folder.empty':'Dieser Ordner ist momentan leer.',
+    'sort.label':'Sortieren nach', 'sort.year':'Erscheinungsjahr', 'sort.alpha':'Alphabetisch', 'sort.have':'Ob du es besitzt',
+    'p.tab.ficha':'Details', 'p.tab.fotos':'Fotos bearbeiten', 'p.source':'Quelle', 'p.complete':'Vollständig', 'p.yes':'Ja', 'p.no':'Nein',
+    'p.identification':'Identifikation', 'p.general':'Allgemeine Informationen', 'p.checklist':'Komponenten-Checkliste', 'p.conservation':'Zustand', 'p.valuation':'Bewertung', 'p.notes':'Notizen', 'p.move':'Zu anderer Plattform/Kategorie verschieben',
+    'p.year':'Jahr', 'p.language':'Sprache', 'p.catalog_num':'Katalognummer', 'p.product_code':'Produktcode', 'p.barcode':'Barcode', 'p.exact_date':'Genaues Datum (falls bekannt)',
+    'p.existence':'Dokumentierte Existenz', 'p.existence.confirmed':'Bestätigt', 'p.existence.probable':'Wahrscheinlich', 'p.existence.unconfirmed':'Unbestätigt', 'p.existence.unknown':'Unbekannt',
+    'p.rarity':'Geschätzte Seltenheit', 'p.rarity.undefined':'Nicht festgelegt', 'p.rarity.common':'Häufig', 'p.rarity.uncommon':'Ungewöhnlich', 'p.rarity.rare':'Selten', 'p.rarity.veryrare':'Sehr selten',
+    'p.add_custom_field':'+ Eigenes Feld hinzufügen', 'p.show_hidden_fields':'↺ Ausgeblendete Felder anzeigen ({n})',
+    'p.mark_complete':'✓ Alles als vollständig markieren', 'p.sealed':'Versiegelt',
+    'p.condition_general':'Allgemeiner Zustand (1-10)', 'p.condition_notes':'Zustandsnotizen (Kratzer, Abnutzung, Risse, Verfärbung, Reparaturen…)',
+    'p.value_bought':'Kaufwert', 'p.value_now':'Aktueller Schätzwert', 'p.last_updated':'Zuletzt aktualisiert',
+    'p.summary':'Kurze Produktbeschreibung', 'p.notes_field':'Besondere Infos zu deinem Exemplar',
+    'p.move_category':'Kategorie', 'p.move_platform':'Plattform', 'p.move_folder':'Ordner (optional)', 'p.move_here':'Hierher verschieben', 'p.move_no_folder':'(kein Ordner)',
+    'p.have_yes':'✓ Habe ich', 'p.have_no':'+ Als besessen markieren', 'p.no_photo_front':'Kein Foto<br>Vorderseite', 'p.no_photo_back':'Kein Foto<br>Rückseite',
+    'p.dual':'Dual-Edition', 'p.dlc':'DLC / Erweiterung', 'p.special_ed':'Sonderedition', 'p.cond_undefined':'Nicht festgelegt',
+    'region.jp':'Japan', 'region.eu':'Europa', 'region.us':'USA', 'region.cn':'China', 'region.es':'Spanien',
+    'inv.kicker':'Inventar', 'inv.title':'Alle Objekte', 'inv.search.ph':'Nach Name, Plattform, Region suchen…',
+    'inv.chip.all':'Alle', 'inv.chip.have':'Besitze ich', 'inv.chip.missing':'Fehlt mir', 'inv.chip.unconfirmed':'Unbestätigt', 'inv.chip.sealed':'Versiegelt',
+    'inv.sort.year':'Nach Jahr sortieren', 'inv.sort.name':'Nach Name sortieren', 'inv.sort.platform':'Nach Plattform sortieren',
+    'inv.results':'Ergebnisse', 'inv.have':'Besitze ich', 'inv.missing':'Fehlt', 'inv.load_more':'Mehr laden ({n} übrig)', 'inv.print_missing':'Drucken / als PDF speichern', 'inv.print_title':'Was mir noch fehlt',
+    'stats.kicker':'Statistik', 'stats.title':'Sammlung in Zahlen', 'stats.global':'Gesamte Sammlung',
+    'stats.by_category':'Nach Kategorie', 'stats.by_platform':'Nach Plattform', 'stats.by_region':'Nach Region',
+    'research.kicker':'Recherche', 'research.title':'Unbestätigte Objekte', 'research.empty':'Momentan nichts zu recherchieren.',
+    'research.products':'Vollständige Objekte unbestätigt', 'research.editions':'Bestimmte Editionen unbestätigt',
+    'modal.cancel':'Abbrechen', 'modal.accept':'OK', 'modal.confirm':'Bestätigen',
+    'dlg.new_component':'Name der neuen Komponente zum Abhaken (z. B. "Habe das Echtheitszertifikat"):', 'dlg.rename_component':'Neuer Text für diese Komponente:',
+    'dlg.reset_checklist_confirm':'Zur Standard-Komponentenliste dieser Kategorie zurückkehren?',
+    'dlg.delete_platform_confirm':'Möchtest du "{name}" und die {n} Objekt(e) darin wirklich löschen? Das kann nicht rückgängig gemacht werden.',
+    'dlg.new_folder':'Name des neuen Ordners:', 'dlg.delete_folder_q':'Diesen Ordner löschen?',
+    'dlg.delete_folder_has':'Die {n} Objekt(e) darin bleiben ohne Ordner (werden nicht gelöscht).', 'dlg.delete_folder_empty':'Er ist leer, das Entfernen ist unbedenklich.',
+    'dlg.new_category':'Name der neuen Kategorie:',
+    'dlg.delete_category_confirm':'"{name}" komplett löschen? Die {p} Plattform(en) und {n} Objekt(e) darin werden ebenfalls gelöscht. Das kann nicht rückgängig gemacht werden.',
+    'dlg.new_product':'Name des neuen Objekts:', 'dlg.year_optional':'Jahr (optional):',
+    'dlg.new_platform':'Name der neuen Plattform/Konsole/Serie:', 'dlg.maker_optional':'Hersteller (optional):',
+    'dlg.delete_product_confirm':'Möchtest du dieses Objekt wirklich aus deinem Archiv löschen? Du kannst vorher im Dashboard eine Sicherung exportieren.',
+    'dlg.new_field':'Name des neuen Feldes:', 'dlg.rename_field':'Neuer Name für dieses Feld:',
+    'poss.have':'Ich besitze es', 'poss.no':'Ich besitze es nicht', 'poss.incoming':'Unterwegs', 'poss.reserved':'Reserviert', 'poss.sold':'Verkauft', 'poss.lost':'Verloren / nicht auffindbar',
+    'backup.export_json':'⬇ Nur Daten exportieren (JSON)', 'backup.export_csv':'⬇ CSV exportieren (Inventar)', 'backup.import_json':'⬆ Nur Daten importieren (JSON)',
+    'backup.export_photos':'Nur Fotos exportieren (ZIP)', 'backup.import_photos':'Nur Fotos importieren (ZIP)',
+    'backup.shortcut_collection':'Sammlung ansehen', 'backup.shortcut_inventory':'Vollständiges Inventar', 'backup.shortcut_research':'Unbestätigte Objekte',
+    'ayuda.organize.body':'Deine Sammlung ist in drei Ebenen organisiert, vom Allgemeinsten zum Konkretesten.<br><br><b>Kategorie</b> — die oberste Ebene (z. B. "Videospiele" oder "Comics"). Wird im Bildschirm "Kategorien" innerhalb von Sammlung erstellt, umbenannt und gelöscht.<br><br><b>Plattform</b> — eine Untergruppe innerhalb einer Kategorie (z. B. "Game Boy" innerhalb von "Videospiele"). Gehe in eine Kategorie und nutze die schwebende "+"-Taste, um eine neue zu erstellen.<br><br><b>Ordner</b> — eine Untergruppe innerhalb einer Plattform, falls sie sich mit sehr unterschiedlichen Dingen füllt. Gehe in eine Plattform und suche die Schaltfläche zum Erstellen eines Ordners unten auf der Seite.',
+    'ayuda.add.body':'Nutze innerhalb jeder Plattform oder jedes Ordners die runde "+"-Taste, die dir unten rechts auf dem Bildschirm folgt. Sie passt sich automatisch an, wo du dich befindest — bist du in einem Ordner, wird das Objekt direkt dort erstellt.',
+    'ayuda.move.body':'Öffne die Objektseite und klappe "Zu anderer Plattform/Kategorie verschieben" auf. Du kannst Kategorie, Plattform und Ordner gleichzeitig ändern, ohne etwas zu verlieren, was du bereits gespeichert hast: Fotos, Checkliste, Notizen — alles bleibt erhalten.',
+    'ayuda.rename.body':'Kategorien, Plattformen, Ordner und der Name jedes Objekts sind normale Textfelder — tippe sie genau dort an, wo du sie groß geschrieben siehst, und bearbeite sie direkt dort, ohne besondere Schaltfläche.',
+    'ayuda.complete.body':'Die große Taste "Habe ich" auf jeder Seite wechselt mit einem Tippen zwischen habe/habe nicht. In der Checkliste erspart dir "Alles als vollständig markieren" das einzelne Abhaken jeder Komponente.',
+    'ayuda.photos.body':'Tippe oder wische über ein Foto, um seine Rückseite zu sehen. Mit zwei Fingern kannst du es genau an der berührten Stelle vergrößern — beim Loslassen kehrt es von selbst zur normalen Größe zurück. Um ein Foto wirklich hochzuladen oder zu ändern, gehe in den Reiter "Fotos bearbeiten" der Objektseite.',
+    'ayuda.order.body':'Innerhalb jeder Plattform oder jedes Ordners kannst du die Reihenfolge wählen: nach Jahr, alphabetisch, oder danach, ob du es besitzt. Plattformen ohne Jahr werden von Hand mit den Pfeilen verschoben, während sich die mit Jahr von selbst sortieren.',
+    'ayuda.exclude.body':'Innerhalb jeder Plattform gibt es einen Schalter, damit ihre Stücke nicht in die Gesamtprozente einfließen — nützlich für Dinge, die du inventarisieren möchtest, aber nicht als Teil "der Sammlung" selbst betrachtest.',
+    'ayuda.backup.body':'Gehe vom Dashboard aus zu "Sicherung und Daten", um sowohl deine Daten als auch deine Fotos zu exportieren — sie werden getrennt gespeichert. Speichere immer, bevor du eine neue Version der Datei öffnest.',
+    'ayuda.language.body':'Oben rechts, neben dem Umschalter für hellen/dunklen Modus, findest du ein Globus-Symbol — tippe darauf, um zwischen Spanisch, Englisch, Deutsch und Japanisch zu wechseln. Es ändert nur den eigenen Text der App; was du selbst eingibst (Namen, Notizen), bleibt genau so, wie du es geschrieben hast.',
+    'tour.welcome.title':'Willkommen bei deiner Sammlung!',
+    'tour.welcome.body':'Diese App passt sich jeder Art von Sammlung an — Videospiele, Comics, Münzen, was auch immer. Alles ist in vier Ebenen organisiert: Kategorie, Plattform, Ordner und Objekt. Lass uns von jedem eins erstellen, damit du siehst, wie sie zusammenpassen — dauert nur eine Minute.',
+    'tour.welcome.cta':'Tour starten',
+    'tour.skip':'Tour überspringen',
+    'tour.step':'Schritt',
+    'tour.of':'von',
+    'tour.category.body':'<b>Kategorien</b> sind die oberste Ebene deiner Sammlung — zum Beispiel "Videospiele" oder "Comics". Tippe hier, um die erste zu erstellen.',
+    'tour.platform.body':'Innerhalb jeder Kategorie erstellst du <b>Plattformen</b> oder Abschnitte — zum Beispiel "Game Boy" innerhalb von "Videospiele". Tippe auf "+", um die erste hinzuzufügen.',
+    'tour.folder.body':'Wenn sich eine Plattform mit sehr unterschiedlichen Dingen füllt, kannst du darin <b>Ordner</b> erstellen, um sie besser zu organisieren — optional, aber probier es einmal aus. Tippe hier, um den ersten zu erstellen.',
+    'tour.object.body':'Und darin kommt dein erstes echtes <b>Objekt</b> — das Spiel, der Comic, die Münze, was auch immer du katalogisierst. Tippe erneut auf "+", um es zu erstellen.',
+    'tour.final.title':'Jetzt kennst du das Wichtigste!',
+    'tour.final.body':'So ist deine ganze Sammlung organisiert: Kategorie → Plattform → Ordner (optional) → Objekt. Du kannst sie jederzeit verschieben, umbenennen oder löschen — und unter "Hilfe" findest du den Rest der Tricks (Fotos, individuelle Checkliste, Sprachen…).',
+    'tour.final.cta':'Jetzt loslegen',
+  },
+  ja: {
+    'nav.dashboard':'ダッシュボード', 'nav.coleccion':'コレクション', 'nav.inventario':'一覧',
+    'nav.estadisticas':'統計', 'nav.investigacion':'調査中', 'nav.ayuda':'ヘルプ',
+    'dash.kicker':'概要', 'dash.search':'コレクションを検索',
+    'dash.pending':'残り',
+    'dash.pending.sub':'点未収集', 'dash.value':'推定価値', 'dash.value.updated':'{d}更新', 'dash.value.novalue':'所持している点のみ、まだ評価されていません', 'dash.no_results':'「{q}」の結果はありません。', 'dash.gallery_link':'写真ギャラリー',
+    'gallery.kicker':'ギャラリー', 'gallery.title':'すべての写真', 'gallery.empty':'まだ写真がアップロードされていません。',
+    'dash.progress':'カテゴリー別の進捗', 'dash.backup_link':'バックアップとデータ',
+    'dash.pieces':'点記録済み',
+    'backup.kicker':'設定', 'backup.title':'バックアップとデータ',
+    'backup.intro':'データと写真をすべてまとめた1つのファイル — コレクション全体を別の場所に移すためのものです。',
+    'backup.export':'すべてエクスポート', 'backup.export.sub':'アプリ＋データ＋写真をZIPで',
+    'backup.import':'すべてインポート', 'backup.import.sub':'以前にエクスポートしたZIPを復元',
+    'backup.advanced':'詳細オプション（個別）', 'backup.shortcuts':'ショートカット',
+    'common.cancel':'キャンセル', 'common.confirm':'確認', 'common.accept':'OK',
+    'common.create_category':'新しいカテゴリーを作成', 'common.create_category.sub':'コレクションの最上位レベル',
+    'common.create_folder':'ここに新しいフォルダを作成', 'common.danger_zone':'危険な操作',
+    'common.move_here':'ここに移動', 'common.delete':'削除',
+    'ayuda.kicker':'ヘルプ', 'ayuda.title':'使い方',
+    'ayuda.intro':'どんな種類のコレクションにも対応しています — 何を整理していても、以下はすべて同じように使えます。',
+    'ayuda.organize':'カテゴリー、プラットフォーム、フォルダ', 'ayuda.add':'新しいアイテムを追加する',
+    'ayuda.move':'アイテムを移動する', 'ayuda.rename':'名前を変更する',
+    'ayuda.complete':'完了としてマークする', 'ayuda.photos':'写真：裏返しとズーム',
+    'ayuda.order':'並べ替えと整理', 'ayuda.exclude':'統計から除外する',
+    'ayuda.backup':'バックアップ', 'ayuda.language':'インターフェースの言語を変更',
+    'lang.name':'日本語',
+    'cat.kicker':'カテゴリー', 'cat.empty.title':'まだプラットフォーム／セクションが作成されていません。', 'cat.empty.sub':'下のボタンで最初のものを作成し、そこにアイテムを追加していきましょう。',
+    'checklist.title':'このカテゴリーのチェックリスト', 'checklist.intro':'このカテゴリー内の各商品でコンポーネントにチェックを入れる際に表示されるリストです。ここでの変更は他のカテゴリーには影響しません。',
+    'checklist.rename':'名前変更', 'checklist.remove':'削除', 'checklist.add':'+ コンポーネントを追加', 'checklist.reset':'↺ デフォルトのリストに戻す',
+    'common.delete_category':'このカテゴリーを完全に削除', 'common.delete_platform':'このプラットフォームを完全に削除（中の{n}点も含む）', 'common.delete_folder':'このフォルダを削除', 'common.delete_product':'このアイテムをアーカイブから削除',
+    'common.add_platform':'+ 新しいプラットフォーム／機種を追加', 'common.add_product':'+ 新しいアイテムを追加',
+    'plat.empty':'このプラットフォームにはまだアイテムがありません。', 'plat.counts_yes':'✓ コレクションに含める', 'plat.counts_no':'☐ コレクションに含めない（在庫のみ）',
+    'folder.kicker':'フォルダ', 'folder.empty':'このフォルダはまだ空です。',
+    'sort.label':'並び替え', 'sort.year':'発売年', 'sort.alpha':'アルファベット順', 'sort.have':'所持しているかどうか',
+    'p.tab.ficha':'詳細', 'p.tab.fotos':'写真を編集', 'p.source':'情報源', 'p.complete':'完了', 'p.yes':'はい', 'p.no':'いいえ',
+    'p.identification':'識別情報', 'p.general':'基本情報', 'p.checklist':'コンポーネントチェックリスト', 'p.conservation':'状態', 'p.valuation':'評価額', 'p.notes':'メモ', 'p.move':'別のプラットフォーム／カテゴリーへ移動',
+    'p.year':'年', 'p.language':'言語', 'p.catalog_num':'カタログ番号', 'p.product_code':'製品コード', 'p.barcode':'バーコード', 'p.exact_date':'正確な発売日（分かる場合）',
+    'p.existence':'存在の確認状況', 'p.existence.confirmed':'確認済み', 'p.existence.probable':'おそらく存在', 'p.existence.unconfirmed':'未確認', 'p.existence.unknown':'不明',
+    'p.rarity':'推定レア度', 'p.rarity.undefined':'未設定', 'p.rarity.common':'一般的', 'p.rarity.uncommon':'やや珍しい', 'p.rarity.rare':'レア', 'p.rarity.veryrare':'非常にレア',
+    'p.add_custom_field':'+ カスタム項目を追加', 'p.show_hidden_fields':'↺ 非表示の項目を表示（{n}）',
+    'p.mark_complete':'✓ すべて完了にする', 'p.sealed':'未開封',
+    'p.condition_general':'全体的な状態（1〜10）', 'p.condition_notes':'状態に関するメモ（傷、劣化、破れ、変色、修理歴など）',
+    'p.value_bought':'購入時の価値', 'p.value_now':'現在の推定価値', 'p.last_updated':'最終更新日',
+    'p.summary':'商品の簡単な説明', 'p.notes_field':'あなたの所有物についての特記事項',
+    'p.move_category':'カテゴリー', 'p.move_platform':'プラットフォーム', 'p.move_folder':'フォルダ（任意）', 'p.move_here':'ここに移動', 'p.move_no_folder':'（フォルダなし）',
+    'p.have_yes':'✓ 所持済み', 'p.have_no':'+ 所持済みにする', 'p.no_photo_front':'表面の写真<br>なし', 'p.no_photo_back':'裏面の写真<br>なし',
+    'p.dual':'デュアルエディション', 'p.dlc':'DLC／拡張コンテンツ', 'p.special_ed':'特別版', 'p.cond_undefined':'未設定',
+    'region.jp':'日本', 'region.eu':'ヨーロッパ', 'region.us':'アメリカ合衆国', 'region.cn':'中国', 'region.es':'スペイン',
+    'inv.kicker':'一覧', 'inv.title':'すべてのアイテム', 'inv.search.ph':'名前、プラットフォーム、地域で検索…',
+    'inv.chip.all':'すべて', 'inv.chip.have':'所持済み', 'inv.chip.missing':'未所持', 'inv.chip.unconfirmed':'未確認', 'inv.chip.sealed':'未開封',
+    'inv.sort.year':'年で並び替え', 'inv.sort.name':'名前で並び替え', 'inv.sort.platform':'プラットフォームで並び替え',
+    'inv.results':'件', 'inv.have':'所持済み', 'inv.missing':'未所持', 'inv.load_more':'もっと見る（残り{n}件）', 'inv.print_missing':'印刷／PDFとして保存', 'inv.print_title':'まだ持っていないもの',
+    'stats.kicker':'統計', 'stats.title':'コレクションの数字', 'stats.global':'コレクション全体',
+    'stats.by_category':'カテゴリー別', 'stats.by_platform':'プラットフォーム別', 'stats.by_region':'地域別',
+    'research.kicker':'調査中', 'research.title':'未確認のアイテム', 'research.empty':'現在調査待ちの項目はありません。',
+    'research.products':'未確認の完全なアイテム', 'research.editions':'未確認の特定エディション',
+    'modal.cancel':'キャンセル', 'modal.accept':'OK', 'modal.confirm':'確認',
+    'dlg.new_component':'チェックする新しいコンポーネントの名前（例：「真贋証明書あり」）：', 'dlg.rename_component':'このコンポーネントの新しいテキスト：',
+    'dlg.reset_checklist_confirm':'このカテゴリーのデフォルトのコンポーネントリストに戻しますか？',
+    'dlg.delete_platform_confirm':'「{name}」と中の{n}点のアイテムを本当に削除しますか？この操作は元に戻せません。',
+    'dlg.new_folder':'新しいフォルダの名前：', 'dlg.delete_folder_q':'このフォルダを削除しますか？',
+    'dlg.delete_folder_has':'中の{n}点のアイテムはフォルダなしのまま残ります（削除されません）。', 'dlg.delete_folder_empty':'空なので、削除しても問題ありません。',
+    'dlg.new_category':'新しいカテゴリーの名前：',
+    'dlg.delete_category_confirm':'「{name}」を完全に削除しますか？中の{p}件のプラットフォームと{n}点のアイテムも削除されます。この操作は元に戻せません。',
+    'dlg.new_product':'新しいアイテムの名前：', 'dlg.year_optional':'年（任意）：',
+    'dlg.new_platform':'新しいプラットフォーム／機種／シリーズの名前：', 'dlg.maker_optional':'メーカー（任意）：',
+    'dlg.delete_product_confirm':'このアイテムをアーカイブから本当に削除しますか？事前にダッシュボードからバックアップをエクスポートできます。',
+    'dlg.new_field':'新しい項目の名前：', 'dlg.rename_field':'この項目の新しい名前：',
+    'poss.have':'所持している', 'poss.no':'所持していない', 'poss.incoming':'発送中', 'poss.reserved':'予約済み', 'poss.sold':'売却済み', 'poss.lost':'紛失／所在不明',
+    'backup.export_json':'⬇ データのみエクスポート（JSON）', 'backup.export_csv':'⬇ CSVエクスポート（一覧）', 'backup.import_json':'⬆ データのみインポート（JSON）',
+    'backup.export_photos':'写真のみエクスポート（ZIP）', 'backup.import_photos':'写真のみインポート（ZIP）',
+    'backup.shortcut_collection':'コレクションを見る', 'backup.shortcut_inventory':'すべての一覧', 'backup.shortcut_research':'未確認のアイテム',
+    'ayuda.organize.body':'あなたのコレクションは、大きい順に3つの階層で整理されます。<br><br><b>カテゴリー</b> — 最上位の階層（例：「ゲーム」や「コミック」）。「コレクション」内の「カテゴリー」画面から作成・名前変更・削除ができます。<br><br><b>プラットフォーム</b> — カテゴリー内のサブグループ（例：「ゲーム」内の「ゲームボーイ」）。カテゴリーに入り、浮遊する「+」ボタンで新規作成します。<br><br><b>フォルダ</b> — プラットフォーム内のサブグループで、中身が多様になったときに使います。プラットフォームに入り、ページ下部のフォルダ作成ボタンを探してください。',
+    'ayuda.add.body':'プラットフォームやフォルダの中では、画面右下に常に表示される丸い「+」ボタンを使います。今いる場所に応じて自動的に切り替わります — フォルダの中にいれば、アイテムはそこに作成されます。',
+    'ayuda.move.body':'アイテムのページを開き、「別のプラットフォーム／カテゴリーへ移動」を開いてください。カテゴリー・プラットフォーム・フォルダを同時に変更できます。写真、チェックリスト、メモなど、保存済みのものは何も失われません。',
+    'ayuda.rename.body':'カテゴリー、プラットフォーム、フォルダ、各アイテムの名前は普通のテキスト欄です — 大きく表示されている場所をそのままタップして編集できます。特別なボタンは必要ありません。',
+    'ayuda.complete.body':'各ページの大きな「持っている」ボタンは、1回のタップで「持っている／持っていない」を切り替えます。チェックリストの「すべて完了にする」を使えば、1つずつチェックする手間が省けます。',
+    'ayuda.photos.body':'写真をタップまたはスワイプすると裏面が見られます。2本指でつまむと、触れた場所を中心に拡大表示され、指を離すと自動的に元のサイズに戻ります。実際に写真をアップロード・変更するには、アイテムページの「写真を編集」タブに入ってください。',
+    'ayuda.order.body':'各プラットフォームやフォルダの中では、並び順を選べます：年代順、アルファベット順、または所有しているかどうか。年が不明なプラットフォームは矢印で手動で並べ替え、年があるものは自動的に並びます。',
+    'ayuda.exclude.body':'どのプラットフォームにも、その中身を全体の統計に含めないようにするスイッチがあります — 「コレクション」自体の一部とは考えていないが、記録はしておきたいものに便利です。',
+    'ayuda.backup.body':'ダッシュボードから「バックアップとデータ」に入ると、データと写真の両方をエクスポートできます（別々に保存されます）。新しいバージョンのファイルを開く前には必ず保存してください。',
+    'ayuda.language.body':'右上、ライト／ダークモード切り替えの隣に地球のアイコンがあります — タップするとスペイン語・英語・ドイツ語・日本語を切り替えられます。変わるのはアプリ自体の文言だけで、あなたが入力した内容（名前やメモなど）はそのまま残ります。',
+    'tour.welcome.title':'コレクションへようこそ！',
+    'tour.welcome.body':'このアプリはどんな種類のコレクションにも対応します — ゲーム、コミック、コインなど何でも。すべてはカテゴリー、プラットフォーム、フォルダ、アイテムの4つの階層で整理されます。それぞれを1つずつ作成して、仕組みを確認してみましょう — 1分もかかりません。',
+    'tour.welcome.cta':'ツアーを始める',
+    'tour.skip':'ツアーをスキップ',
+    'tour.step':'ステップ',
+    'tour.of':'/',
+    'tour.category.body':'<b>カテゴリー</b>はコレクションの最上位階層です — 例えば「ゲーム」や「コミック」。ここをタップして最初のカテゴリーを作成しましょう。',
+    'tour.platform.body':'各カテゴリーの中に<b>プラットフォーム</b>やセクションを作成します — 例えば「ゲーム」内の「ゲームボーイ」。「+」をタップして最初の1つを追加しましょう。',
+    'tour.folder.body':'プラットフォームの中身が多様になってきたら、整理のために<b>フォルダ</b>を作成できます — 任意ですが、一度試してみてください。ここをタップして最初のフォルダを作成しましょう。',
+    'tour.object.body':'そしてその中に、実際の最初の<b>アイテム</b>を追加します — ゲーム、コミック、コインなど、記録したいものです。もう一度「+」をタップして作成しましょう。',
+    'tour.final.title':'基本はこれで完璧です！',
+    'tour.final.body':'コレクション全体はこう整理されます：カテゴリー → プラットフォーム → フォルダ（任意） → アイテム。いつでも移動・名前変更・削除ができます — 「ヘルプ」には他のコツ（写真、独自のチェックリスト、言語設定など）も載っています。',
+    'tour.final.cta':'使い始める',
+  },
+};
+function t(key){
+  const lang = OVERRIDES.lang || 'es';
+  return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;
+}
+function currencySymbol(){
+  return OVERRIDES.currency || '€';
+}
+async function setCurrency(sym){
+  OVERRIDES.currency = sym;
+  await persistOverrides();
+  document.getElementById('currencyMenu').classList.remove('open');
+  const btn = document.getElementById('currencyToggle');
+  if(btn) btn.textContent = sym;
+  render();
+}
+function toggleCurrencyMenu(){
+  document.getElementById('currencyMenu').classList.toggle('open');
+}
+async function setLang(lang){
+  OVERRIDES.lang = lang;
+  await persistOverrides();
+  document.getElementById('langMenu').classList.remove('open');
+  render();
+}
+function toggleLangMenu(){
+  document.getElementById('langMenu').classList.toggle('open');
+}
+
+const NAV = [
+  { id:'dashboard', labelKey:'nav.dashboard', icon:'◆' },
+  { id:'coleccion', labelKey:'nav.coleccion', icon:'▤' },
+  { id:'inventario', labelKey:'nav.inventario', icon:'☰' },
+  { id:'estadisticas', labelKey:'nav.estadisticas', icon:'▲' },
+  { id:'investigacion', labelKey:'nav.investigacion', icon:'?' },
+  { id:'ayuda', labelKey:'nav.ayuda', icon: icon('help') },
+];
+
+let view = { page:'dashboard' };
+let invState = { search:'', filter:'todos', sort:'anio', limit:60 };
+let galleryLimit = 60;
+async function renderGallery(){
+  const withPhotoFlags = await Promise.all(PRODUCTS.map(async p=>({ p, front: await loadMainFront(p.id) })));
+  const withPhoto = withPhotoFlags.filter(x=>x.front);
+  const shown = withPhoto.slice(0, galleryLimit);
+  let html = `<div class="kicker"><span class="dot"></span> ${t('gallery.kicker')}</div><h1>${t('gallery.title')}</h1>`;
+  if(withPhoto.length===0){
+    html += `<div class="empty-state"><p>${t('gallery.empty')}</p></div>`;
+    return html;
+  }
+  html += `<div class="section-sub">${withPhoto.length} ${t('inv.results')}</div>`;
+  html += `<div class="gallery-grid">`;
+  shown.forEach(x=>{
+    html += `<div class="gallery-cell" onclick="goProduct('${x.p.id}')"><img src="${x.front}" alt="${x.p.name}" loading="lazy"></div>`;
+  });
+  html += `</div>`;
+  if(withPhoto.length > galleryLimit){
+    html += `<button class="btn load-more" onclick="galleryLimit+=60; render();">${t('inv.load_more').replace('{n}', withPhoto.length - galleryLimit)}</button>`;
+  }
+  return html;
+}
+let viewHistory = [];
+
+function pushHistory(){
+  viewHistory.push(JSON.parse(JSON.stringify(view)));
+  if(viewHistory.length>60) viewHistory.shift();
+}
+function goBack(){
+  if(!viewHistory.length) return;
+  view = viewHistory.pop();
+  render();
+}
+
+function renderNav(){
+  const items = NAV.map(n=>`<button class="navitem ${view.page===n.id?'active':''}" onclick="goPage('${n.id}')"><span class="navicon">${n.icon}</span><span>${t(n.labelKey)}</span></button>`).join('');
+  document.getElementById('bottomnav').innerHTML = items;
+  document.getElementById('topnav').innerHTML = items;
+}
+
+async function render(){
+  const scrollY = window.scrollY;
+  renderNav();
+  renderCrumbs();
+  const fabBack = document.getElementById('fabBack');
+  if(fabBack) fabBack.style.display = viewHistory.length ? 'flex' : 'none';
+  const p = document.getElementById('panel');
+  p.innerHTML = `<div class="loading-note">Cargando…</div>`;
+  let html = '';
+  if(view.page==='dashboard') html = renderDashboard();
+  else if(view.page==='coleccion') html = await renderColeccion();
+  else if(view.page==='inventario') html = await renderInventario();
+  else if(view.page==='estadisticas') html = renderEstadisticas();
+  else if(view.page==='investigacion') html = renderInvestigacion();
+  else if(view.page==='ayuda') html = renderAyuda();
+  else if(view.page==='backup') html = renderBackup();
+  else if(view.page==='gallery') html = await renderGallery();
+  p.innerHTML = html;
+  updateFab();
+  if(tourActive) advanceTourIfDone();
+  requestAnimationFrame(()=>{ animateBars(); window.scrollTo(0, scrollY); });
+}
+
+/* Botón flotante "+" — te sigue por la pantalla para no tener que bajar
+   hasta el final de la página cada vez que quieres añadir algo. Su acción
+   depende de dónde estés navegando en ese momento. */
+function updateFab(){
+  const fab = document.getElementById('fab');
+  if(!fab) return;
+  if(view.page==='coleccion' && view.platformId && !view.productId){
+    fab.style.display = 'flex';
+    fab.title = 'Añadir producto nuevo en esta plataforma';
+  } else if(view.page==='coleccion' && view.categoryId && !view.platformId && !view.productId){
+    fab.style.display = 'flex';
+    fab.title = 'Añadir plataforma/consola nueva';
+  } else {
+    fab.style.display = 'none';
+  }
+}
+function fabAction(){
+  if(view.page==='coleccion' && view.platformId && !view.productId){
+    addProductToPlatform(view.categoryId, view.platformId, view.folderId||null);
+  } else if(view.page==='coleccion' && view.categoryId && !view.platformId){
+    addPlatformToCategory(view.categoryId);
+  }
+}
+
+function goPage(id){ pushHistory(); view = { page:id }; render(); }
+
+/* Búsqueda local del Dashboard — actualiza solo el bloque de resultados,
+   sin recargar toda la página, para que se sienta instantánea al teclear. */
+function handleDashboardSearch(q){
+  const el = document.getElementById('dash-search-results');
+  if(!el) return;
+  q = (q||'').trim().toLowerCase();
+  if(!q){ el.innerHTML = ''; return; }
+  const matches = PRODUCTS.filter(p=>
+    p.name.toLowerCase().includes(q) || (p.platformName||'').toLowerCase().includes(q)
+      || (p.notes||'').toLowerCase().includes(q) || (p.summary||'').toLowerCase().includes(q)
+  ).slice(0, 15);
+  if(!matches.length){
+    el.innerHTML = `<div class="section-sub">${t('dash.no_results').replace('{q}', q)}</div>`;
+    return;
+  }
+  el.innerHTML = matches.map(p=>`
+    <div class="search-hit" onclick="goProduct('${p.id}')">
+      <div class="search-hit-name">${p.name}</div>
+      <div class="search-hit-meta">${p.platformName||''}${p.year?' · '+p.year:''}</div>
+    </div>`).join('');
+}
+function goCategory(catId){ pushHistory(); view = { page:'coleccion', categoryId:catId }; render(); }
+function goPlatform(catId, platId){ pushHistory(); view = { page:'coleccion', categoryId:catId, platformId:platId }; render(); }
+function goFolder(catId, platId, folderId){ pushHistory(); view = { page:'coleccion', categoryId:catId, platformId:platId, folderId:folderId }; render(); }
+function goProduct(prodId){ pushHistory(); view = Object.assign({}, view, { page:'coleccion', productId:prodId }); render(); }
+
+function renderCrumbs(){
+  const c = document.getElementById('crumbs');
+  // Cuando estás en el nivel de arriba de una pantalla (sin categoría, ni
+  // producto abierto) no hace falta repetir el nombre de la página aquí —
+  // ya lo dice la barra de navegación y el propio título de la pantalla.
+  if(!view.categoryId && !view.productId){ c.innerHTML = ''; return; }
+  let parts = [];
+  const navMatch = NAV.find(n=>n.id===view.page);
+  const navLabel = (navMatch ? t(navMatch.labelKey) : '') || (view.page==='backup' ? t('backup.kicker') : '');
+  parts.push(view.categoryId||view.productId ? `<button onclick="goPage('${view.page}')">${navLabel}</button>` : `<span class="current">${navLabel}</span>`);
+  if(view.categoryId){
+    const cat = getAllCategories().find(c2=>c2.id===view.categoryId);
+    if(cat){
+      parts.push(`<span class="sep">/</span>`);
+      parts.push(view.platformId||view.productId ? `<button onclick="goCategory('${cat.id}')">${cat.name}</button>` : `<span class="current">${cat.name}</span>`);
+    }
+  }
+  if(view.platformId){
+    const plat = getAllPlatforms().find(p=>p.id===view.platformId);
+    if(plat){
+      parts.push(`<span class="sep">/</span>`);
+      parts.push((view.productId||view.folderId) ? `<button onclick="goPlatform('${view.categoryId}','${plat.id}')">${plat.name}</button>` : `<span class="current">${plat.name}</span>`);
+    }
+  }
+  if(view.folderId){
+    const folder = foldersForPlatform(view.platformId).find(f=>f.id===view.folderId);
+    if(folder){
+      parts.push(`<span class="sep">/</span>`);
+      parts.push(view.productId ? `<button onclick="goFolder('${view.categoryId}','${view.platformId}','${folder.id}')">${folder.name}</button>` : `<span class="current">${folder.name}</span>`);
+    }
+  }
+  if(view.productId){
+    const prod = PRODUCTS_BY_ID[view.productId];
+    if(prod) parts.push(`<span class="sep">/</span><span class="current">${prod.name}</span>`);
+  }
+  c.innerHTML = parts.join('');
+}
+
+function animateBars(){
+  document.querySelectorAll('.bar-fill[data-pct]').forEach(el=>{
+    const pct = el.getAttribute('data-pct');
+    requestAnimationFrame(()=>{ el.style.width = pct + '%'; });
+  });
+  document.querySelectorAll('.ring[data-pct]').forEach(el=>{
+    const pct = el.getAttribute('data-pct');
+    el.style.setProperty('--p','0%');
+    requestAnimationFrame(()=>{ el.style.setProperty('--p', pct+'%'); });
+  });
+}
+
+/* ----- Dashboard ----- */
+function renderDashboard(){
+  const g = computeGlobalStats();
+  const cats = statsByCategory();
+  const title = (OVERRIDES.dashboardTitle || 'Tu colección, de un vistazo');
+  let html = `
+  <div class="kicker"><span class="dot"></span> ${t('dash.kicker')}</div>
+  <input type="text" class="h1-edit" value="${title.toString().replace(/"/g,'&quot;')}" onchange="updateDashboardTitle(this.value)" title="Toca para cambiar este título">
+  <div class="field" style="margin-bottom:14px;"><input type="text" id="dash-search" placeholder="${t('dash.search')}" oninput="handleDashboardSearch(this.value)" autocomplete="off"></div>
+  <div id="dash-search-results"></div>
+
+  <div class="hero-wrap">
+    <div class="ring ring-hero" data-pct="${g.pct}"><div class="ring-hole"><div class="ring-hero-pct">${g.pct}%</div></div></div>
+    <div class="ring-hero-sub">${g.have} / ${g.total} ${t('dash.pieces')}</div>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat"><div class="stat-label">${t('dash.pending')}</div><div class="stat-value">${g.pending}</div><div class="stat-sub">${t('dash.pending.sub')}</div></div>
+    <div class="stat"><div class="stat-label">${t('dash.value')}</div><div class="stat-value" style="font-size:16px;">${g.valor.toLocaleString('es-ES')} ${currencySymbol()}</div><div class="stat-sub">${g.lastUpdate?(t('dash.value.updated').replace('{d}',g.lastUpdate)):t('dash.value.novalue')}</div></div>
+  </div>
+  <h3>${t('dash.progress')}</h3>`;
+  cats.forEach(c=>{
+    html += `<div class="prow" onclick="goCategory('${c.id}')">
+      <div class="prow-top"><span class="prow-name">${c.name}</span><span class="prow-pct">${c.total?c.have+'/'+c.total+' · '+c.pct+'%':'—'}</span></div>
+      <div class="microbar"><div class="microbar-fill" style="width:${c.pct}%;"></div></div>
+    </div>`;
+  });
+  html += `<div class="quick-actions" style="margin-top:8px;">
+    <button class="btn" onclick="goPage('gallery')">${icon('camera')} ${t('dash.gallery_link')}</button>
+    <button class="btn" onclick="goPage('backup')">${icon('gear')} ${t('dash.backup_link')}</button>
+  </div>`;
+  return html;
+}
+async function updateDashboardTitle(value){
+  value = (value||'').trim();
+  OVERRIDES.dashboardTitle = value || 'Tu colección, de un vistazo';
+  await persistOverrides();
+}
+
+function renderAyuda(){
+  const topics = [
+    ['organizar','layers', t('ayuda.organize'), t('ayuda.organize.body')],
+    ['anadir','plusCircle', t('ayuda.add'), t('ayuda.add.body')],
+    ['mover','shuffle', t('ayuda.move'), t('ayuda.move.body')],
+    ['renombrar','pencil', t('ayuda.rename'), t('ayuda.rename.body')],
+    ['completo','checkCircle', t('ayuda.complete'), t('ayuda.complete.body')],
+    ['fotos','camera', t('ayuda.photos'), t('ayuda.photos.body')],
+    ['orden','sortIcon', t('ayuda.order'), t('ayuda.order.body')],
+    ['excluir','toggleIcon', t('ayuda.exclude'), t('ayuda.exclude.body')],
+    ['backup','archive', t('ayuda.backup'), t('ayuda.backup.body')],
+    ['idioma','globe', t('ayuda.language'), t('ayuda.language.body')],
+  ];
+  let html = `<div class="kicker"><span class="dot"></span> ${t('ayuda.kicker')}</div><h1>${t('ayuda.title')}</h1>
+  <div class="ayuda-intro">${t('ayuda.intro')}</div>`;
+  topics.forEach(([key, iconName, title, body])=>{
+    const open = !!ayudaOpen[key];
+    html += `<div class="ayuda-card">
+      <button class="ayuda-card-head" onclick="toggleAyuda('${key}')">
+        <span class="ayuda-icon">${icon(iconName)}</span>
+        <span class="ayuda-title">${title}</span>
+        <span class="ayuda-chevron">${open?'▾':'▸'}</span>
+      </button>
+      ${open ? `<div class="ayuda-body">${body}</div>` : ``}
+    </div>`;
+  });
+  return html;
+}
+let ayudaOpen = {};
+function toggleAyuda(key){
+  ayudaOpen[key] = !ayudaOpen[key];
+  render();
+}
+
+function renderBackup(){
+  let html = `<div class="kicker"><span class="dot"></span> ${t('backup.kicker')}</div><h1>${t('backup.title')}</h1>
+  <div class="section-sub">${t('backup.intro')}</div>
+  <div class="backup-hero">
+    <button class="backup-btn backup-btn-export" onclick="exportEverything()">
+      <span class="backup-btn-icon">${icon('archive')}</span>
+      <span class="backup-btn-label">${t('backup.export')}</span>
+      <span class="backup-btn-sub">${t('backup.export.sub')}</span>
+    </button>
+    <label class="backup-btn backup-btn-import">
+      <span class="backup-btn-icon">↓</span>
+      <span class="backup-btn-label">${t('backup.import')}</span>
+      <span class="backup-btn-sub">${t('backup.import.sub')}</span>
+      <input type="file" accept=".zip" style="display:none" onchange="importEverything(this)">
+    </label>
+  </div>
+  <div class="section-sub" id="everything-export-status"></div>
+
+  <button class="accordion-toggle" onclick="toggleAyuda('backup-avanzado')">${ayudaOpen['backup-avanzado']?'▾':'▸'} ${t('backup.advanced')}</button>
+  ${ayudaOpen['backup-avanzado'] ? `<div class="accordion-body">
+    <div class="quick-actions">
+      <button class="btn" onclick="exportJSON()">${t('backup.export_json')}</button>
+      <button class="btn" onclick="exportCSV()">${t('backup.export_csv')}</button>
+      <label class="btn" style="cursor:pointer;">${t('backup.import_json')}<input type="file" accept="application/json" style="display:none" onchange="importJSON(this)"></label>
+    </div>
+    <div class="quick-actions">
+      <button class="btn" onclick="exportAllPhotosZip()">${icon('archive')} ${t('backup.export_photos')}</button>
+      <label class="btn" style="cursor:pointer;">${icon('archive')} ${t('backup.import_photos')}<input type="file" accept=".zip" style="display:none" onchange="importPhotosZip(this)"></label>
+    </div>
+    <div class="section-sub" id="photo-export-status"></div>
+  </div>` : ``}
+
+  <h3>${t('backup.shortcuts')}</h3>
+  <div class="quick-actions">
+    <button class="btn" onclick="goPage('coleccion')">${t('backup.shortcut_collection')}</button>
+    <button class="btn" onclick="goPage('inventario')">${t('backup.shortcut_inventory')}</button>
+    <button class="btn" onclick="goPage('investigacion')">${t('backup.shortcut_research')}</button>
+  </div>`;
+  return html;
+}
+
+/* ----- Colección: categoría → plataforma → productos → ficha ----- */
+async function renderColeccion(){
+  if(view.productId) return renderProductDetail(view.productId);
+  if(view.platformId && view.folderId) return renderFolderProducts(view.categoryId, view.platformId, view.folderId);
+  if(view.platformId) return renderPlatformProducts(view.categoryId, view.platformId);
+  if(view.categoryId) return renderCategoryPlatforms(view.categoryId);
+  return renderCategoryList();
+}
+
+function renderCategoryList(){
+  let html = `<div class="kicker"><span class="dot"></span> Colección</div><h1>Categorías</h1>`;
+  statsByCategory().forEach(c=>{
+    html += `<div class="prow" onclick="goCategory('${c.id}')">
+      <div class="prow-top"><span class="prow-name">${c.name}</span><span class="prow-pct">${c.total?c.have+'/'+c.total+' · '+c.pct+'%':'—'}</span></div>
+      <div class="microbar" style="margin-bottom:6px;"><div class="microbar-fill" style="width:${c.pct}%;"></div></div>
+      <div class="prow-desc">${categoryAutoDesc(c.id)}</div>
+    </div>`;
+  });
+  html += `<button class="create-btn" id="tour-add-category" onclick="addCategory()">
+    <span class="create-btn-icon">+</span>
+    <span><span class="create-btn-label" style="display:block;">${t('common.create_category')}</span><span class="create-btn-sub">${t('common.create_category.sub')}</span></span>
+  </button>`;
+  return html;
+}
+
+async function renderCategoryPlatforms(catId){
+  const cat = getAllCategories().find(c=>c.id===catId);
+  let html = `<div class="kicker"><span class="dot"></span> ${t('cat.kicker')}</div>`;
+  html += `<input type="text" class="h1-edit" value="${cat.name.toString().replace(/"/g,'&quot;')}" onchange="renameCategory('${catId}',this.value)" title="Toca para renombrar esta categoría">`;
+  const plats = orderedPlatformsForCategory(catId, getAllPlatforms().filter(p=>p.categoryId===catId));
+  html += ``;
+  if(plats.length===0){
+    html += `<div class="empty-state"><p>${t('cat.empty.title')}</p><div class="small">${t('cat.empty.sub')}</div></div>`;
+  }
+  plats.forEach((p,i)=>{
+    const eds = allEditions().filter(x=>x.product.platformId===p.id);
+    const st = computeStatsFor(eds);
+    const canMove = !platformHasYear(p);
+    html += `<div class="plat-card">
+      <div style="flex:1;display:flex;align-items:center;gap:13px;cursor:pointer;" onclick="goPlatform('${catId}','${p.id}')">
+        <div class="plat-badge ${badgeColorFor(p.id)}">${(p.code||p.name||'').toString().slice(0,4)}</div>
+        <div class="plat-card-body">
+          <div class="plat-name-lg">${p.name}</div>
+          <div class="plat-card-bottom"><div class="microbar"><div class="microbar-fill" style="width:${st.pct}%;"></div></div><span class="plat-pct-lg">${st.total ? st.pct+'%' : '—'}</span></div>
+        </div>
+      </div>
+      ${canMove ? `<div class="plat-move">
+        <button onclick="event.stopPropagation(); movePlatform('${catId}','${p.id}',-1)" ${i===0?'disabled':''}>▲</button>
+        <button onclick="event.stopPropagation(); movePlatform('${catId}','${p.id}',1)" ${i===plats.length-1?'disabled':''}>▼</button>
+      </div>` : ``}
+    </div>`;
+  });
+  html += accordionSection('checklistcat', t('checklist.title'), checklistEditorHTML(catId));
+  html += `<h3>${t('common.danger_zone')}</h3>
+  <button class="btn" style="border-color:var(--brick);color:var(--brick);" onclick="deleteCategory('${catId}')">${icon('trash')} ${t('common.delete_category')}</button>`;
+  return html;
+}
+
+/* Color de insignia estable por plataforma (mismo id → mismo color siempre) */
+function badgeColorFor(id){
+  const palette = ['navy','sage','brick','gold'];
+  let hash = 0;
+  for(let i=0;i<id.length;i++) hash = (hash*31 + id.charCodeAt(i)) >>> 0;
+  return palette[hash % palette.length];
+}
+
+async function renderPlatformProducts(catId, platId){
+  const plat = getAllPlatforms().find(p=>p.id===platId);
+  const allProds = PRODUCTS.filter(p=>p.platformId===platId);
+  const prods = sortProductsByMode(allProds.filter(p=>!p.folderId));
+  const folders = foldersForPlatform(platId);
+  let html = `<div class="kicker"><span class="dot"></span> ${plat.year} · ${plat.maker}</div>`;
+  html += `<input type="text" class="h1-edit" value="${plat.name.toString().replace(/"/g,'&quot;')}" onchange="renamePlatform('${platId}',this.value)" title="Toca para renombrar esta plataforma">`;
+  if(plat.note) html += `<div class="real-note">${plat.note}</div>`;
+  html += sortSelectorHTML();
+
+  if(folders.length){
+    folders.forEach(f=>{
+      const fProds = allProds.filter(p=>p.folderId===f.id);
+      const st = computeStatsFor(fProds.map(p=>({product:p, edition:p})));
+      html += `<div class="plat-card" onclick="goFolder('${catId}','${platId}','${f.id}')">
+        <div class="plat-badge navy">${icon('folder')}</div>
+        <div class="plat-card-body">
+          <div class="plat-name-lg">${f.name}</div>
+          <div class="plat-card-bottom"><div class="microbar"><div class="microbar-fill" style="width:${st.pct}%;"></div></div><span class="plat-pct-lg">${st.total ? st.pct+'%' : '—'}</span></div>
+        </div>
+      </div>`;
+    });
+  }
+
+  if(prods.length===0 && folders.length===0){
+    html += `<div class="empty-state"><p>${t('plat.empty')}</p></div>`;
+  } else if(prods.length){
+    html += `<div class="title-grid">`;
+    const photos = await Promise.all(prods.map(p=>Promise.all([loadMainFront(p.id), loadMainBack(p.id)])));
+    prods.forEach((p,i)=> html += productCardHTML(p, photos[i][0], photos[i][1]));
+    html += `</div>`;
+  }
+
+  const counts = platformCountsInCollection(platId);
+  html += `<button class="btn" style="margin-top:18px;" onclick="togglePlatformCounts('${platId}')">${counts ? t('plat.counts_yes') : t('plat.counts_no')}</button>`;
+  html += `<div style="text-align:center;margin-top:22px;"><button class="btn" id="tour-add-folder" style="font-size:9.5px;opacity:0.7;border-style:dashed;" onclick="addFolder('${catId}','${platId}')">${icon('folder')} ${t('common.create_folder')}</button></div>`;
+  html += `<h3>${t('common.danger_zone')}</h3>
+  <button class="btn" style="border-color:var(--brick);color:var(--brick);" onclick="deletePlatform('${catId}','${platId}')">${icon('trash')} ${t('common.delete_platform').replace('{n}', allProds.length)}</button>`;
+  return html;
+}
+
+async function renderFolderProducts(catId, platId, folderId){
+  const plat = getAllPlatforms().find(p=>p.id===platId);
+  const folder = foldersForPlatform(platId).find(f=>f.id===folderId);
+  if(!folder){ return renderPlatformProducts(catId, platId); }
+  const prods = sortProductsByMode(PRODUCTS.filter(p=>p.platformId===platId && p.folderId===folderId));
+  let html = `<div class="kicker"><span class="dot"></span> ${plat.name} · ${t('folder.kicker')}</div>`;
+  html += `<input type="text" class="h1-edit" value="${folder.name.toString().replace(/"/g,'&quot;')}" onchange="renameFolder('${platId}','${folderId}',this.value)" title="Toca para renombrar esta carpeta">`;
+  html += sortSelectorHTML();
+  if(prods.length===0){
+    html += `<div class="empty-state"><p>${t('folder.empty')}</p></div>`;
+  } else {
+    html += `<div class="title-grid">`;
+    const photos = await Promise.all(prods.map(p=>Promise.all([loadMainFront(p.id), loadMainBack(p.id)])));
+    prods.forEach((p,i)=> html += productCardHTML(p, photos[i][0], photos[i][1]));
+    html += `</div>`;
+  }
+  html += `<h3>${t('common.danger_zone')}</h3>
+  <button class="btn" style="border-color:var(--brick);color:var(--brick);" onclick="deleteFolder('${catId}','${platId}','${folderId}')">${icon('trash')} ${t('common.delete_folder')}</button>`;
+  return html;
+}
+
+/* Orden de los productos dentro de una plataforma/carpeta — el usuario elige
+   entre año (con desempate alfabético, el criterio de siempre), alfabético
+   puro, o si lo tiene primero (también con desempate alfabético dentro). */
+let productSortMode = 'year';
+function sortProductsByMode(list){
+  if(productSortMode==='alpha') return list.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'','es',{sensitivity:'base'}));
+  if(productSortMode==='have') return list.slice().sort((a,b)=>{
+    const ah = a.possession==='tengo' ? 0 : 1, bh = b.possession==='tengo' ? 0 : 1;
+    if(ah!==bh) return ah-bh;
+    return (a.name||'').localeCompare(b.name||'','es',{sensitivity:'base'});
+  });
+  return sortGames(list);
+}
+function setProductSortMode(mode){
+  productSortMode = mode;
+  render();
+}
+function sortSelectorHTML(){
+  return `<div class="field" style="margin-bottom:10px;"><label>${t('sort.label')}</label><select onchange="setProductSortMode(this.value)">
+    <option value="year" ${productSortMode==='year'?'selected':''}>${t('sort.year')}</option>
+    <option value="alpha" ${productSortMode==='alpha'?'selected':''}>${t('sort.alpha')}</option>
+    <option value="have" ${productSortMode==='have'?'selected':''}>${t('sort.have')}</option>
+  </select></div>`;
+}
+
+function productCardHTML(p, frontPhoto, backPhoto){
+  const anyHave = p.possession === 'tengo';
+  return `<div class="title-card">
+    ${flipViewHTML(frontPhoto, backPhoto)}
+    <div class="title-body" onclick="goProduct('${p.id}')">
+      <div class="title-name">${p.name}</div>
+      <div class="title-meta">${p.year}${p.platformName ? ' · '+p.platformName : ''}</div>
+      <div class="badge-row">
+        ${p.standalone ? `<span class="badge badge-standalone">Dual</span>` : ``}
+        ${p.dlc ? `<span class="badge badge-dlc">DLC</span>` : ``}
+        ${p.special ? `<span class="badge badge-special">Ed. esp.</span>` : ``}
+        ${regionBadgesHTML(p)}
+        ${p.existence!=='confirmado' ? `<span class="badge badge-unconfirmed">Sin confirmar</span>` : ``}
+      </div>
+    </div>
+    <button class="possess-toggle ${possessClass(p)}" id="possess_${p.id}" onclick="event.stopPropagation(); quickTogglePossession('${p.id}')">${possessLabel(p)}</button>
+  </div>`;
+}
+
+/* Color del botón de posesión: verde si lo tienes, amarillo pastel si
+   además está sellado (para distinguirlo de un vistazo sin entrar), y
+   neutro si no lo tienes. */
+function possessClass(p){
+  if(p.possession!=='tengo') return 'tone-not-have';
+  return p.sealed ? 'tone-sealed' : 'tone-have';
+}
+function possessLabel(p){
+  return p.possession==='tengo' ? t('p.have_yes') : t('p.have_no');
+}
+
+/* Botón de posesión grande — la acción más habitual, disponible sin tener
+   que entrar en la ficha a editar. Alterna entre tengo/no lo tengo; los
+   estados intermedios (en camino, reservado…) se afinan dentro de la ficha. */
+async function quickTogglePossession(id){
+  const rec = EDITIONS_BY_ID[id]; if(!rec) return;
+  const next = rec.edition.possession === 'tengo' ? 'no' : 'tengo';
+  rec.edition.possession = next;
+  await setEditionField(id, 'possession', next);
+  const btn = document.getElementById('possess_'+id);
+  if(btn){
+    btn.classList.remove('tone-have','tone-not-have','tone-sealed');
+    btn.classList.add(possessClass(rec.edition));
+    btn.textContent = possessLabel(rec.edition);
+  }
+  refreshCompletoBadge(id);
+}
+
+/* Tarjeta de foto SOLO para ver — tocar o deslizar la voltea, nunca abre el
+   selector de archivos. Subir/cambiar fotos vive únicamente en la pestaña
+   "Modificar fotos" de cada ficha. */
+function flipViewHTML(front, back, widthPx){
+  const style = widthPx ? `style="width:${widthPx}px;"` : '';
+  return `<div class="flip-card" ${style}>
+    <div class="flip-inner">
+      <div class="flip-face flip-front">${front ? `<img src="${front}" alt="">` : `<span class="flip-placeholder">${t('p.no_photo_front')}</span>`}</div>
+      <div class="flip-face flip-back">${back ? `<img src="${back}" alt="">` : `<span class="flip-placeholder">${t('p.no_photo_back')}</span>`}</div>
+    </div>
+    <div class="flip-hint">↻</div>
+  </div>`;
+}
+
+async function loadMainFront(id){
+  return (await loadPhoto('photo_'+id+'_front')) || (await loadPhoto('photo_product_'+id+'_front')) || (await loadPhoto('photo_product_'+id+'_main'));
+}
+async function loadMainBack(id){
+  return (await loadPhoto('photo_'+id+'_back')) || (await loadPhoto('photo_product_'+id+'_back'));
+}
+
+/* ----- Ficha de producto ----- */
+async function setProductTab(tab){ view.productTab = tab; render(); }
+
+async function renderProductDetail(prodId){
+  const p = PRODUCTS_BY_ID[prodId];
+  const tab = view.productTab || 'ficha';
+  const mainFront = await loadMainFront(p.id);
+  const mainBack = await loadMainBack(p.id);
+  const complete = isComplete(p, p);
+  let html = `<div class="kicker"><span class="dot"></span> ${p.year}${(p.regionTags||[]).length ? ' · '+p.regionTags.map(c=>REGION_CODES[c]||c).join('/') : ''}${p.platformName?' · '+p.platformName:''}</div>`;
+  html += `<input type="text" class="h1-edit" value="${p.name.toString().replace(/"/g,'&quot;')}" onchange="updateProductField('${p.id}','name',this.value)" title="Toca para editar el nombre del juego">`;
+  html += flipViewHTML(mainFront, mainBack);
+
+
+  html += `<button class="btn primary ${possessClass(p)}" id="possess_${p.id}" style="width:100%;padding:14px;font-size:13px;margin-top:12px;" onclick="quickTogglePossession('${p.id}')">${possessLabel(p)}</button>`;
+  html += `<div class="completo-badge ${complete?'completo-yes':'completo-no'}" id="completo_${p.id}" style="${complete===null?'display:none;':''}">${t('p.complete')}: ${complete?t('p.yes'):t('p.no')}</div>`;
+
+  html += `<div class="subtabs" style="margin-top:14px;">
+    <button class="subtab ${tab==='ficha'?'active':''}" onclick="setProductTab('ficha')">${t('p.tab.ficha')}</button>
+    <button class="subtab ${tab==='fotos'?'active':''}" onclick="setProductTab('fotos')">${icon('camera')} ${t('p.tab.fotos')}</button>
+  </div>`;
+
+  if(tab==='fotos'){
+    html += await renderPhotoEditor(p);
+    return html;
+  }
+
+  html += `<div id="product-meta-${p.id}">${productMetaHTML(p)}</div>`;
+  html += `<div class="src-line">${t('p.source')}: ${p.src||'—'} · ID ${p.id}</div>`;
+
+  let identBody = `<div class="field-grid">`;
+  identBody += editableField('text', t('p.year'), p.year, `updateProductField('${p.id}','year',this.value)`);
+  identBody += editableField('text', t('p.language'), p.language, `updateEditionField('${p.id}','language',this.value)`);
+  identBody += editableField('text', t('p.catalog_num'), p.catalogNumber, `updateEditionField('${p.id}','catalogNumber',this.value)`);
+  identBody += editableField('text', t('p.product_code'), p.productCode, `updateEditionField('${p.id}','productCode',this.value)`);
+  identBody += editableField('text', t('p.barcode'), p.barcode, `updateEditionField('${p.id}','barcode',this.value)`);
+  identBody += editableField('text', t('p.exact_date'), p.releaseDateExact, `updateEditionField('${p.id}','releaseDateExact',this.value)`, 'AAAA-MM-DD');
+  identBody += `</div>`;
+  if((p.tags||[]).length) identBody += `<div class="badge-row" style="margin-bottom:10px;">${p.tags.map(t=>`<span class="vtag">${t}</span>`).join('')}</div>`;
+  html += accordionSection('identificacion', t('p.identification'), identBody);
+
+  let genBody = `<div class="field-grid">`;
+  genBody += editableSelect(t('p.existence'), p.existence, [['confirmado',t('p.existence.confirmed')],['probable',t('p.existence.probable')],['sin_confirmar',t('p.existence.unconfirmed')],['desconocido',t('p.existence.unknown')]], `updateProductField('${p.id}','existence',this.value)`);
+  genBody += editableSelect(t('p.rarity'), p.rareza||'', [['',t('p.rarity.undefined')],['Común',t('p.rarity.common')],['Poco común',t('p.rarity.uncommon')],['Raro',t('p.rarity.rare')],['Muy raro',t('p.rarity.veryrare')]], `updateProductField('${p.id}','rareza',this.value)`);
+  genBody += customFieldsHTML(p);
+  genBody += `</div>`;
+  genBody += `<div class="quick-actions" style="margin-bottom:4px;">
+    <button class="btn" onclick="addCustomField('${p.id}')">${t('p.add_custom_field')}</button>
+  </div>`;
+  html += accordionSection('general', t('p.general'), genBody);
+
+  html += `<h3>${t('p.checklist')}</h3>`;
+  html += `<button class="btn primary" style="width:100%;padding:12px;font-size:12.5px;margin-bottom:10px;" onclick="markComplete('${p.id}')">${t('p.mark_complete')}</button>`;
+  html += `<div class="checklist">
+    ${checklistForCategory(p.categoryId).map(item=>
+      checkItem(item.label, p.components[item.key], `updateComponent('${p.id}','${item.key}',this.checked)`, false, `chk_${p.id}_${item.key}`)
+    ).join('')}
+    ${checkItem(t('p.sealed'), p.sealed, `updateEditionField('${p.id}','sealed',this.checked)`, true, `chk_${p.id}_sealed`)}
+  </div>`;
+
+  let consBody = `<div class="field-grid">
+    ${conservationSelect(t('p.condition_general'), p.conservation.general, `updateConservation('${p.id}','general',this.value)`)}
+  </div>${editableTextarea(t('p.condition_notes'), p.conservation.notas, `updateConservation('${p.id}','notas',this.value)`)}`;
+  html += accordionSection('conservacion', t('p.conservation'), consBody);
+
+  let valBody = `<div class="field-grid">
+    ${numberField(t('p.value_bought')+' ('+currencySymbol()+')', p.valuation.valorAdquisicion, `updateValuation('${p.id}','valorAdquisicion',this.value)`)}
+    ${numberField(t('p.value_now')+' ('+currencySymbol()+')', p.valuation.valorActual, `updateValuation('${p.id}','valorActual',this.value)`)}
+  </div>${p.valuation.fechaActualizacion ? `<div class="section-sub">${t('p.last_updated')}: ${p.valuation.fechaActualizacion}</div>` : ``}`;
+  html += accordionSection('valoracion', t('p.valuation'), valBody);
+
+  const notasBody = editableTextarea(t('p.summary'), p.summary, `updateProductField('${p.id}','summary',this.value)`)
+    + editableTextarea(t('p.notes_field'), p.notes, `updateProductField('${p.id}','notes',this.value)`);
+  html += accordionSection('notas', t('p.notes'), notasBody);
+
+  let moveBody = `<div class="field-grid">
+    <div class="field"><label>${t('p.move_category')}</label><select id="movecat_${p.id}" onchange="moveToolCategoryChanged('${p.id}')">
+      ${getAllCategories().map(c=>`<option value="${c.id}" ${c.id===p.categoryId?'selected':''}>${c.name}</option>`).join('')}
+    </select></div>
+    <div class="field"><label>${t('p.move_platform')}</label><select id="moveplat_${p.id}" onchange="moveToolPlatformChanged('${p.id}')">${moveToolPlatformOptions(p.categoryId, p.platformId)}</select></div>
+  </div>
+  <div class="field-grid">
+    <div class="field"><label>${t('p.move_folder')}</label><select id="movefolder_${p.id}">${moveToolFolderOptions(p.platformId, p.folderId)}</select></div>
+  </div>
+  <button class="btn" onclick="confirmMoveProduct('${p.id}')">${icon('shuffle')} ${t('p.move_here')}</button>`;
+  html += accordionSection('mover', t('p.move'), moveBody);
+
+  html += `<h3>${t('common.danger_zone')}</h3>
+  <button class="btn" style="border-color:var(--brick);color:var(--brick);" onclick="deleteProduct('${p.id}')">${icon('trash')} ${t('common.delete_product')}</button>`;
+
+  return html;
+}
+
+function moveToolPlatformOptions(catId, currentPlatId){
+  const plats = getAllPlatforms().filter(x=>x.categoryId===catId);
+  if(!plats.length) return `<option value="">(sin plataformas — va directo a la categoría)</option>`;
+  return plats.map(pl=>`<option value="${pl.id}" ${pl.id===currentPlatId?'selected':''}>${pl.name}</option>`).join('');
+}
+function moveToolFolderOptions(platId, currentFolderId){
+  const folders = foldersForPlatform(platId);
+  let html = `<option value="">${t('p.move_no_folder')}</option>`;
+  html += folders.map(f=>`<option value="${f.id}" ${f.id===currentFolderId?'selected':''}>${f.name}</option>`).join('');
+  return html;
+}
+function moveToolCategoryChanged(productId){
+  const catSel = document.getElementById('movecat_'+productId);
+  const platSel = document.getElementById('moveplat_'+productId);
+  if(platSel) platSel.innerHTML = moveToolPlatformOptions(catSel.value, null);
+  moveToolPlatformChanged(productId);
+}
+function moveToolPlatformChanged(productId){
+  const platSel = document.getElementById('moveplat_'+productId);
+  const folderSel = document.getElementById('movefolder_'+productId);
+  if(folderSel) folderSel.innerHTML = moveToolFolderOptions(platSel ? platSel.value : '', null);
+}
+async function confirmMoveProduct(productId){
+  const catSel = document.getElementById('movecat_'+productId);
+  const platSel = document.getElementById('moveplat_'+productId);
+  const folderSel = document.getElementById('movefolder_'+productId);
+  const catId = catSel.value;
+  const platId = platSel.value || null;
+  const folderId = folderSel ? (folderSel.value || null) : null;
+  const p = PRODUCTS_BY_ID[productId];
+  if(!p) return;
+  const plat = platId ? getAllPlatforms().find(x=>x.id===platId) : null;
+  const newCategoryId = catId;
+  const newPlatformId = plat ? plat.id : null;
+  const newPlatformName = plat ? plat.name : '';
+  const newFolderId = (plat && folderId) ? folderId : null;
+  p.categoryId = newCategoryId; p.platformId = newPlatformId; p.platformName = newPlatformName; p.folderId = newFolderId;
+  await setProductField(productId, 'categoryId', newCategoryId);
+  await setProductField(productId, 'platformId', newPlatformId);
+  await setProductField(productId, 'platformName', newPlatformName);
+  await setProductField(productId, 'folderId', newFolderId);
+  buildProducts();
+  render();
+}
+
+async function renderPhotoEditor(p){
+  let html = ``;
+  html += photoEditRow('Delantera', await loadMainFront(p.id), 'photo_'+p.id+'_front');
+  html += photoEditRow('Trasera', await loadMainBack(p.id), 'photo_'+p.id+'_back');
+  return html;
+}
+
+function photoEditRow(label, photo, key){
+  return `<div class="photoedit-row">
+    <div class="photoedit-thumb">${photo ? `<img src="${photo}" alt="">` : `<span class="flip-placeholder" style="font-size:8px;">sin foto</span>`}</div>
+    <div class="photoedit-controls">
+      <div class="photoedit-label">${label}</div>
+      <div class="photoedit-btnrow">
+        <label class="btn" style="cursor:pointer;">Subir / cambiar<input type="file" accept="image/*" style="display:none" onchange="onPhotoSlotChange(this,'${key}')"></label>
+        ${photo ? `<button class="btn" style="border-color:var(--brick);color:var(--brick);" onclick="removePhotoSlot('${key}')">Quitar</button>` : ``}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function onPhotoSlotChange(input, key){
+  const file = input.files[0]; if(!file) return;
+  const dataUrl = await savePhotoFile(key, file);
+  if(dataUrl) render();
+}
+async function removePhotoSlot(key){
+  await removePhoto(key);
+  render();
+}
+
+function productMetaHTML(p){
+  let html = `<div class="badge-row" style="margin-bottom:12px;">
+    ${p.standalone ? `<span class="badge badge-standalone">Dual</span>` : ``}
+    ${p.dlc ? `<span class="badge badge-dlc">DLC</span>` : ``}
+    ${p.special ? `<span class="badge badge-special">Ed. esp.</span>` : ``}
+    ${regionBadgesHTML(p)}
+    ${p.existence!=='confirmado' ? `<span class="badge badge-unconfirmed">${existenceLabel(p.existence)}</span>` : ``}
+  </div>
+  ${regionChipsHTML(p)}
+  <div class="checklist" style="margin-bottom:10px;">
+    ${checkItem(t('p.dual'), p.standalone, `toggleProductFlag('${p.id}','standalone',this.checked)`, false, `chk_${p.id}_standalone`)}
+    ${checkItem(t('p.dlc'), p.dlc, `toggleProductFlag('${p.id}','dlc',this.checked)`, false, `chk_${p.id}_dlc`)}
+    ${checkItem(t('p.special_ed'), p.special, `toggleProductFlag('${p.id}','special',this.checked)`, false, `chk_${p.id}_special`)}
+  </div>`;
+  if(p.existence !== 'confirmado'){
+    const r = p.research || { sabemos:'', falta:'', fuentes:'', notas:'' };
+    html += `<div class="research-block"><h4>En investigación</h4>`;
+    html += editableTextarea('Qué sabemos', r.sabemos, `updateResearchField('${p.id}','sabemos',this.value)`);
+    html += editableTextarea('Qué falta por confirmar', r.falta, `updateResearchField('${p.id}','falta',this.value)`);
+    html += editableTextarea('Fuentes', r.fuentes, `updateResearchField('${p.id}','fuentes',this.value)`);
+    html += editableTextarea('Notas', r.notas, `updateResearchField('${p.id}','notas',this.value)`);
+    html += `</div>`;
+  }
+  return html;
+}
+
+function existenceLabel(v){
+  return {confirmado:t('p.existence.confirmed'), probable:t('p.existence.probable'), sin_confirmar:t('p.existence.unconfirmed'), desconocido:t('p.existence.unknown')}[v] || v;
+}
+function possessionLabel(v){
+  return {tengo:t('poss.have'), no:t('poss.no'), en_camino:t('poss.incoming'), reservado:t('poss.reserved'), vendido:t('poss.sold'), perdido:t('poss.lost')}[v] || v;
+}
+
+/* ----- helpers de campos editables ----- */
+function editableField(type, label, value, onchangeAttr, placeholder){
+  return `<div class="field"><label>${label}</label><input type="${type}" value="${(value||'').toString().replace(/"/g,'&quot;')}" placeholder="${placeholder||''}" onchange="${onchangeAttr}"></div>`;
+}
+function numberField(label, value, onchangeAttr){
+  return `<div class="field"><label>${label}</label><input type="number" step="0.01" value="${value===null||value===undefined?'':value}" onchange="${onchangeAttr}"></div>`;
+}
+function editableTextarea(label, value, onchangeAttr){
+  return `<div class="field"><label>${label}</label><textarea onchange="${onchangeAttr}">${(value||'').toString().replace(/</g,'&lt;')}</textarea></div>`;
+}
+function editableSelect(label, value, options, onchangeAttr){
+  const opts = options.map(([v,l])=>`<option value="${v}" ${v===value?'selected':''}>${l}</option>`).join('');
+  return `<div class="field"><label>${label}</label><select onchange="${onchangeAttr}">${opts}</select></div>`;
+}
+function conservationSelect(label, value, onchangeAttr){
+  const opts = [['',t('p.cond_undefined')]].concat([1,2,3,4,5,6,7,8,9,10].map(n=>[String(n), String(n)]));
+  const v = (value===null||value===undefined) ? '' : String(value);
+  const optsHtml = opts.map(([val,l])=>`<option value="${val}" ${val===v?'selected':''}>${l}</option>`).join('');
+  return `<div class="field"><label>${label}</label><select onchange="${onchangeAttr}">${optsHtml}</select></div>`;
+}
+function checkItem(label, checked, onchangeAttr, sealed, id){
+  return `<label class="check-item ${sealed?'sealed':''}"><input type="checkbox" ${id?`id="${id}"`:''} ${checked?'checked':''} onchange="${onchangeAttr}"> ${label}</label>`;
+}
+
+/* click / tap para voltear la tarjeta (funciona en cualquier .flip-card,
+   incluida la foto principal en la rejilla, sin entrar a la ficha) */
+function attachFlipHandlers(){
+  const panel = document.getElementById('panel');
+  let touchStart = null;
+  let pinch = null; // { img0, initialDist }
+  panel.addEventListener('click', (e)=>{
+    const card = e.target.closest('.flip-card');
+    if(!card) return;
+    // Voltear nunca debe activar el onclick de la tarjeta/fila que lo envuelve
+    // (por ejemplo, abrir la ficha del juego desde la rejilla o el inventario)
+    e.preventDefault();
+    e.stopPropagation();
+    if(card.dataset.justSwiped==='1'){ card.dataset.justSwiped=''; return; }
+    card.classList.toggle('flipped');
+  }, true);
+  panel.addEventListener('touchstart', (e)=>{
+    const card = e.target.closest('.flip-card');
+    if(!card) return;
+    if(e.touches.length>=2){
+      // Pellizcar con dos dedos: amplía temporalmente la foto en grande,
+      // centrada en el punto exacto donde has puesto los dedos — sin
+      // interferir con el volteo (que usa un solo dedo).
+      touchStart = null;
+      const face = card.classList.contains('flipped') ? card.querySelector('.flip-back img') : card.querySelector('.flip-front img');
+      if(!face) return;
+      const rect = card.getBoundingClientRect();
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const originX = rect.width ? Math.min(100, Math.max(0, ((midX - rect.left) / rect.width) * 100)) : 50;
+      const originY = rect.height ? Math.min(100, Math.max(0, ((midY - rect.top) / rect.height) * 100)) : 50;
+      openPinchZoom(face.src, originX, originY);
+      pinch = { dist: pinchDistance(e.touches) };
+      return;
+    }
+    const t = e.touches[0];
+    touchStart = { card, x:t.clientX, y:t.clientY };
+  }, {passive:true});
+  panel.addEventListener('touchmove', (e)=>{
+    if(!pinch) return;
+    e.preventDefault();
+    const d = pinchDistance(e.touches);
+    const scale = Math.min(4, Math.max(1, d / pinch.dist));
+    setPinchScale(scale);
+  }, {passive:false});
+  panel.addEventListener('touchend', (e)=>{
+    if(pinch){
+      if(e.touches.length<2){ closePinchZoom(); pinch = null; }
+      return;
+    }
+    if(!touchStart) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
+    if(Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)*1.4){
+      touchStart.card.dataset.justSwiped = '1';
+      if(dx>0) touchStart.card.classList.add('flipped');
+      else touchStart.card.classList.remove('flipped');
+    }
+    touchStart = null;
+  }, {passive:true});
+}
+
+/* Zoom temporal de la foto — solo mientras mantienes el pellizco con dos
+   dedos; al soltar, vuelve a su tamaño normal. No cambia nada guardado. */
+function pinchDistance(touches){
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy) || 1;
+}
+function openPinchZoom(src, originX, originY){
+  const overlay = document.getElementById('pinchOverlay');
+  const img = document.getElementById('pinchImg');
+  if(!overlay || !img || !src) return;
+  img.src = src;
+  img.style.transformOrigin = (originX!==undefined ? originX : 50) + '% ' + (originY!==undefined ? originY : 50) + '%';
+  img.style.transform = 'scale(1)';
+  overlay.style.display = 'flex';
+}
+function setPinchScale(scale){
+  const img = document.getElementById('pinchImg');
+  if(img) img.style.transform = 'scale(' + scale + ')';
+}
+function closePinchZoom(){
+  const overlay = document.getElementById('pinchOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+/* ----- Field update handlers: mutan en memoria + guardan, y solo refrescan
+   en pantalla lo estrictamente necesario — nunca recargan toda la página,
+   así que puedes ir marcando checks sin que se te cierre nada. ----- */
+async function updateProductField(id, field, value){
+  const p = PRODUCTS_BY_ID[id]; if(p) p[field]=value;
+  await setProductField(id, field, value);
+  if(['existence','standalone','dlc','special'].includes(field)) refreshProductMeta(id);
+}
+async function toggleProductFlag(id, field, checked){
+  await updateProductField(id, field, checked);
+}
+async function updateResearchField(id, field, value){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const r = Object.assign({sabemos:'',falta:'',fuentes:'',notas:''}, p.research||{}, {[field]:value});
+  p.research = r;
+  await setProductField(id, 'research', r);
+}
+async function updateEditionField(id, field, value){
+  const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition[field]=value;
+  await setEditionField(id, field, value);
+  if(field==='possession'){
+    refreshCompletoBadge(id);
+    const btn = document.getElementById('possess_'+id);
+    if(btn && rec){
+      btn.classList.remove('tone-have','tone-not-have','tone-sealed');
+      btn.classList.add(possessClass(rec.edition));
+      btn.textContent = possessLabel(rec.edition);
+    }
+  } else if(field==='sealed'){
+    await syncPossessionFromChecklist(id);
+  }
+}
+/* Si al menos una casilla del checklist está marcada, o está sellado, se
+   considera que lo tienes; si no hay ninguna marcada, no lo tienes. Se
+   recalcula cada vez que cambia una casilla o el sellado. */
+async function syncPossessionFromChecklist(id){
+  const rec = EDITIONS_BY_ID[id]; if(!rec) return;
+  const e = rec.edition;
+  const anyChecked = checklistForCategory(e.categoryId).some(item=> !!e.components[item.key]) || !!e.sealed;
+  const next = anyChecked ? 'tengo' : 'no';
+  if(e.possession === next) return;
+  e.possession = next;
+  await setEditionField(id, 'possession', next);
+  const btn = document.getElementById('possess_'+id);
+  if(btn){
+    btn.classList.remove('tone-have','tone-not-have','tone-sealed');
+    btn.classList.add(possessClass(e));
+    btn.textContent = possessLabel(e);
+  }
+}
+async function updateComponent(id, field, value){
+  const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.components[field]=value;
+  await setEditionNested(id,'components',field,value);
+  refreshCompletoBadge(id);
+  await syncPossessionFromChecklist(id);
+}
+async function updateConservation(id, field, value){
+  const v = (field==='notas') ? value : (value===''?null:Number(value));
+  const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.conservation[field]=v;
+  await setEditionNested(id,'conservation',field,v);
+}
+async function updateValuation(id, field, value){
+  const numeric = ['valorAdquisicion','valorActual'].includes(field);
+  const v = numeric ? (value===''?null:Number(value)) : value;
+  const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.valuation[field]=v;
+  await setEditionNested(id,'valuation',field,v);
+  if(field==='valorActual'){
+    const hoy = new Date().toISOString().slice(0,10);
+    if(rec) rec.edition.valuation.fechaActualizacion = hoy;
+    await setEditionNested(id,'valuation','fechaActualizacion',hoy);
+    render();
+  }
+}
+async function updateObjetivo(id, field, value){
+  const v = (field==='precioMax') ? (value===''?null:Number(value)) : value;
+  const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.objetivo[field]=v;
+  await setEditionNested(id,'objetivo',field,v);
+}
+
+async function markComplete(id){
+  const rec = EDITIONS_BY_ID[id]; if(!rec) return;
+  const e = rec.edition;
+  const fields = checklistForCategory(e.categoryId).map(item=>item.key);
+  fields.forEach(f=> e.components[f]=true);
+  e.possession = 'tengo';
+  if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {};
+  OVERRIDES.products[id].components = Object.assign({}, OVERRIDES.products[id].components||{}, e.components);
+  OVERRIDES.products[id].possession = 'tengo';
+  await persistOverrides();
+  fields.forEach(f=>{ const el=document.getElementById('chk_'+id+'_'+f); if(el) el.checked=true; });
+  refreshCompletoBadge(id);
+}
+
+function refreshCompletoBadge(id){
+  const rec = EDITIONS_BY_ID[id]; if(!rec) return;
+  const complete = isComplete(rec.product, rec.edition);
+  const el = document.getElementById('completo_'+id);
+  if(!el) return;
+  el.style.display = complete===null ? 'none' : '';
+  el.className = 'completo-badge ' + (complete ? 'completo-yes' : 'completo-no');
+  el.textContent = t('p.complete') + ': ' + (complete ? t('p.yes') : t('p.no'));
+}
+function refreshProductMeta(id){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const el = document.getElementById('product-meta-'+id);
+  if(el) el.innerHTML = productMetaHTML(p);
+}
+
+/* ----- Inventario ----- */
+async function renderInventario(){
+  let eds = allEditions();
+  if(invState.search){
+    const q = invState.search.toLowerCase();
+    eds = eds.filter(x => (x.product.name+' '+(x.product.platformName||'')+' '+(x.edition.region||'')).toLowerCase().includes(q));
+  }
+  if(invState.filter==='tengo') eds = eds.filter(x=>x.edition.possession==='tengo');
+  if(invState.filter==='falta') eds = eds.filter(x=>x.edition.possession!=='tengo');
+  if(invState.filter==='sinconfirmar') eds = eds.filter(x=>x.edition.existence!=='confirmado');
+  if(invState.filter==='sellado') eds = eds.filter(x=>x.edition.sealed);
+
+  eds.sort((a,b)=>{
+    if(invState.sort==='anio'){
+      const ya = parseInt(a.edition.year,10); const yb = parseInt(b.edition.year,10);
+      const na = isNaN(ya)?9999:ya; const nb = isNaN(yb)?9999:yb;
+      if(na!==nb) return na-nb;
+      return a.product.name.localeCompare(b.product.name,'es',{sensitivity:'base'});
+    }
+    if(invState.sort==='nombre') return a.product.name.localeCompare(b.product.name,'es',{sensitivity:'base'});
+    if(invState.sort==='plataforma') return (a.product.platformName||'').localeCompare(b.product.platformName||'','es',{sensitivity:'base'});
+    return 0;
+  });
+
+  const total = eds.length;
+  const shown = eds.slice(0, invState.limit);
+
+  let html = `<div class="kicker"><span class="dot"></span> ${t('inv.kicker')}</div><h1>${t('inv.title')}</h1>`;
+  html += `<div class="searchbar"><input type="text" placeholder="${t('inv.search.ph')}" value="${invState.search.replace(/"/g,'&quot;')}" oninput="invSearch(this.value)"></div>`;
+  html += `<div class="chip-row">
+    ${chip(t('inv.chip.all'),'todos')}${chip(t('inv.chip.have'),'tengo')}${chip(t('inv.chip.missing'),'falta')}${chip(t('inv.chip.unconfirmed'),'sinconfirmar')}${chip(t('inv.chip.sealed'),'sellado')}
+  </div>`;
+  html += `<div class="chip-row">
+    <select onchange="invSort(this.value)" style="font-family:inherit;font-size:11px;padding:7px 10px;border-radius:16px;border:1px solid var(--line);background:var(--field-bg);color:var(--ink);">
+      <option value="anio" ${invState.sort==='anio'?'selected':''}>${t('inv.sort.year')}</option>
+      <option value="nombre" ${invState.sort==='nombre'?'selected':''}>${t('inv.sort.name')}</option>
+      <option value="plataforma" ${invState.sort==='plataforma'?'selected':''}>${t('inv.sort.platform')}</option>
+    </select>
+  </div>`;
+  html += `<div class="section-sub">${total} ${t('inv.results')}</div>`;
+  if(invState.filter==='falta' && total>0) html += `<button class="btn" onclick="printMissingList()">${icon('archive')} ${t('inv.print_missing')}</button>`;
+
+  const photoPairs = await Promise.all(shown.map(async x=>[await loadMainFront(x.product.id), await loadMainBack(x.product.id)]));
+  shown.forEach((x,i)=>{
+    html += `<div class="inv-item" onclick="goProduct('${x.product.id}')" style="cursor:pointer;">
+      ${flipViewHTML(photoPairs[i][0], photoPairs[i][1])}
+      <div>
+        <div class="inv-name">${x.product.name}</div>
+        <div class="inv-meta">${x.edition.region||'—'} · ${x.edition.year||'—'} · ${possessionLabel(x.edition.possession)}</div>
+        <div class="inv-id">${x.edition.id}</div>
+      </div>
+      <div class="badge ${x.edition.possession==='tengo'?'badge-possess-yes':'badge-possess-no'}">${x.edition.possession==='tengo'?t('inv.have'):t('inv.missing')}</div>
+    </div>`;
+  });
+  if(total > invState.limit){
+    html += `<button class="btn load-more" onclick="invState.limit+=60; render();">${t('inv.load_more').replace('{n}', total - invState.limit)}</button>`;
+  }
+  return html;
+}
+function chip(label, val){ return `<button class="chip ${invState.filter===val?'active':''}" onclick="invFilter('${val}')">${label}</button>`; }
+function invSearch(v){ invState.search=v; invState.limit=60; render(); }
+function invFilter(v){ invState.filter=v; invState.limit=60; render(); }
+function invSort(v){ invState.sort=v; render(); }
+/* Genera una lista imprimible de lo que te falta, agrupada por categoría —
+   el propio navegador la deja guardar como PDF desde el diálogo de
+   imprimir, sin necesitar ninguna librería aparte. */
+function printMissingList(){
+  const missing = allEditions().filter(x=>x.edition.possession!=='tengo');
+  const byCat = {};
+  missing.forEach(x=>{
+    const catName = (getAllCategories().find(c=>c.id===x.product.categoryId)||{}).name || '—';
+    if(!byCat[catName]) byCat[catName] = [];
+    byCat[catName].push(x);
+  });
+  const title = t('inv.print_title');
+  let body = `<h1>${title}</h1><div class="sub">${missing.length} ${t('inv.results')} — ${new Date().toLocaleDateString()}</div>`;
+  Object.keys(byCat).sort().forEach(catName=>{
+    body += `<h2>${catName}</h2><ul>`;
+    byCat[catName].sort((a,b)=>a.product.name.localeCompare(b.product.name,'es',{sensitivity:'base'})).forEach(x=>{
+      body += `<li><span class="box"></span> ${x.product.name}${x.product.platformName?' — '+x.product.platformName:''}${x.edition.year?' ('+x.edition.year+')':''}</li>`;
+    });
+    body += `</ul>`;
+  });
+  const w = window.open('', '_blank');
+  if(!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>
+    body{font-family:Georgia,serif;padding:30px;color:#222;max-width:700px;margin:0 auto;}
+    h1{font-size:22px;margin-bottom:4px;} .sub{color:#777;font-size:12px;margin-bottom:24px;}
+    h2{font-size:15px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px;}
+    ul{list-style:none;padding:0;} li{padding:6px 0;font-size:13px;display:flex;align-items:center;gap:8px;}
+    .box{width:13px;height:13px;border:1.5px solid #444;border-radius:3px;flex-shrink:0;display:inline-block;}
+    @media print{ body{padding:0;} }
+  </style></head><body>${body}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 300);
+}
+
+/* ----- Estadísticas ----- */
+/* Diálogo propio para pedir texto o confirmar acciones — funciona igual
+   dentro de una PWA instalada que en el navegador normal, a diferencia de
+   prompt()/confirm() nativos. */
+let modalResolve = null;
+function showPromptModal(title, defaultValue){
+  return new Promise(resolve=>{
+    modalResolve = resolve;
+    document.getElementById('modalTitle').textContent = title;
+    const input = document.getElementById('modalInput');
+    input.style.display = 'block';
+    input.value = defaultValue || '';
+    document.getElementById('modalOkBtn').textContent = t('modal.accept');
+    document.getElementById('modalCancelBtn').textContent = t('modal.cancel');
+    document.getElementById('modalOverlay').classList.add('open');
+    setTimeout(()=>{ input.focus(); input.select(); }, 60);
+  });
+}
+function showConfirmModal(message){
+  return new Promise(resolve=>{
+    modalResolve = resolve;
+    document.getElementById('modalTitle').textContent = message;
+    document.getElementById('modalInput').style.display = 'none';
+    document.getElementById('modalOkBtn').textContent = t('modal.confirm');
+    document.getElementById('modalCancelBtn').textContent = t('modal.cancel');
+    document.getElementById('modalOverlay').classList.add('open');
+  });
+}
+function modalConfirmAction(){
+  const input = document.getElementById('modalInput');
+  const isPrompt = input.style.display !== 'none';
+  const value = isPrompt ? (input.value.trim() || null) : true;
+  document.getElementById('modalOverlay').classList.remove('open');
+  const resolve = modalResolve; modalResolve = null;
+  if(resolve) resolve(value);
+}
+function modalCancelAction(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  const resolve = modalResolve; modalResolve = null;
+  if(resolve) resolve(null);
+}
+
+let statsOpen = { categoria:false, plataforma:false, region:false };
+
+/* Acordeón reutilizable para las secciones de la ficha de cada producto
+   (Identificación, Información general, Conservación, Valoración, Mover…) */
+let productSectionsOpen = {};
+function accordionSection(key, label, bodyHtml){
+  const open = !!productSectionsOpen[key];
+  let html = `<button class="accordion-toggle" onclick="toggleProductSection('${key}')">${open?'▾':'▸'} ${label}</button>`;
+  if(open) html += `<div class="accordion-body">${bodyHtml}</div>`;
+  return html;
+}
+function toggleProductSection(key){
+  productSectionsOpen[key] = !productSectionsOpen[key];
+  render();
+}
+async function toggleStatsSection(key){
+  statsOpen[key] = !statsOpen[key];
+  render();
+}
+function renderEstadisticas(){
+  const g = computeGlobalStats();
+  const cats = statsByCategory();
+  const plats = statsByPlatform();
+  const regs = statsByRegion();
+  let html = `<div class="kicker"><span class="dot"></span> ${t('stats.kicker')}</div><h1>${t('stats.title')}</h1>`;
+  html += `<div class="bar-row"><div class="bar-labels"><span class="name">${t('stats.global')}</span><span class="pct">${g.have}/${g.total} · ${g.pct}%</span></div><div class="bar-track"><div class="bar-fill brick" data-pct="${g.pct}"></div></div></div>`;
+
+  html += `<button class="accordion-toggle" onclick="toggleStatsSection('categoria')">${statsOpen.categoria?'▾':'▸'} ${t('stats.by_category')}</button>`;
+  if(statsOpen.categoria){
+    html += `<div class="accordion-body">`;
+    cats.forEach(c=> html += `<div class="bar-row"><div class="bar-labels"><span class="name">${c.name}</span><span class="pct">${c.total?c.pct+'%':'—'}</span></div><div class="bar-track"><div class="bar-fill" data-pct="${c.pct}"></div></div></div>`);
+    html += `</div>`;
+  }
+
+  html += `<button class="accordion-toggle" onclick="toggleStatsSection('plataforma')">${statsOpen.plataforma?'▾':'▸'} ${t('stats.by_platform')}</button>`;
+  if(statsOpen.plataforma){
+    html += `<div class="accordion-body">`;
+    plats.forEach(p=> html += `<div class="bar-row"><div class="bar-labels"><span class="name">${p.name}</span><span class="pct">${p.have}/${p.total} · ${p.pct}%</span></div><div class="bar-track"><div class="bar-fill" data-pct="${p.pct}"></div></div></div>`);
+    html += `</div>`;
+  }
+
+  html += `<button class="accordion-toggle" onclick="toggleStatsSection('region')">${statsOpen.region?'▾':'▸'} ${t('stats.by_region')}</button>`;
+  if(statsOpen.region){
+    html += `<div class="accordion-body">`;
+    regs.forEach(r=> html += `<div class="bar-row"><div class="bar-labels"><span class="name">${r.name}</span><span class="pct">${r.have}/${r.total} · ${r.pct}%</span></div><div class="bar-track"><div class="bar-fill" data-pct="${r.pct}"></div></div></div>`);
+    html += `</div>`;
+  }
+  return html;
+}
+
+/* ----- Objetivos ----- */
+/* ----- Investigación ----- */
+function renderInvestigacion(){
+  const prods = PRODUCTS.filter(p=>p.existence!=='confirmado');
+  const eds = allEditions().filter(x=>x.edition.existence!=='confirmado');
+  let html = `<div class="kicker"><span class="dot"></span> ${t('research.kicker')}</div><h1>${t('research.title')}</h1>`;
+  html += ``;
+  if(prods.length===0 && eds.length===0){ html += `<div class="empty-state"><p>${t('research.empty')}</p></div>`; return html; }
+  if(prods.length){
+    html += `<h3>${t('research.products')}</h3>`;
+    prods.forEach(p=> html += `<div class="obj-item" onclick="goProduct('${p.id}')" style="cursor:pointer;"><div class="obj-name">${p.name}</div><div class="inv-meta">${existenceLabel(p.existence)}${p.research&&p.research.falta?' — '+p.research.falta:''}</div></div>`);
+  }
+  if(eds.length){
+    html += `<h3>${t('research.editions')}</h3>`;
+    eds.forEach(x=> html += `<div class="obj-item" onclick="goProduct('${x.product.id}')" style="cursor:pointer;"><div class="obj-name">${x.product.name}</div><div class="inv-meta">${existenceLabel(x.edition.existence)} · ${x.edition.region||''}</div></div>`);
+  }
+  return html;
+}
+
+/* ----- Añadir / eliminar productos (juegos, CD-ROMs, DVDs, lo que sea) ----- */
+function slugify(s){
+  return (s||'producto').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,40) || 'producto';
+}
+async function addProductToPlatform(catId, platId, folderId){
+  const name = await showPromptModal(t('dlg.new_product'));
+  if(!name) return;
+  const year = (await showPromptModal(t('dlg.year_optional'), '')) || '';
+  const plat = getAllPlatforms().find(p=>p.id===platId);
+  const id = slugify(name) + '-' + Math.random().toString(36).slice(2,7);
+  await addCustomProduct({ id, name, year, categoryId:catId, platformId:platId, platformName:plat.name, platformCode:plat.code, maker:plat.maker, folderId: folderId||null });
+}
+async function addProductToCategory(catId){
+  const name = await showPromptModal(t('dlg.new_product'));
+  if(!name) return;
+  const year = (await showPromptModal(t('dlg.year_optional'), '')) || '';
+  const id = slugify(name) + '-' + Math.random().toString(36).slice(2,7);
+  await addCustomProduct({ id, name, year, categoryId:catId, platformCode:'X' });
+}
+async function addCustomProduct(custom){
+  if(!OVERRIDES.customProducts) OVERRIDES.customProducts = [];
+  OVERRIDES.customProducts.push(custom);
+  await persistOverrides();
+  buildProducts();
+  goProduct(custom.id);
+}
+/* Nueva plataforma/consola dentro de una categoría (Videojuegos, Contenido
+   media…) — para cuando lo que falta no es un juego dentro de una consola
+   existente, sino la consola/serie entera. */
+async function addPlatformToCategory(catId){
+  const name = await showPromptModal(t('dlg.new_platform'));
+  if(!name) return;
+  const year = (await showPromptModal(t('dlg.year_optional'), '')) || '—';
+  const maker = (await showPromptModal(t('dlg.maker_optional'), '')) || '';
+  const id = 'custom-' + slugify(name) + '-' + Math.random().toString(36).slice(2,7);
+  if(!OVERRIDES.customPlatforms) OVERRIDES.customPlatforms = [];
+  OVERRIDES.customPlatforms.push({ id, categoryId:catId, year, name, maker, code: slugify(name).slice(0,4).toUpperCase() || 'X' });
+  await persistOverrides();
+  buildProducts();
+  goPlatform(catId, id);
+}
+async function deleteProduct(id){
+  if(!await showConfirmModal(t('dlg.delete_product_confirm'))) return;
+  await setProductField(id, 'deleted', true);
+  buildProducts();
+  goBack();
+}
+
+/* ----- Campos personalizados y campos ocultables ----- */
+function customFieldsHTML(p){
+  let html = '';
+  (p.customFields||[]).forEach((f,idx)=>{
+    html += `<div class="field"><label>${f.label} <button type="button" onclick="renameCustomField('${p.id}',${idx})" style="background:none;border:none;color:var(--navy);cursor:pointer;font-size:9px;" title="Cambiar el nombre de este campo">✎ renombrar</button> <button type="button" onclick="removeCustomField('${p.id}',${idx})" style="background:none;border:none;color:var(--brick);cursor:pointer;font-size:9px;">× quitar</button></label><input type="text" value="${(f.value||'').toString().replace(/"/g,'&quot;')}" onchange="updateCustomField('${p.id}',${idx},this.value)"></div>`;
+  });
+  return html;
+}
+async function addCustomField(productId){
+  const label = await showPromptModal(t('dlg.new_field'));
+  if(!label) return;
+  const p = PRODUCTS_BY_ID[productId]; if(!p) return;
+  const arr = (p.customFields||[]).concat([{label, value:''}]);
+  p.customFields = arr;
+  await setProductField(productId, 'customFields', arr);
+  render();
+}
+async function renameCustomField(productId, idx){
+  const p = PRODUCTS_BY_ID[productId];
+  if(!p || !p.customFields || !p.customFields[idx]) return;
+  const nuevo = await showPromptModal(t('dlg.rename_field'), p.customFields[idx].label);
+  if(!nuevo || nuevo===p.customFields[idx].label) return;
+  p.customFields[idx].label = nuevo;
+  await setProductField(productId, 'customFields', p.customFields);
+  render();
+}
+async function updateCustomField(productId, idx, value){
+  const p = PRODUCTS_BY_ID[productId];
+  if(!p || !p.customFields || !p.customFields[idx]) return;
+  p.customFields[idx].value = value;
+  await setProductField(productId, 'customFields', p.customFields);
+}
+async function removeCustomField(productId, idx){
+  const p = PRODUCTS_BY_ID[productId];
+  if(!p || !p.customFields) return;
+  p.customFields.splice(idx,1);
+  await setProductField(productId, 'customFields', p.customFields);
+  render();
+}
+
+/* ----- Import / Export ----- */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(buildPortableSnapshot(), null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'la-coleccion-app-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function exportCSV(){
+  const eds = allEditions();
+  const rows = [['ID','Nombre','Categoria','Plataforma','Region','Anio','Posesion','Existencia','Completo','ValorActual']];
+  eds.forEach(x=>{
+    const c = isComplete(x.product, x.edition);
+    rows.push([x.edition.id, x.product.name, x.product.categoryId, x.product.platformName||'', x.edition.region||'', x.edition.year||'', x.edition.possession, x.edition.existence, c===null?'':(c?'Si':'No'), (x.edition.valuation.valorActual??'')]);
+  });
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'la-coleccion-app-inventario-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+/* Instantánea portable: cada ficha se guarda ya resuelta del todo (nombre,
+   año, checklist, posesión, resumen, todo) en vez de guardar solo "lo que
+   cambiaste" — así funciona igual da igual si quien la reciba tiene tu
+   catálogo de ejemplo cargado en el código o no tiene ninguno. Es lo que
+   usa tanto "Exportar todo" como el JSON suelto. */
+function buildPortableSnapshot(){
+  const snapshot = {
+    products: {}, editions: {},
+    customCategories: getAllCategories().map(c=>({ id:c.id, name:c.name })),
+    customPlatforms: getAllPlatforms().map(p=>({ id:p.id, categoryId:p.categoryId, year:p.year, name:p.name, maker:p.maker, code:p.code })),
+    customProducts: [],
+    folders: OVERRIDES.folders || {},
+    categoryChecklist: OVERRIDES.categoryChecklist || {},
+    platformFlags: OVERRIDES.platformFlags || {},
+    categoryOrder: OVERRIDES.categoryOrder || {},
+    theme: OVERRIDES.theme || 'light',
+    dashboardTitle: OVERRIDES.dashboardTitle || '',
+    tourSeen: true,
+    seedEnabled: false,
+  };
+  PRODUCTS.forEach(p=>{
+    snapshot.customProducts.push(Object.assign({}, p));
+    snapshot.products[p.id] = Object.assign({}, p);
+  });
+  return snapshot;
+}
+/* Paquete completo: el HTML de la app tal cual está corriendo ahora mismo
+   (código incluido) + tus datos + todas tus fotos, todo en un único ZIP.
+   Pensado como copia de seguridad "de todo" y como punto de partida para
+   el día que esto se convierta en una app instalable de verdad — lo que
+   sea que la reciba, esto es lo que necesita para reconstruir tu colección
+   completa, tenga o no tenga tu catálogo de ejemplo ya cargado. */
+async function exportEverything(){
+  const statusEl = document.getElementById('everything-export-status');
+  if(typeof JSZip === 'undefined'){
+    if(statusEl) statusEl.textContent = 'No se pudo cargar la librería para comprimir (revisa tu conexión a internet) — inténtalo de nuevo.';
+    return;
+  }
+  if(statusEl) statusEl.textContent = 'Preparando el paquete completo (puede tardar unos segundos si tienes muchas fotos)…';
+  const zip = new JSZip();
+
+  // 1) El código de la app tal cual está en este momento
+  const appHtml = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  zip.file('la-coleccion-app.html', appHtml);
+
+  // 2) Tus datos, como instantánea completa e independiente
+  zip.file('datos.json', JSON.stringify(buildPortableSnapshot(), null, 2));
+
+  // 3) Todas tus fotos, en su propia carpeta
+  const { keys, vals } = await idbGetAll(PHOTOS_STORE);
+  let addedPhotos = 0;
+  keys.forEach((key, i)=>{
+    const dataUrl = vals[i];
+    if(!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return;
+    const m = dataUrl.match(/^data:([^;]+);base64,([\s\S]*)$/);
+    if(!m) return;
+    const mime = m[1], base64 = m[2];
+    const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+    zip.file('fotos/' + key + '.' + ext, base64, {base64:true});
+    addedPhotos++;
+  });
+
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'la-coleccion-app-completo-' + new Date().toISOString().slice(0,10) + '.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  if(statusEl) statusEl.textContent = 'Listo: app + datos + ' + addedPhotos + ' foto(s) en un único ZIP. Guárdalo en un sitio seguro.';
+}
+async function exportAllPhotosZip(){
+  const statusEl = document.getElementById('photo-export-status');
+  if(typeof JSZip === 'undefined'){
+    if(statusEl) statusEl.textContent = 'No se pudo cargar la librería para comprimir (revisa tu conexión a internet) — inténtalo de nuevo.';
+    return;
+  }
+  if(statusEl) statusEl.textContent = 'Preparando el ZIP…';
+  const { keys, vals } = await idbGetAll(PHOTOS_STORE);
+  if(!keys.length){
+    if(statusEl) statusEl.textContent = 'No hay ninguna foto guardada en este navegador. Si las subiste en otra versión del archivo o en otro navegador/dispositivo, abre ESE archivo y usa este mismo botón desde ahí.';
+    return;
+  }
+  const zip = new JSZip();
+  let added = 0;
+  keys.forEach((key, i)=>{
+    const dataUrl = vals[i];
+    if(!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return;
+    const m = dataUrl.match(/^data:([^;]+);base64,([\s\S]*)$/);
+    if(!m) return;
+    const mime = m[1], base64 = m[2];
+    const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+    zip.file(key + '.' + ext, base64, {base64:true});
+    added++;
+  });
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'la-coleccion-app-fotos-' + new Date().toISOString().slice(0,10) + '.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  if(statusEl) statusEl.textContent = added + ' foto(s) exportada(s) en el ZIP. Guárdalo en un sitio seguro (o súbelo a Drive/iCloud).';
+}
+
+async function importPhotosZip(input){
+  const file = input.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('photo-export-status');
+  if(typeof JSZip === 'undefined'){
+    if(statusEl) statusEl.textContent = 'No se pudo cargar la librería para descomprimir — revisa tu conexión e inténtalo de nuevo.';
+    return;
+  }
+  try{
+    if(statusEl) statusEl.textContent = 'Importando fotos…';
+    const zip = await JSZip.loadAsync(file);
+    const entries = Object.keys(zip.files).filter(n=>!zip.files[n].dir);
+    let count = 0;
+    for(const name of entries){
+      const dotIdx = name.lastIndexOf('.');
+      if(dotIdx<0) continue;
+      const key = name.slice(0, dotIdx);
+      const ext = name.slice(dotIdx+1).toLowerCase();
+      const mime = ext==='png' ? 'image/png' : ext==='webp' ? 'image/webp' : 'image/jpeg';
+      const base64 = await zip.files[name].async('base64');
+      await idbSet(PHOTOS_STORE, key, 'data:'+mime+';base64,'+base64);
+      count++;
+    }
+    if(statusEl) statusEl.textContent = count + ' foto(s) importada(s) correctamente en este navegador.';
+    render();
+  }catch(err){
+    if(statusEl) statusEl.textContent = 'No se pudo importar el ZIP: ' + err.message;
+  }
+}
+async function importJSON(input){
+  const file = input.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if(!data.products || !data.editions) throw new Error('Formato no reconocido');
+    OVERRIDES = data;
+    await persistOverrides();
+    buildProducts();
+    alert('Importado correctamente.');
+    render();
+  }catch(err){
+    alert('No se pudo importar: ' + err.message);
+  }
+}
+/* Importar el paquete completo (ZIP de "Exportar TODO"): lee datos.json y
+   la carpeta fotos/ de dentro, y restaura los dos de golpe. El HTML de la
+   app que también lleva el ZIP no hace falta importarlo — es una copia
+   de la que ya tienes abierta. */
+async function importEverything(input){
+  const file = input.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('everything-export-status');
+  if(typeof JSZip === 'undefined'){
+    if(statusEl) statusEl.textContent = 'No se pudo cargar la librería para descomprimir — revisa tu conexión e inténtalo de nuevo.';
+    return;
+  }
+  try{
+    if(statusEl) statusEl.textContent = 'Importando el paquete completo…';
+    const zip = await JSZip.loadAsync(file);
+
+    const dataFile = zip.file('datos.json');
+    if(!dataFile) throw new Error('Este ZIP no lleva un "datos.json" dentro — ¿seguro que es un paquete de "Exportar TODO"?');
+    const dataText = await dataFile.async('string');
+    const data = JSON.parse(dataText);
+    if(!data.products || !data.editions) throw new Error('El formato de datos.json no se reconoce');
+    OVERRIDES = data;
+    await persistOverrides();
+
+    let photoCount = 0;
+    const photoEntries = Object.keys(zip.files).filter(n=> n.startsWith('fotos/') && !zip.files[n].dir);
+    for(const name of photoEntries){
+      const rel = name.slice('fotos/'.length);
+      const dotIdx = rel.lastIndexOf('.');
+      if(dotIdx<0) continue;
+      const key = rel.slice(0, dotIdx);
+      const ext = rel.slice(dotIdx+1).toLowerCase();
+      const mime = ext==='png' ? 'image/png' : ext==='webp' ? 'image/webp' : 'image/jpeg';
+      const base64 = await zip.files[name].async('base64');
+      await idbSet(PHOTOS_STORE, key, 'data:'+mime+';base64,'+base64);
+      photoCount++;
+    }
+
+    buildProducts();
+    if(statusEl) statusEl.textContent = 'Listo: datos restaurados + ' + photoCount + ' foto(s) importada(s).';
+    render();
+  }catch(err){
+    if(statusEl) statusEl.textContent = 'No se pudo importar: ' + err.message;
+  }
+}
+
+/* ---------- Tour guiado de bienvenida ---------- */
+/* Aparece la primera vez que se abre esta copia del archivo (a la vez que
+   el estado en blanco, sin datos de ejemplo). Guía a la persona a crear de
+   verdad una categoría, una plataforma y un objeto — no son diapositivas,
+   avanza solo cuando la acción real ha ocurrido. */
+let tourActive = false;
+let tourStep = 0;
+const TOUR_STEPS = [
+  { type:'modal', icon:'layers', titleKey:'tour.welcome.title', bodyKey:'tour.welcome.body', ctaKey:'tour.welcome.cta' },
+  { type:'action', icon:'layers', navigate:()=>goPage('coleccion'), selector:'#tour-add-category',
+    bodyKey:'tour.category.body',
+    done:()=> (OVERRIDES.customCategories||[]).length>0 },
+  { type:'action', icon:'plusCircle', selector:'#fab',
+    bodyKey:'tour.platform.body',
+    done:()=> (OVERRIDES.customPlatforms||[]).length>0 },
+  { type:'action', icon:'folder', selector:'#tour-add-folder',
+    bodyKey:'tour.folder.body',
+    done:()=> Object.values(OVERRIDES.folders||{}).some(arr=>arr && arr.length>0) },
+  { type:'action', icon:'plusCircle', selector:'#fab',
+    bodyKey:'tour.object.body',
+    done:()=> (OVERRIDES.customProducts||[]).length>0 },
+  { type:'modal', icon:'checkCircle', titleKey:'tour.final.title', bodyKey:'tour.final.body', ctaKey:'tour.final.cta' },
+];
+async function startTour(){
+  tourActive = true;
+  tourStep = 0;
+  renderTourOverlay();
+}
+async function tourNext(){
+  if(tourStep >= TOUR_STEPS.length - 1){ await finishTour(); return; }
+  tourStep++;
+  const next = TOUR_STEPS[tourStep];
+  if(next.navigate) next.navigate(); else renderTourOverlay();
+}
+async function finishTour(){
+  tourActive = false;
+  OVERRIDES.tourSeen = true;
+  await persistOverrides();
+  clearTourHighlight();
+  const c = document.getElementById('tourOverlay'); if(c) c.innerHTML = '';
+}
+function clearTourHighlight(){
+  document.querySelectorAll('.tour-spotlight, .tour-spotlight-fixed').forEach(el=> el.classList.remove('tour-spotlight','tour-spotlight-fixed'));
+}
+function advanceTourIfDone(){
+  const step = TOUR_STEPS[tourStep];
+  if(step && step.type==='action' && step.done && step.done()) tourStep++;
+  renderTourOverlay();
+}
+function renderTourOverlay(){
+  const container = document.getElementById('tourOverlay');
+  if(!container) return;
+  clearTourHighlight();
+  if(!tourActive){ container.innerHTML = ''; return; }
+  const step = TOUR_STEPS[tourStep];
+  if(!step) return;
+  if(step.type==='modal'){
+    container.innerHTML = `<div class="tour-modal-backdrop">
+      <div class="tour-modal">
+        <div class="tour-modal-icon">${icon(step.icon)}</div>
+        <div class="tour-modal-title">${t(step.titleKey)}</div>
+        <div class="tour-modal-body">${t(step.bodyKey)}</div>
+        <button class="btn primary" style="width:100%;" onclick="tourNext()">${t(step.ctaKey)}</button>
+        ${tourStep===0 ? `<button class="tour-skip" style="margin-top:12px;" onclick="finishTour()">${t('tour.skip')}</button>` : ``}
+      </div>
+    </div>`;
+  } else {
+    const target = document.querySelector(step.selector);
+    if(target){
+      // el "+" flotante ya tiene su propia posición fija en pantalla — si le
+      // forzamos position:relative para el halo, se sale de su sitio. Para
+      // botones normales (posición estática) sí hace falta forzarla.
+      const isFixedEl = window.getComputedStyle(target).position !== 'static';
+      target.classList.add(isFixedEl ? 'tour-spotlight-fixed' : 'tour-spotlight');
+    }
+    const actionSteps = TOUR_STEPS.filter(s=>s.type==='action');
+    const stepNum = TOUR_STEPS.slice(0, tourStep+1).filter(s=>s.type==='action').length;
+    const dots = actionSteps.map((s,i)=> `<span class="tour-dot ${i<stepNum?'tour-dot-done':''} ${i===stepNum-1?'tour-dot-current':''}"></span>`).join('');
+    container.innerHTML = `<div class="tour-caption">
+      <div class="tour-caption-head">
+        <span class="tour-caption-icon">${icon(step.icon)}</span>
+        <div class="tour-dots">${dots}</div>
+      </div>
+      <div class="tour-caption-text">${t(step.bodyKey)}</div>
+      <div class="tour-caption-foot"><span class="tour-caption-count">${t('tour.step')} ${stepNum} ${t('tour.of')} ${actionSteps.length}</span><button class="tour-skip" onclick="finishTour()">${t('tour.skip')}</button></div>
+    </div>`;
+  }
+}
+
+/* ---------- INIT ---------- */
+/* Tema claro/oscuro — se guarda en el mismo sitio que el resto de tus
+   ajustes, así que se recuerda la próxima vez que abras el archivo. */
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme==='dark' ? 'dark' : 'light');
+  const btn = document.getElementById('themeToggle');
+  if(btn){
+    // en oscuro se ofrece pasar a claro (icono sol, tono dorado) y viceversa
+    // (icono luna, tono azul) — el color representa lo que vas a activar.
+    btn.innerHTML = icon(theme==='dark' ? 'sun' : 'moon');
+    btn.classList.remove('mode-sun','mode-moon');
+    btn.classList.add(theme==='dark' ? 'mode-sun' : 'mode-moon');
+  }
+}
+async function toggleTheme(){
+  const current = OVERRIDES.theme === 'dark' ? 'dark' : 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  OVERRIDES.theme = next;
+  applyTheme(next);
+  await persistOverrides();
+}
+
+async function init(){
+  await ensureOverridesLoaded();
+  applyTheme(OVERRIDES.theme === 'dark' ? 'dark' : 'light');
+  const langBtn = document.getElementById('langToggle');
+  if(langBtn) langBtn.innerHTML = icon('globe');
+  const currencyBtn = document.getElementById('currencyToggle');
+  if(currencyBtn) currencyBtn.textContent = currencySymbol();
+  buildProducts();
+  attachFlipHandlers();
+  render();
+  if(!OVERRIDES.tourSeen) startTour();
+}
+init();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* si falla, la app sigue funcionando igual, solo sin modo sin-conexión */ });
+  });
+}
+</script>
+</body>
+</html>
