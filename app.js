@@ -148,6 +148,7 @@ function refreshChromeSettings(){
   const brand = document.getElementById('brandBtn'); if(brand) brand.setAttribute('aria-label', t('nav.dashboard') + ' — La Colección App');
   ['topnav','bottomnav'].forEach(id=>{ const n = document.getElementById(id); if(n) n.setAttribute('aria-label', t('nav.sections')); });
   const crumbs = document.getElementById('crumbs'); if(crumbs) crumbs.setAttribute('aria-label', t('nav.path'));
+  if(typeof syncUpdateDot==='function') syncUpdateDot();   // v11.9: punto ámbar de Ajustes
 }
 async function init(){
   await ensureOverridesLoaded();
@@ -170,6 +171,7 @@ async function init(){
   if(!indexOk) probePhotoIndex(PRODUCTS.map(p=>p.id)).then(()=>render());
   if(!OVERRIDES.tourSeen && !storageReadFailed) startTour();
   else if(wantScanner && !storageReadFailed && typeof openScanner==='function') openScanner();
+  if(typeof syncStart==='function') syncStart();   // v11.9: cuenta y sincronización
 }
 /* Al volver a la app (otra pestaña, otra app del móvil), se relee el índice de
    fotos: si se añadieron o quitaron fotos en otra ventana, se ven sin recargar. */

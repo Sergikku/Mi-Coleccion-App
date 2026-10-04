@@ -1089,7 +1089,7 @@ function renderAyuda(){
     ['organizar','layers', 'ayuda.organize'], ['anadir','plusCircle', 'ayuda.add'], ['buscar','search','ayuda.search'], ['lotengo','barcode','ayuda.scan'],
     ['mover','shuffle', 'ayuda.move'], ['renombrar','pencil', 'ayuda.rename'], ['completo','checkCircle', 'ayuda.complete'],
     ['fotos','camera', 'ayuda.photos'], ['orden','sortIcon', 'ayuda.order'], ['excluir','toggleIcon', 'ayuda.exclude'],
-    ['backup','archive', 'ayuda.backup'], ['idioma','globe', 'ayuda.language'],
+    ['backup','archive', 'ayuda.backup'], ['cuenta','cloud', 'ayuda.sync'], ['idioma','globe', 'ayuda.language'],
   ];
   let html = screenHeadHTML({ kicker:t('ayuda.kicker'), title:t('ayuda.title') });
   html += `<p class="ayuda-intro">${t('ayuda.intro')}</p><div class="ayuda-list">`;

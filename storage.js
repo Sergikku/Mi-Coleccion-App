@@ -139,7 +139,7 @@ async function ensureOverridesLoaded(){
   }
   const saved = res.value || null;
   if(saved){
-    try{ OVERRIDES = JSON.parse(saved); }
+    try{ OVERRIDES = JSON.parse(saved); if(typeof syncNoteLoaded==='function') syncNoteLoaded(saved); }
     catch(e){
       // v10.2: si los datos guardados no se pueden leer, se aparta una copia
       // literal ANTES de seguir, para que ningún guardado posterior los pise
@@ -162,10 +162,15 @@ let unreadableDataOnLoad = false;
 let storageReadFailed = false;   // v11: la colección no se pudo leer al arrancar → no se guarda nada
 async function persistOverrides(){
   if(storageReadFailed){ showSaveError(true, t('load.read_failed')); return false; }
-  let ok = false;
-  try{ ok = await idbSet(KV_STORE, 'overrides', JSON.stringify(OVERRIDES)); }catch(e){ ok = false; }
+  let ok = false, json = null;
+  try{
+    // v11.9: si otra ventana de la app guardó mientras tanto, se juntan sus cambios con los de esta (syncCasWrite)
+    if(typeof syncCasWrite==='function'){ json = await syncCasWrite(); ok = json!==null; }
+    else { json = JSON.stringify(OVERRIDES); ok = await idbSet(KV_STORE, 'overrides', json); }
+  }catch(e){ ok = false; }
   showSaveError(!ok);
   if(typeof notifySaved==='function') notifySaved(ok);
+  if(typeof syncNoteSaved==='function') syncNoteSaved(ok, json);   // v11.9: sincronización (y otras ventanas abiertas)
   return ok;
 }
 function getProductOverride(id){ return OVERRIDES.products[id] || {}; }
@@ -826,6 +831,7 @@ async function savePhotoFile(key, file){
   }catch(err){ showToast(t('photo.read_failed') + ' ' + (err && err.message || ''), { replace:true, duration:6000 }); return null; }
 }
 async function storePhotoData(key, dataUrl){
+  if(typeof syncNotePhoto==='function') syncNotePhoto(key);   // v11.9: sincronización (antes de escribir)
   const ok = await idbSet(PHOTOS_STORE, key, dataUrl);
   if(!ok){ showToast(t('photo.save_failed'), { replace:true, duration:6000 }); return null; }
   indexPhotoKey(key);
@@ -833,6 +839,7 @@ async function storePhotoData(key, dataUrl){
   return dataUrl;
 }
 async function removePhoto(key){
+  if(typeof syncNotePhoto==='function') syncNotePhoto(key);   // v11.9: sincronización (antes de borrar)
   await idbDelete(PHOTOS_STORE, key);
   await invalidateThumb(key);
   const info = parsePhotoKey(key);

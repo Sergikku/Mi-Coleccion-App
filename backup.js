@@ -195,6 +195,7 @@ async function writePhotoEntries(zip, entries){
   let count = 0;
   for(const e of entries){
     const base64 = await zip.files[e.name].async('base64');
+    if(typeof syncNotePhoto==='function') syncNotePhoto(e.key);   // v11.9: sincronización (antes de escribir)
     if(await idbSet(PHOTOS_STORE, e.key, 'data:' + e.mime + ';base64,' + base64)){ count++; indexPhotoKey(e.key); await invalidateThumb(e.key); }
   }
   return count;

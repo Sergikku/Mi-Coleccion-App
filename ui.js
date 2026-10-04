@@ -15,7 +15,7 @@ const NAV = [
   { id:'estadisticas',  labelKey:'nav.estadisticas',  icon:'chart' },
   { id:'investigacion', labelKey:'nav.investigacion', icon:'research' },
 ];
-const SECONDARY_PAGES = { ayuda:'nav.ayuda', backup:'backup.kicker', gallery:'gallery.kicker' };
+const SECONDARY_PAGES = { ayuda:'nav.ayuda', backup:'backup.kicker', gallery:'gallery.kicker', cuenta:'sync.title' };
 
 let view = { page:'dashboard' };
 /* Estado del Inventario: búsqueda, filtro rápido (los chips de siempre),
@@ -92,6 +92,7 @@ function goPage(id){
     backupStatusMsg = { everything:'', photos:'' };
     refreshStorageState(false).then(()=>{ const el=document.getElementById('storage-status'); if(el && view.page==='backup') el.outerHTML = storageStatusHTML(); });
   }
+  if(id==='cuenta' && typeof syncOnOpen==='function') syncOnOpen();   // v11.9
   render();
 }
 function goCategory(catId){ pushHistory(); view = { page:'coleccion', categoryId:catId }; render(); }
@@ -205,6 +206,7 @@ function renderScreen(){
     case 'investigacion': return renderInvestigacion();
     case 'ayuda': return renderAyuda();
     case 'backup': return renderBackup();
+    case 'cuenta': return typeof renderCuenta==='function' ? renderCuenta() : renderDashboard();   // v11.9
     case 'gallery': return renderGallery();
     default: return renderDashboard();
   }
@@ -1553,7 +1555,7 @@ function settingsBodyHTML(){
       <p class="settings-note">${t('settings.currency_note')}</p></div>
     ${row('camera', t('dash.gallery_link'), '', "goPage('gallery')")}
     ${typeof openScanner==='function' ? row('barcode', t('scan.settings_row'), t('scan.settings_sub'), "openScanner()") + row('image', t('scan.photos_link'), t('pcode.settings_sub'), "openPhotoBarcodeSearch()") : ''}`)
-  + group('data', row('archive', t('dash.backup_link'), escapeHTML(lastBackupText()), "goPage('backup')"))
+  + group('data', (typeof syncSettingsRowHTML==='function' ? syncSettingsRowHTML() : '') + row('archive', t('dash.backup_link'), escapeHTML(lastBackupText()), "goPage('backup')"))
   + group('info', `${row('help', t('nav.ayuda'), '', "goPage('ayuda')")}
     <p class="settings-version">La Colección App · v${APP_VERSION}</p>`);
 }
