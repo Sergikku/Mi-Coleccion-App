@@ -597,6 +597,10 @@ function isViewerOpen(){ return !!viewerState; }
      sale una lupa. «Quitar» vuelve al rectángulo que la encierra.
    · Cuadrado: el marco es 1:1 (llena el cuadrado, como el antiguo
      «Recortar»). Entera: toda la foto.
+   · Auto (v11.8): al abrir se busca la pieza (detectPieceQuad, en storage.js)
+     y, si hay una clara, el marco se pone solo en sus bordes. «Tolerancia»
+     lo amplía (coge más) o lo reduce (coge menos) igual por los cuatro lados.
+     Tocar el marco pasa a Libre; «Quitar» vuelve a la foto entera.
    · Girar: 90° a la derecha cada vez.
    · Margen: blanco alrededor (0–20 % del lado). El recorte se centra en el
      cuadrado blanco y lo que falte se rellena en blanco.
@@ -613,6 +617,7 @@ const PE_MIN = 36;          // tamaño mínimo del marco en pantalla (px)
 const PE_MAX_MARGIN = 20;   // %
 const PE_LOUPE_R = 48;      // radio de la lupa (px)
 const PE_LOUPE_ZOOM = 2.5;
+const PE_TOL_LESS = 0.03, PE_TOL_MORE = 0.06;   // Tolerancia: hasta un 3 % hacia dentro y un 6 % hacia fuera
 let photoEditor = null;
 function isPhotoEditorOpen(){ return !!photoEditor; }
 function peDims(e){ return e.rot % 2 ? { W:e.h, H:e.w } : { W:e.w, H:e.h }; }
@@ -646,6 +651,78 @@ function peSetQuadScreen(e, pts){
   e.quad = q;
   e.rect = { x:x0, y:y0, w:Math.max(...xs) - x0, h:Math.max(...ys) - y0 };
   e.mode = 'free';
+}
+/* Igual, con las esquinas ya en fracciones de la foto girada (Auto) */
+function peSetQuadNorm(e, q){
+  q = q.map(p=>[peClamp(p[0], 0, 1), peClamp(p[1], 0, 1)]);
+  if(q[0][1] === q[1][1] && q[3][1] === q[2][1] && q[0][0] === q[3][0] && q[1][0] === q[2][0]){
+    e.quad = null; e.rect = { x:q[0][0], y:q[0][1], w:q[1][0] - q[0][0], h:q[3][1] - q[0][1] };
+    return;
+  }
+  const xs = q.map(p=>p[0]), ys = q.map(p=>p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys);
+  e.quad = q; e.rect = { x:x0, y:y0, w:Math.max(...xs) - x0, h:Math.max(...ys) - y0 };
+}
+/* ---- Auto (v11.8) ----
+   e.det: undefined = buscando; null = no hay una pieza clara; { q } = sus 4
+   esquinas en fracciones de la foto girada. e.tol: el deslizador (0–100, 50 = justo). */
+function peTolValue(v){ v = Number(v); return v < 50 ? -PE_TOL_LESS * (50 - v) / 50 : PE_TOL_MORE * (v - 50) / 50; }
+function peTolLabel(v){
+  const p = Math.round(peTolValue(v) * 100);
+  if(!p) return t('pe.tol_exact');
+  return (p > 0 ? '+' : '−') + pePercent(Math.abs(p));
+}
+/* El marco de la pieza encontrada, ampliado o reducido igual por los cuatro lados (en píxeles de la foto) */
+function peAutoQuad(e){
+  const { W, H } = peDims(e), q = e.det.q.map(p=>[p[0] * W, p[1] * H]);
+  const d = (a, b)=>Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const wr = Math.max(d(q[0], q[1]), d(q[3], q[2])), hr = Math.max(d(q[0], q[3]), d(q[1], q[2]));
+  let off = peTolValue(e.tol) * Math.max(wr, hr);
+  if(off < 0) off = Math.max(off, -0.3 * Math.min(wr, hr));   // una pieza muy estrecha no se da la vuelta
+  if(!off) return e.det.q.map(p=>p.slice());
+  const M = homographyFromPoints([[0, 0], [wr, 0], [wr, hr], [0, hr]], q);
+  if(!M) return e.det.q.map(p=>p.slice());
+  const map = (x, y)=>{ const z = M[6] * x + M[7] * y + 1; return [(M[0] * x + M[1] * y + M[2]) / z / W, (M[3] * x + M[4] * y + M[5]) / z / H]; };
+  return [map(-off, -off), map(wr + off, -off), map(wr + off, hr + off), map(-off, hr + off)];
+}
+function peApplyAuto(e){
+  if(!e.det) return false;
+  e.mode = 'auto'; e.sel = -1;
+  peSetQuadNorm(e, peAutoQuad(e));
+  return true;
+}
+/* Pasa el resultado del detector (píxeles de la foto sin girar) a fracciones de la foto girada */
+function peDetToNorm(e, r){
+  let q = r.quad.map(p=>[p[0] / e.w, p[1] / e.h]);
+  for(let k = 0; k < e.rot; k++) q = [3, 0, 1, 2].map(i=>[1 - q[i][1], q[i][0]]);
+  return q;
+}
+function peShowScan(e, on){
+  e.scanning = !!on;
+  const sc = e.root.querySelector('#peScan'); if(sc) sc.hidden = !on;
+  const st = e.root.querySelector('#peStatus'); if(st) st.textContent = on ? t('pe.scanning') : '';
+}
+/* Busca la pieza (una vez por foto). Si el usuario aún no ha tocado nada, la aplica. */
+async function peRunDetect(e, preset){
+  if(typeof detectPieceQuad !== 'function'){ e.det = null; return; }
+  let r = preset;
+  if(r === undefined){
+    peShowScan(e, e.autoApply);   // al editar una foto ya guardada se busca sin tapar nada
+    // primero se pinta el editor; luego se busca
+    await new Promise(res=>requestAnimationFrame(()=>setTimeout(res, 0)));
+    if(photoEditor !== e) return;
+    try{ r = await detectPieceQuad(e.src, e.w, e.h); }catch(_){ r = null; }
+    if(photoEditor !== e) return;
+    peShowScan(e, false);
+  }
+  e.det = r ? { q:peDetToNorm(e, r), persp:!!r.persp } : null;
+  // se aplica solo si nadie ha tocado el marco (ni lo está tocando ahora) y, al
+  // editar una foto ya guardada, solo si se pidió con Auto
+  const free = !e.touched && !e.pointers.size && !e.drag;
+  const apply = e.wantAuto || (e.autoApply && free);
+  if(e.det && apply) peApplyAuto(e);
+  if(e.det === null && (e.wantAuto || (e.autoApply && free))) e.noneShown = e.wantAuto ? 'short' : 'whole';
+  e.wantAuto = false;
+  peDraw();
 }
 /* Al soltar: si casi es un rectángulo recto (menos de 1 px), se endereza el marco */
 function peSnapQuad(e){
@@ -828,10 +905,19 @@ function peRequestDraw(){ const e = photoEditor; if(e && !e.raf) e.raf = request
 function peDrawResult(e){
   e.root.querySelectorAll('[data-pe-mode]').forEach(b=>{ const on = b.dataset.peMode===e.mode; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on); });
   const { W, H } = peDims(e), px = peRectPx(e, W, H);
-  const persp = !!e.quad;
-  const chip = e.root.querySelector('#pePersp'); if(chip) chip.hidden = !persp;
+  const persp = !!e.quad, auto = e.mode === 'auto' && !!e.det;
+  const chip = e.root.querySelector('#pePersp'); if(chip) chip.hidden = !persp || auto;
+  const achip = e.root.querySelector('#peAuto'); if(achip) achip.hidden = !auto;
   const hint = e.root.querySelector('.pe-hint');
-  if(hint){ hint.hidden = persp; const ht = t(e.mode === 'square' ? 'pe.hint' : 'pe.hint_free'); if(hint.textContent !== ht) hint.textContent = ht; }
+  if(hint){
+    hint.hidden = (persp || auto) && !e.noneShown;
+    const ht = e.noneShown ? t(e.noneShown === 'short' ? 'pe.auto_none_short' : 'pe.auto_none') : t(e.mode === 'square' ? 'pe.hint' : 'pe.hint_free');
+    if(hint.textContent !== ht) hint.textContent = ht;
+  }
+  const tol = e.root.querySelector('#peTolRow'); if(tol) tol.hidden = !auto;
+  const note0 = e.root.querySelector('#peMarginNote'); if(note0) note0.hidden = auto;
+  const tr = e.root.querySelector('#peTol'); if(tr && Number(tr.value) !== e.tol) tr.value = e.tol;
+  const tv = e.root.querySelector('#peTolVal'); if(tv) tv.textContent = peTolLabel(e.tol);
   const size = e.root.querySelector('#peSize');
   if(size){
     const o = persp ? quadOutputSize(peQuadPx(e, W, H), W, H) : { w:px.w, h:px.h };
@@ -932,6 +1018,8 @@ function peScaleFrame(e, f0, f){
 }
 /* Cualquier cambio del marco deja de ser «Entera» (salvo que siga siendo la foto entera) */
 function peAfterFrameChange(e){
+  e.touched = true; e.noneShown = false;
+  if(e.mode === 'auto') e.mode = 'free';
   if(e.quad){ e.mode = 'free'; return; }
   if(e.mode === 'whole'){
     const r = e.rect, eps = 1e-6;
@@ -956,10 +1044,12 @@ function openPhotoEditor(opts){
         <span class="pe-title" id="peTitle">${t('pe.title')}</span>
         <button type="button" class="btn primary pe-save" id="peSave" onclick="savePhotoEditor()">${t('pe.save')}</button>
       </div>
-      <div class="pe-stage"><canvas class="pe-canvas" tabindex="0" role="img" aria-label="${escapeHTML(t('pe.canvas_label'))}"></canvas></div>
+      <div class="pe-stage"><canvas class="pe-canvas" tabindex="0" role="img" aria-label="${escapeHTML(t('pe.canvas_label'))}"></canvas><div class="pe-scan" id="peScan" hidden><span class="pe-scan-line"></span><span class="pe-scan-label">${t('pe.scanning')}</span></div></div>
+      <span class="sr-only" id="peStatus" role="status" aria-live="polite"></span>
       <div class="pe-tools">
         <div class="pe-row">
           <div class="segmented pe-modes" role="group" aria-label="${escapeHTML(t('pe.shape'))}">
+            <button type="button" class="seg-btn" data-pe-mode="auto" onclick="setPhotoEditorMode('auto')">${t('pe.auto')}</button>
             <button type="button" class="seg-btn" data-pe-mode="free" onclick="setPhotoEditorMode('free')">${t('pe.free')}</button>
             <button type="button" class="seg-btn" data-pe-mode="square" onclick="setPhotoEditorMode('square')">${t('pe.square')}</button>
             <button type="button" class="seg-btn" data-pe-mode="whole" onclick="setPhotoEditorMode('whole')">${t('pe.fit')}</button>
@@ -968,6 +1058,7 @@ function openPhotoEditor(opts){
         </div>
         <div class="pe-row pe-info">
           <p class="pe-hint">${t('pe.hint_free')}</p>
+          <div class="pe-persp pe-auto" id="peAuto" hidden>${icon('autocrop')}<span class="pe-persp-text">${t('pe.auto_found')}</span><button type="button" class="pe-persp-off" onclick="photoEditorAutoOff()" aria-label="${escapeHTML(t('pe.auto_off_label'))}">${t('pe.persp_off')}</button></div>
           <div class="pe-persp" id="pePersp" hidden>${icon('perspective')}<span class="pe-persp-text">${t('pe.persp')}</span><button type="button" class="pe-persp-off" onclick="photoEditorFlatten()" aria-label="${escapeHTML(t('pe.persp_off_label'))}">${t('pe.persp_off')}</button></div>
           <span class="pe-size" id="peSize"></span>
         </div>
@@ -977,6 +1068,11 @@ function openPhotoEditor(opts){
             <span>${t('pe.result')}</span>
           </div>
           <div class="pe-margin">
+            <div class="pe-tol" id="peTolRow" hidden>
+              <div class="pe-margin-top"><label for="peTol">${t('pe.tol')}</label><span class="pe-margin-val" id="peTolVal"></span></div>
+              <input type="range" class="pe-range" id="peTol" min="0" max="100" step="1" value="50" oninput="photoEditorTolerance(this.value)" aria-describedby="peTolEnds">
+              <div class="pe-tol-ends" id="peTolEnds"><span>${t('pe.tol_less')}</span><span>${t('pe.tol_more')}</span></div>
+            </div>
             <div class="pe-margin-top"><label for="peMargin">${t('pe.margin')}</label><span class="pe-margin-val" id="peMarginVal"></span></div>
             <input type="range" class="pe-range" id="peMargin" min="0" max="${PE_MAX_MARGIN}" step="1" value="0" oninput="photoEditorMargin(this.value)">
             <p class="pe-note" id="peMarginNote"></p>
@@ -985,11 +1081,15 @@ function openPhotoEditor(opts){
       </div>`;
     document.body.appendChild(root);
     photoEditor = { src, prev, w, h, rot:0, mode:'whole', rect:{ x:0, y:0, w:1, h:1 }, quad:null, sel:-1, margin:0, resolve, root,
-      canvas: root.querySelector('.pe-canvas'), pointers: new Map(), drag:null, lay:null, raf:0, returnFocus: document.activeElement };
-    peBind(photoEditor);
+      canvas: root.querySelector('.pe-canvas'), pointers: new Map(), drag:null, lay:null, raf:0, returnFocus: document.activeElement,
+      det:undefined, tol:50, touched:false, scanning:false, wantAuto:false, noneShown:false, autoApply: opts.autoApply !== false };
+    const e = photoEditor;
+    peBind(e);
     window.addEventListener('resize', peLayout);
     peLayout();
     requestAnimationFrame(()=>{ peLayout(); const b = root.querySelector('#peSave'); if(b) b.focus(); });
+    // v11.8: busca la pieza (o usa la que ya se encontró antes de abrir)
+    peRunDetect(e, opts.detected);
   });
 }
 function closePhotoEditor(result){
@@ -1019,6 +1119,15 @@ async function savePhotoEditor(){
    marco actual, centrado. Entera: toda la foto. */
 function setPhotoEditorMode(m){
   const e = photoEditor; if(!e) return;
+  e.noneShown = false;
+  if(m === 'auto'){
+    if(e.det) peApplyAuto(e);
+    else if(e.det === null) e.noneShown = 'short';         // no hay una pieza clara: se dice y no se toca nada
+    else { e.wantAuto = true; peShowScan(e, true); }       // aún buscando: se aplicará al terminar
+    peDraw();
+    return;
+  }
+  e.touched = true; e.wantAuto = false;
   if(m === 'whole'){ e.mode = 'whole'; e.quad = null; e.rect = { x:0, y:0, w:1, h:1 }; }
   else if(m === 'square'){
     const { W, H } = peDims(e), r = peRectPx(e, W, H);
@@ -1028,6 +1137,19 @@ function setPhotoEditorMode(m){
   }
   else e.mode = 'free';
   peDraw();
+}
+/* «Quitar» el recorte automático: vuelve a la foto entera */
+function photoEditorAutoOff(){
+  const e = photoEditor; if(!e) return;
+  setPhotoEditorMode('whole');
+  try{ e.canvas.focus({ preventScroll:true }); }catch(_){}
+}
+/* Tolerancia (solo en Auto): 0 = coge menos, 50 = justo, 100 = coge más */
+function photoEditorTolerance(v){
+  const e = photoEditor; if(!e) return;
+  e.tol = peClamp(Math.round(Number(v) || 0), 0, 100);
+  if(e.mode === 'auto' && e.det){ peSetQuadNorm(e, peAutoQuad(e)); peDraw(); }
+  else peDrawResult(e);
 }
 /* «Quitar» la perspectiva: queda el rectángulo que encierra las esquinas */
 function photoEditorFlatten(){
@@ -1044,6 +1166,7 @@ function rotatePhotoEditor(){
   e.rect = { x:Math.max(0, 1 - (r.y + r.h)), y:r.x, w:r.h, h:r.w };
   // cada esquina gira con la foto; la de abajo-izquierda pasa a ser la de arriba-izquierda
   if(e.quad){ const q = e.quad; e.quad = [3, 0, 1, 2].map(i=>[Math.max(0, 1 - q[i][1]), q[i][0]]); }
+  if(e.det){ const q = e.det.q; e.det.q = [3, 0, 1, 2].map(i=>[1 - q[i][1], q[i][0]]); }
   if(e.sel >= 0) e.sel = (e.sel + 1) % 4;
   peLayout();
 }
@@ -1062,6 +1185,7 @@ function peBind(e){
       const h = peHit(e, p.x, p.y);
       if(!h) return;
       e.drag = { h, x0:p.x, y0:p.y, f0:peFrame(e), q0:peQuadScreen(e) };
+      e.touched = true;
       if(h[0] === 'c' && h.length === 2) e.drag.corner = Number(h[1]);
       else if(h[0] === 'e' && h.length === 2) e.drag.edge = Number(h[1]);
       e.sel = -1;
@@ -1166,7 +1290,7 @@ async function editViewerPhoto(){
   let img;
   try{ img = await loadImageURL(await loadPhoto(key)); }
   catch(err){ showToast(t('photo.read_failed') + ' ' + (err && err.message || ''), { replace:true, duration:6000 }); return; }
-  const out = await openPhotoEditor({ source: img });
+  const out = await openPhotoEditor({ source: img, autoApply: false });   // v11.8: una foto ya guardada no se recorta sola; Auto, si lo pides
   if(!out) return;
   if(!await storePhotoData(key, out)) return;
   showToast(t('photo.saved'), { ok:true, replace:true });

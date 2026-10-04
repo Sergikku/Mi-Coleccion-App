@@ -2,7 +2,7 @@
    Utilidades sin estado: escapado de HTML, normalización para búsquedas, orden natural, iconos SVG, slug, fechas y descargas. */
 
 /* Versión visible de la app (esquina y Ajustes). Mantener igual que CACHE_NAME de sw.js. */
-const APP_VERSION = '11.7.0';
+const APP_VERSION = '11.8.0';
 
 /* Iconos propios en línea (nada de emoji) — heredan el color del texto
    que los rodea, así encajan igual en modo claro y oscuro. v11: un único
@@ -55,6 +55,8 @@ const ICON_PATHS = {
   external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   /* v11.7: recorte con perspectiva */
   perspective: '<path d="M6.5 5.5 17.5 4l3 15.5-17 .5Z"/>',
+  /* v11.8: recorte automático */
+  autocrop: '<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M9 9h6v6H9Z"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3L19.5 9"/><path d="M19.5 4.5V9H15"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
   flip: '<path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/>',

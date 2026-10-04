@@ -1688,6 +1688,31 @@ I18N.es['ayuda.photos.body'] += '<br><br>En <b>Libre</b>, cada esquina del marco
 I18N.en['ayuda.photos.body'] += '<br><br>In <b>Free</b>, each corner of the frame moves on its own: if you photographed a box at an angle or from the side, drag each corner to the box’s corner (a magnifier appears while you drag). When you save, the box comes out straight, with its real proportions and centred in the square, with the margin you choose. The <b>Perspective corrected</b> notice appears; <b>Undo</b> goes back to a rectangular crop.';
 I18N.de['ayuda.photos.body'] += '<br><br>Bei <b>Frei</b> lässt sich jede Ecke des Rahmens einzeln bewegen: Hast du eine Schachtel schräg oder von der Seite fotografiert, zieh jede Ecke auf die Ecke der Schachtel (beim Ziehen erscheint eine Lupe). Beim Speichern steht die Schachtel gerade, in ihren echten Proportionen und mittig im Quadrat, mit dem gewählten Rand. Es erscheint der Hinweis <b>Perspektive korrigiert</b>; mit <b>Entfernen</b> kehrst du zum rechteckigen Ausschnitt zurück.';
 I18N.ja['ayuda.photos.body'] += '<br><br><b>フリー</b>では枠の角を1つずつ動かせます。箱を斜めや横から撮った場合は、各角を箱の角に合わせてください（ドラッグ中は拡大鏡が表示されます）。保存すると、箱はまっすぐ、本来の縦横比で、選んだ余白とともに正方形の中央に配置されます。<b>遠近を補正済み</b>と表示され、<b>解除</b>で長方形の切り抜きに戻せます。';
+/* ---- v11.8: recorte automático (Auto) y tolerancia ---- */
+Object.assign(I18N.es, {
+  'pe.auto':'Auto', 'pe.auto_found':'Pieza detectada', 'pe.auto_off_label':'Quitar el recorte automático y ver la foto entera',
+  'pe.scanning':'Buscando la pieza…', 'pe.auto_none_short':'No he encontrado un borde claro.', 'pe.auto_none':'No he encontrado un borde claro: tienes la foto entera.',
+  'pe.tol':'Tolerancia', 'pe.tol_less':'Coge menos', 'pe.tol_more':'Coge más', 'pe.tol_exact':'Justo',
+});
+Object.assign(I18N.en, {
+  'pe.auto':'Auto', 'pe.auto_found':'Item detected', 'pe.auto_off_label':'Remove the automatic crop and show the whole photo',
+  'pe.scanning':'Looking for the item…', 'pe.auto_none_short':'No clear edge found.', 'pe.auto_none':'No clear edge found: you have the whole photo.',
+  'pe.tol':'Tolerance', 'pe.tol_less':'Tighter', 'pe.tol_more':'Looser', 'pe.tol_exact':'Exact',
+});
+Object.assign(I18N.de, {
+  'pe.auto':'Auto', 'pe.auto_found':'Objekt erkannt', 'pe.auto_off_label':'Automatischen Ausschnitt entfernen und das ganze Foto zeigen',
+  'pe.scanning':'Objekt wird gesucht…', 'pe.auto_none_short':'Kein klarer Rand gefunden.', 'pe.auto_none':'Kein klarer Rand gefunden: Du siehst das ganze Foto.',
+  'pe.tol':'Toleranz', 'pe.tol_less':'Enger', 'pe.tol_more':'Weiter', 'pe.tol_exact':'Genau',
+});
+Object.assign(I18N.ja, {
+  'pe.auto':'自動', 'pe.auto_found':'アイテムを検出', 'pe.auto_off_label':'自動の切り抜きを解除して写真全体を表示',
+  'pe.scanning':'アイテムを探しています…', 'pe.auto_none_short':'はっきりした輪郭が見つかりません。', 'pe.auto_none':'はっきりした輪郭が見つかりません。写真全体のままです。',
+  'pe.tol':'許容範囲', 'pe.tol_less':'狭く', 'pe.tol_more':'広く', 'pe.tol_exact':'ぴったり',
+});
+I18N.es['ayuda.photos.body'] += '<br><br><b>Auto</b> busca la pieza al abrir la foto y pone el marco en sus bordes, aunque esté torcida o en ángulo. Con <b>Tolerancia</b> coges un poco menos (hacia dentro, sin un hilo de fondo) o un poco más (con algo de fondo alrededor). Si tocas el marco pasas a <b>Libre</b> para afinarlo a mano; <b>Quitar</b> vuelve a la foto entera. Si no ve un borde claro, te lo dice y deja la foto entera. Al <b>Editar</b> una foto que ya tienes no recorta nada por su cuenta: toca <b>Auto</b> si lo quieres. Las fotos cuadradas también abren el editor cuando hay una pieza clara más pequeña que la foto; si no, se guardan directamente, como siempre.';
+I18N.en['ayuda.photos.body'] += '<br><br><b>Auto</b> looks for the item when the photo opens and places the frame on its edges, even if it is tilted or at an angle. <b>Tolerance</b> makes it a little tighter (inwards, without a sliver of background) or a little looser (with some background around it). Touching the frame switches to <b>Free</b> so you can fine-tune it by hand; <b>Undo</b> goes back to the whole photo. If there is no clear edge, it tells you and keeps the whole photo. When you <b>Edit</b> a photo you already have, nothing is cropped on its own: tap <b>Auto</b> if you want it. Square photos also open the editor when there is a clear item smaller than the photo; otherwise they are saved directly, as always.';
+I18N.de['ayuda.photos.body'] += '<br><br><b>Auto</b> sucht beim Öffnen des Fotos das Objekt und legt den Rahmen an seine Kanten, auch wenn es schief oder schräg liegt. Mit <b>Toleranz</b> wird der Ausschnitt etwas enger (nach innen, ohne einen Streifen Hintergrund) oder etwas weiter (mit etwas Hintergrund drumherum). Berührst du den Rahmen, wechselst du zu <b>Frei</b> und kannst von Hand nachbessern; <b>Entfernen</b> kehrt zum ganzen Foto zurück. Findet es keinen klaren Rand, sagt es das und lässt das ganze Foto. Beim <b>Bearbeiten</b> eines vorhandenen Fotos wird nichts von selbst zugeschnitten: Tippe auf <b>Auto</b>, wenn du es möchtest. Quadratische Fotos öffnen den Editor ebenfalls, wenn ein klares Objekt kleiner als das Foto zu sehen ist; sonst werden sie wie immer direkt gespeichert.';
+I18N.ja['ayuda.photos.body'] += '<br><br><b>自動</b>は写真を開くとアイテムを探し、傾いていたり斜めに写っていても、枠をその輪郭に合わせます。<b>許容範囲</b>で少し狭く（内側へ、背景が残らないように）または少し広く（周りに背景を少し残して）できます。枠に触れると<b>フリー</b>に切り替わり、手で微調整できます。<b>解除</b>で写真全体に戻ります。はっきりした輪郭がない場合はそう知らせ、写真全体のままにします。登録済みの写真を<b>編集</b>するときは自動では切り抜かれません。必要なら<b>自動</b>をタップしてください。正方形の写真でも、写真より小さいアイテムがはっきり写っていれば編集画面が開きます。そうでなければ、これまでどおりそのまま保存されます。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;

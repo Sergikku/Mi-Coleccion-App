@@ -761,7 +761,15 @@ html:not([data-theme="dark"]) .pe-save{background:#f1ede3;border-color:#f1ede3;c
 .pe-info{align-items:baseline;}
 .pe-hint{flex:1;min-width:0;margin:0;font-size:var(--fs-xs);color:rgba(241,237,227,0.72);line-height:1.4;}
 .pe-size{font-size:var(--fs-xs);color:rgba(241,237,227,0.72);font-variant-numeric:tabular-nums;white-space:nowrap;}
-.pe-hint[hidden], .pe-persp[hidden]{display:none;}
+.pe-hint[hidden], .pe-persp[hidden], .pe-tol[hidden], .pe-note[hidden], .pe-scan[hidden]{display:none;}
+/* v11.8: Auto — buscando la pieza, y la tolerancia */
+.pe-scan{position:absolute;inset:0;overflow:hidden;border-radius:var(--r-md);background:rgba(5,6,10,0.35);pointer-events:none;}
+.pe-scan-line{position:absolute;left:0;right:0;top:0;height:40px;background:linear-gradient(180deg, rgba(95,176,163,0) 0%, rgba(95,176,163,0.4) 100%);border-bottom:1.5px solid #8fd0c4;animation:pe-scan 1s linear infinite;}
+@keyframes pe-scan{0%{top:-40px}100%{top:100%}}
+.pe-scan-label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 14px;border-radius:999px;background:rgba(5,6,10,0.82);color:#f1ede3;font-size:var(--fs-sm);white-space:nowrap;}
+@media (prefers-reduced-motion: reduce){ .pe-scan-line{animation:none;display:none;} }
+.pe-tol{display:flex;flex-direction:column;gap:0;margin-bottom:6px;}
+.pe-tol-ends{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-2xs);color:rgba(241,237,227,0.72);}
 /* v11.7: aviso de perspectiva corregida, con «Quitar» */
 .pe-persp{flex:1 1 auto;min-width:0;display:inline-flex;align-items:center;gap:6px;align-self:center;padding:3px 3px 3px 10px;border-radius:20px;background:rgba(95,176,163,0.16);border:1px solid rgba(95,176,163,0.5);color:#8fd0c4;font-size:var(--fs-xs);line-height:1.2;max-width:max-content;}
 .pe-persp .ico{width:15px;height:15px;flex-shrink:0;}
@@ -780,10 +788,15 @@ html:not([data-theme="dark"]) .pe-save{background:#f1ede3;border-color:#f1ede3;c
 .pe-margin-val{font-size:var(--fs-sm);font-variant-numeric:tabular-nums;}
 .pe-range{width:100%;margin:0;height:var(--tap);accent-color:#e0876a;cursor:pointer;}
 .pe-note{margin:0;font-size:var(--fs-xs);line-height:1.4;color:rgba(241,237,227,0.72);}
-@media (max-width:359px){
+/* v11.8: con 4 formas, «Girar» se queda en icono en los móviles */
+@media (max-width:419px){
   .pe-rotate{padding:0 var(--sp-3);}
   .pe-rotate-label{display:none;}
-  .pe-modes .seg-btn{padding:0 9px;}
+}
+@media (max-width:359px){
+  .pe-rotate{padding:0 10px;}
+  .pe-rotate-label{display:none;}
+  .pe-modes .seg-btn{padding:0 7px;}
   .pe-preview{width:88px;height:88px;}
 }
 /* Móvil en horizontal: la foto a la izquierda y los controles a la derecha */
@@ -793,6 +806,10 @@ html:not([data-theme="dark"]) .pe-save{background:#f1ede3;border-color:#f1ede3;c
   .pe-stage{grid-column:1;grid-row:2;min-height:0;}
   .pe-tools{grid-column:2;grid-row:2;overflow:auto;max-height:100%;padding-top:0;align-self:center;}
   .pe-preview{width:88px;height:88px;}
+  /* v11.8: con 4 formas la columna es estrecha: «Girar» en icono */
+  .pe-rotate{padding:0 10px;}
+  .pe-rotate-label{display:none;}
+  .pe-modes .seg-btn{padding:0 8px;}
 }
 /* --- «¿Lo tengo?» (v11.6): escáner de códigos, resultados, «Buscar a la venta» y códigos en tus fotos --- */
 .search-row{display:flex;gap:var(--sp-2);align-items:stretch;margin-bottom:var(--sp-3);}
