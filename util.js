@@ -2,7 +2,7 @@
    Utilidades sin estado: escapado de HTML, normalización para búsquedas, orden natural, iconos SVG, slug, fechas y descargas. */
 
 /* Versión visible de la app (esquina y Ajustes). Mantener igual que CACHE_NAME de sw.js. */
-const APP_VERSION = '11.9.0';
+const APP_VERSION = '11.10.0';
 
 /* Iconos propios en línea (nada de emoji) — heredan el color del texto
    que los rodea, así encajan igual en modo claro y oscuro. v11: un único
@@ -57,6 +57,10 @@ const ICON_PATHS = {
   perspective: '<path d="M6.5 5.5 17.5 4l3 15.5-17 .5Z"/>',
   /* v11.8: recorte automático */
   autocrop: '<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M9 9h6v6H9Z"/>',
+  /* v11.10: editor de foto — luz y color, ver original, óvalo corregido */
+  light: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3 7 7M17 17l1.7 1.7M5.3 18.7 7 17M17 7l1.7-1.7"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+  oval: '<ellipse cx="12" cy="12" rx="9" ry="5.5"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 2.6"/>',
   /* v11.9: cuenta y sincronización */
   cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.3 9.7 4.4 4.4 0 0 0 7 18.5Z"/>',
   cloudCheck: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.3 9.7 4.4 4.4 0 0 0 7 18.5Z"/><path d="m9.6 13.9 1.9 1.9 3.4-3.6"/>',

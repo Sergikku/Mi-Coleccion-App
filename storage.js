@@ -243,9 +243,81 @@ function drawPhotoFramed(ctx, size, src, w, h, rot, rect, margin){
   ctx.restore();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
-function squarePhotoDataURL(src, w, h, rot, rect, margin){
+function squarePhotoDataURL(src, w, h, rot, rect, margin, adj){
   const c = document.createElement('canvas'); c.width = c.height = PHOTO_SIZE;
-  drawPhotoFramed(c.getContext('2d'), PHOTO_SIZE, src, w, h, rot || 0, rect || null, margin || 0);
+  const ctx = c.getContext('2d');
+  drawPhotoFramed(ctx, PHOTO_SIZE, src, w, h, rot || 0, rect || null, margin || 0);
+  applyPhotoAdjust(ctx, PHOTO_SIZE, adj);
+  return c.toDataURL('image/jpeg', 0.9);
+}
+/* ---------- Luz y saturación (v11.10) ----------
+   adj = { luz, sat }, cada uno de −100 a 100 (0 = sin cambios).
+   · Luz: una curva que lleva todos los tonos hacia el blanco (más clara) o
+     hacia el negro (más oscura) sin quemar nada: el blanco puro sigue blanco
+     y el negro puro sigue negro. Más clara: 1 − (1 − v)^k; más oscura: v^k,
+     con k = 1 + |luz| / 100 (de 1 a 2).
+   · Saturación: la matriz estándar (la misma que «saturate» de CSS), con
+     s = 1 + sat / 100: 0 = gris, 1 = igual, 2 = el doble de color.
+   Como el blanco no cambia con ninguna de las dos, se aplican al resultado ya
+   montado (foto + blanco alrededor) y el blanco queda intacto. */
+function photoAdjustActive(adj){ return !!adj && ((Number(adj.luz) || 0) !== 0 || (Number(adj.sat) || 0) !== 0); }
+function photoAdjustPixels(d, adj){
+  const luz = Math.max(-100, Math.min(100, Number(adj.luz) || 0)), sat = Math.max(-100, Math.min(100, Number(adj.sat) || 0));
+  const lut = new Uint8ClampedArray(256), k = 1 + Math.abs(luz) / 100;
+  for(let i = 0; i < 256; i++){ const v = i / 255; lut[i] = Math.round(255 * (luz > 0 ? 1 - Math.pow(1 - v, k) : luz < 0 ? Math.pow(v, k) : v)); }
+  const s = 1 + sat / 100;
+  if(s === 1){
+    for(let i = 0; i < d.length; i += 4){ d[i] = lut[d[i]]; d[i + 1] = lut[d[i + 1]]; d[i + 2] = lut[d[i + 2]]; }
+    return;
+  }
+  const m00 = 0.213 + 0.787 * s, m01 = 0.715 - 0.715 * s, m02 = 0.072 - 0.072 * s;
+  const m10 = 0.213 - 0.213 * s, m11 = 0.715 + 0.285 * s, m12 = 0.072 - 0.072 * s;
+  const m20 = 0.213 - 0.213 * s, m21 = 0.715 - 0.715 * s, m22 = 0.072 + 0.928 * s;
+  for(let i = 0; i < d.length; i += 4){
+    const r = lut[d[i]], g = lut[d[i + 1]], b = lut[d[i + 2]];
+    d[i] = m00 * r + m01 * g + m02 * b; d[i + 1] = m10 * r + m11 * g + m12 * b; d[i + 2] = m20 * r + m21 * g + m22 * b;
+  }
+}
+/* Aplica luz y saturación a todo el lienzo (cuadrado de `size`, o w × h) */
+function applyPhotoAdjust(ctx, size, adj, hgt){
+  if(!photoAdjustActive(adj)) return;
+  const W = size, H = hgt || size;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const im = ctx.getImageData(0, 0, W, H);
+  photoAdjustPixels(im.data, adj);
+  ctx.putImageData(im, 0, 0);
+}
+/* ---------- Círculo (v11.10) ----------
+   rect = el rectángulo que encierra el óvalo, en píxeles de la foto ya girada.
+   round = true: el óvalo se estira hasta un círculo perfecto (un CD fotografiado
+   un poco de lado sale redondo); false: se queda con su forma.
+   Se coloca centrado en el cuadrado blanco, con el margen, y lo que queda
+   fuera del óvalo va en blanco. */
+function drawPhotoEllipse(ctx, size, src, w, h, rot, rect, margin, round){
+  rot = rot || 0;
+  margin = Math.min(0.45, Math.max(0, margin || 0));
+  const W = rot % 2 ? h : w, H = rot % 2 ? w : h;
+  rect = rect || { x:0, y:0, w:W, h:H };
+  const inner = size * (1 - 2 * margin), rw = Math.max(1e-6, rect.w), rh = Math.max(1e-6, rect.h);
+  const k = inner / Math.max(rw, rh);
+  const kx = round ? inner / rw : k, ky = round ? inner / rh : k;
+  const dw = rw * kx, dh = rh * ky, ox = (size - dw) / 2, oy = (size - dh) / 2;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(size / 2, size / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.setTransform(kx, 0, 0, ky, ox - rect.x * kx, oy - rect.y * ky);
+  ctx.translate(W / 2, H / 2); ctx.rotate(rot * Math.PI / 2);
+  ctx.drawImage(src, -w / 2, -h / 2, w, h);
+  ctx.restore();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+function squarePhotoEllipseDataURL(src, w, h, rot, rect, margin, round, adj){
+  const c = document.createElement('canvas'); c.width = c.height = PHOTO_SIZE;
+  const ctx = c.getContext('2d');
+  drawPhotoEllipse(ctx, PHOTO_SIZE, src, w, h, rot || 0, rect || null, margin || 0, round !== false);
+  applyPhotoAdjust(ctx, PHOTO_SIZE, adj);
   return c.toDataURL('image/jpeg', 0.9);
 }
 /* ---------- Recorte con perspectiva (v11.7) ----------
@@ -373,9 +445,11 @@ function drawPhotoQuad(ctx, size, src, w, h, rot, quad, margin){
   }
   ctx.putImageData(out, ox, oy);
 }
-function squarePhotoQuadDataURL(src, w, h, rot, quad, margin){
+function squarePhotoQuadDataURL(src, w, h, rot, quad, margin, adj){
   const c = document.createElement('canvas'); c.width = c.height = PHOTO_SIZE;
-  drawPhotoQuad(c.getContext('2d'), PHOTO_SIZE, src, w, h, rot || 0, quad, margin || 0);
+  const ctx = c.getContext('2d');
+  drawPhotoQuad(ctx, PHOTO_SIZE, src, w, h, rot || 0, quad, margin || 0);
+  applyPhotoAdjust(ctx, PHOTO_SIZE, adj);
   return c.toDataURL('image/jpeg', 0.9);
 }
 /* ---------- Recorte automático (v11.8) ----------
@@ -721,6 +795,175 @@ async function detectPieceQuad(src, w, h){
   const ar = pdArea(R) / (w * h);
   if(!(ar > 0.04 && ar < 0.985)) return null;
   return { quad:R, persp, threshold:c.t, fill:c.fill };
+}
+/* ---------- Disco para el recorte en Círculo (v11.10) ----------
+   Auto busca piezas de 4 lados; un CD suelto es redondo y Auto no lo ve. Aquí
+   se separa la pieza del fondo igual que en Auto (bordes → se inunda el fondo
+   desde los bordes de la foto) y a la mancha se le ajusta un óvalo recto con
+   sus momentos (centro y extensión). Vale si la mancha y el óvalo coinciden en
+   un 90 % o más; luego cada lado se afina en la foto a 1024 px buscando el
+   borde nítido más exterior cerca del óvalo. Devuelve { cx, cy, rx, ry } en
+   píxeles de la foto original (sin girar), o null si no hay un disco claro. */
+/* Óvalo de una mancha por sus momentos. Se mide cuánto se parece a un óvalo
+   (aunque esté inclinado) y se devuelve el óvalo recto que llena el mismo
+   rectángulo: rx y ry son la mitad del ancho y del alto que ocupa. */
+function pdEllipseFit(obj, W, H){
+  let n = 0, sx = 0, sy = 0;
+  for(let y = 0; y < H; y++) for(let x = 0; x < W; x++) if(obj[y * W + x]){ n++; sx += x + 0.5; sy += y + 0.5; }
+  if(n < 50) return null;
+  const mx = sx / n, my = sy / n;
+  let vxx = 0, vyy = 0, vxy = 0;
+  for(let y = 0; y < H; y++) for(let x = 0; x < W; x++) if(obj[y * W + x]){ const dx = x + 0.5 - mx, dy = y + 0.5 - my; vxx += dx * dx; vyy += dy * dy; vxy += dx * dy; }
+  vxx /= n; vyy /= n; vxy /= n;
+  // ejes del óvalo (inclinado) con la misma dispersión que la mancha
+  const tr = (vxx + vyy) / 2, dd = Math.sqrt(Math.max(0, (vxx - vyy) * (vxx - vyy) / 4 + vxy * vxy));
+  const l1 = tr + dd, l2 = Math.max(1e-9, tr - dd), th = 0.5 * Math.atan2(2 * vxy, vxx - vyy);
+  const a = 2 * Math.sqrt(l1), b = 2 * Math.sqrt(l2), c = Math.cos(th), s = Math.sin(th);
+  if(!(a > 2 && b > 2)) return null;
+  let inter = 0, ein = 0;
+  for(let y = 0; y < H; y++) for(let x = 0; x < W; x++){
+    const dx = x + 0.5 - mx, dy = y + 0.5 - my, u = (dx * c + dy * s) / a, v = (-dx * s + dy * c) / b;
+    if(u * u + v * v <= 1){ ein++; if(obj[y * W + x]) inter++; }
+  }
+  return { cx:mx, cy:my, rx:2 * Math.sqrt(vxx), ry:2 * Math.sqrt(vyy), iou:inter / (n + ein - inter) };
+}
+/* Las manchas más grandes (4 vecinos), cada una con sus huecos rellenos */
+function pdBlobs(m, W, H, minN, max){
+  const lab = new Int32Array(W * H), q = new Int32Array(W * H), sizes = [];
+  let id = 0;
+  for(let s = 0; s < W * H; s++){
+    if(!m[s] || lab[s]) continue;
+    id++; let head = 0, tail = 0; q[tail++] = s; lab[s] = id;
+    while(head < tail){
+      const i = q[head++], x = i % W;
+      if(x > 0 && m[i - 1] && !lab[i - 1]){ lab[i - 1] = id; q[tail++] = i - 1; }
+      if(x < W - 1 && m[i + 1] && !lab[i + 1]){ lab[i + 1] = id; q[tail++] = i + 1; }
+      if(i >= W && m[i - W] && !lab[i - W]){ lab[i - W] = id; q[tail++] = i - W; }
+      if(i < (H - 1) * W && m[i + W] && !lab[i + W]){ lab[i + W] = id; q[tail++] = i + W; }
+    }
+    if(tail >= minN) sizes.push([id, tail]);
+  }
+  return sizes.sort((a, b)=>b[1] - a[1]).slice(0, max).map(([k])=>{
+    const pass = new Uint8Array(W * H);
+    for(let i = 0; i < W * H; i++) pass[i] = lab[i] === k ? 0 : 1;
+    const outside = pdFloodFromBorder(pass, W, H), obj = new Uint8Array(W * H);
+    for(let i = 0; i < W * H; i++) if(!outside[i]) obj[i] = 1;
+    return obj;
+  });
+}
+/* Óvalo recto que mejor pasa por unos puntos: A·x² + B·y² + C·x + D·y = 1 */
+function pdEllipseFromPoints(P){
+  if(P.length < 8) return null;
+  const mx = P.reduce((s, p)=>s + p[0], 0) / P.length, my = P.reduce((s, p)=>s + p[1], 0) / P.length;
+  const A = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], b = [0, 0, 0, 0];
+  for(const p of P){
+    const x = p[0] - mx, y = p[1] - my, r = [x * x, y * y, x, y];
+    for(let i = 0; i < 4; i++){ b[i] += r[i]; for(let j = 0; j < 4; j++) A[i][j] += r[i] * r[j]; }
+  }
+  const s = solveLinear(A, b); if(!s) return null;
+  const [a, bb, c, d] = s; if(!(a > 0 && bb > 0)) return null;
+  const F = 1 + c * c / (4 * a) + d * d / (4 * bb); if(!(F > 0)) return null;
+  return { cx:mx - c / (2 * a), cy:my - d / (2 * bb), rx:Math.sqrt(F / a), ry:Math.sqrt(F / bb) };
+}
+/* Afinado en la foto a 1024 px: en 96 direcciones se busca, cerca del óvalo, el
+   borde nítido más exterior (las sombras son bordes difusos y se saltan) y se
+   ajusta un óvalo recto a esos puntos. «apoyo» = la parte de las direcciones
+   en las que el borde cae justo sobre el óvalo final (1 = todo el contorno). */
+function pdEllipseRefiner(img){
+  const { W, H } = img, rgb = img.rgba, L0 = new Float32Array(W * H), L1 = new Float32Array(W * H), L = new Float32Array(W * H);
+  for(let i = 0; i < W * H; i++) L0[i] = (rgb[i * 4] + rgb[i * 4 + 1] + rgb[i * 4 + 2]) / 3;
+  for(let y = 0; y < H; y++){ const r = y * W; for(let x = 0; x < W; x++){ const a = x > 0 ? x - 1 : 0, b = x < W - 1 ? x + 1 : W - 1; L1[r + x] = (L0[r + a] + 2 * L0[r + x] + L0[r + b]) / 4; } }
+  for(let y = 0; y < H; y++){ const r = y * W, ra = (y > 0 ? y - 1 : 0) * W, rb = (y < H - 1 ? y + 1 : H - 1) * W; for(let x = 0; x < W; x++) L[r + x] = (L1[ra + x] + 2 * L1[r + x] + L1[rb + x]) / 4; }
+  const lum = (x, y)=>{
+    x = Math.min(W - 1.001, Math.max(0, x)); y = Math.min(H - 1.001, Math.max(0, y));
+    const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, i = y0 * W + x0;
+    return L[i] * (1 - fx) * (1 - fy) + L[i + 1] * fx * (1 - fy) + L[i + W] * (1 - fx) * fy + L[i + W + 1] * fx * fy;
+  };
+  const NA = 96;
+  return function(el){
+    const pts = [];
+    for(let k = 0; k < NA; k++){
+      const th = 2 * Math.PI * k / NA, c = Math.cos(th), s = Math.sin(th);
+      const px = el.cx + el.rx * c, py = el.cy + el.ry * s;
+      if(px < 1 || py < 1 || px > W - 2 || py > H - 2) continue;      // ese trozo se sale de la foto
+      let nx = c / el.rx, ny = s / el.ry; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+      const span = Math.max(4, 0.12 * Math.hypot(px - el.cx, py - el.cy)), N = Math.ceil(2 * span) + 1;
+      const prof = new Float32Array(N), gr = new Float32Array(N);
+      for(let j = 0; j < N; j++){ const o = -span + j; prof[j] = lum(px + nx * o, py + ny * o); }
+      let mx = 0;
+      for(let j = 1; j < N - 1; j++){ gr[j] = Math.abs(prof[j + 1] - prof[j - 1]) / 2; if(gr[j] > mx) mx = gr[j]; }
+      if(mx <= 6) continue;
+      let jj = -1;
+      for(let j = N - 2; j > 0; j--){        // de fuera hacia dentro: el primer borde nítido y fuerte
+        if(!(gr[j] >= 0.5 * mx && gr[j] >= gr[j - 1] && gr[j] >= gr[j + 1])) continue;
+        const half = gr[j] / 2; let a0 = j, b0 = j;
+        while(a0 > 1 && gr[a0 - 1] >= half) a0--;
+        while(b0 < N - 2 && gr[b0 + 1] >= half) b0++;
+        if(b0 - a0 + 1 > 6) continue;         // borde difuso (una sombra)
+        jj = j; break;
+      }
+      if(jj < 0) continue;
+      // posición del borde dentro del píxel (parábola por los tres valores)
+      const g0 = gr[jj - 1], g1 = gr[jj], g2 = gr[jj + 1], den = g0 - 2 * g1 + g2;
+      const o = -span + jj + (den < 0 && jj > 1 && jj < N - 2 ? 0.5 * (g0 - g2) / den : 0);
+      pts.push([px + nx * o, py + ny * o]);
+    }
+    if(pts.length < NA * 0.4) return null;
+    let P = pts, fit = null;
+    for(let it = 0; it < 3; it++){
+      fit = pdEllipseFromPoints(P); if(!fit) return null;
+      const res = P.map(p=>Math.abs(Math.hypot((p[0] - fit.cx) / fit.rx, (p[1] - fit.cy) / fit.ry) - 1));
+      const lim = Math.max(0.006, 2.5 * pdMedian(res)), next = P.filter((p, k)=>res[k] <= lim);
+      if(next.length < NA * 0.4 || next.length === P.length) break;
+      P = next;
+    }
+    const on = pts.filter(p=>Math.abs(Math.hypot((p[0] - fit.cx) / fit.rx, (p[1] - fit.cy) / fit.ry) - 1) <= 0.015).length;
+    return { cx:fit.cx, cy:fit.cy, rx:fit.rx, ry:fit.ry, support:on / NA };
+  };
+}
+async function detectDiscEllipse(src, w, h){
+  const fine = pdImage(src, w, h, PD_FINE);
+  const base = pdImage(fine.canvas, fine.W, fine.H, PD_SIZE), W = base.W, H = base.H;
+  const g = pdGradient(pdBlur(base.rgba, W, H, [1, 4, 6, 4, 1]), W, H);
+  const cands = [];
+  for(const t of PD_THRESHOLDS){
+    await pdYield();
+    const edges = new Uint8Array(W * H);
+    for(let i = 0; i < W * H; i++) edges[i] = g[i] >= t ? 1 : 0;
+    const wall = pdMorph(edges, W, H, 1, false), pass = new Uint8Array(W * H);
+    for(let i = 0; i < W * H; i++) pass[i] = wall[i] ? 0 : 1;
+    const bg = pdFloodFromBorder(pass, W, H), raw = new Uint8Array(W * H);
+    for(let i = 0; i < W * H; i++) raw[i] = bg[i] ? 0 : 1;
+    const opened = pdMorph(pdMorph(raw, W, H, 4, true), W, H, 4, false);
+    // puede haber otras cosas en la foto (una caja al lado): se mira cada mancha grande
+    for(const obj of pdBlobs(opened, W, H, Math.max(50, 0.02 * W * H), 4)){
+      const el = pdEllipseFit(obj, W, H); if(!el || el.iou < 0.9) continue;
+      const ar = Math.PI * el.rx * el.ry / (W * H);
+      if(!(ar > 0.02 && ar < 0.9)) continue;
+      // el óvalo sin salirse de la foto (un disco cortado por el borde no se ve entero)
+      if(el.cx - el.rx < -0.03 * W || el.cy - el.ry < -0.03 * H || el.cx + el.rx > 1.03 * W || el.cy + el.ry > 1.03 * H) continue;
+      // el mismo óvalo con otro umbral no se vuelve a mirar
+      if(cands.some(c=>Math.abs(c.cx - el.cx) < 0.01 * el.rx && Math.abs(c.cy - el.cy) < 0.01 * el.ry && Math.abs(c.rx / el.rx - 1) < 0.01 && Math.abs(c.ry / el.ry - 1) < 0.01)) continue;
+      cands.push(el);
+    }
+  }
+  if(!cands.length) return null;
+  await pdYield();
+  // cada candidato se afina en la foto a 1024 px; gana el que tiene más contorno
+  // con un borde nítido justo encima (así una sombra alrededor no cuenta)
+  const kx = fine.W / W, ky = fine.H / H, refine = pdEllipseRefiner(fine);
+  let best = null;
+  for(const c of cands){
+    const el = { cx:c.cx * kx, cy:c.cy * ky, rx:c.rx * kx, ry:c.ry * ky };
+    let r = null;
+    try{ r = refine(el); }catch(_){ r = null; }
+    if(!r || r.support < 0.35) continue;
+    if(Math.abs(r.cx - el.cx) > 0.12 * el.rx || Math.abs(r.cy - el.cy) > 0.12 * el.ry || Math.abs(r.rx / el.rx - 1) > 0.15 || Math.abs(r.ry / el.ry - 1) > 0.15) continue;
+    if(!best || r.support > best.support + 0.02 || (r.support > best.support - 0.02 && c.iou > best.iou)) best = Object.assign(r, { iou:c.iou });
+  }
+  // sin un borde claro alrededor (un disco inclinado, por ejemplo) se queda el óvalo de la mancha
+  if(!best){ const c = cands.reduce((a, b)=>b.iou > a.iou ? b : a); best = { cx:c.cx * kx, cy:c.cy * ky, rx:c.rx * kx, ry:c.ry * ky, iou:c.iou, support:0 }; }
+  return { cx:best.cx / fine.s, cy:best.cy / fine.sy, rx:best.rx / fine.s, ry:best.ry / fine.sy, iou:best.iou, support:best.support };
 }
 function isSquareImage(w, h){ return Math.abs(w - h) <= Math.max(w, h) * 0.01; }
 /* Lo de siempre, sin editor: la foto entera sobre fondo blanco */

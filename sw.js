@@ -1,4 +1,4 @@
-/* Service worker de La Colección App — v11.9.0
+/* Service worker de La Colección App — v11.10.0
  *
  * Qué hace:
  *  - Al instalarse guarda TODO lo necesario para funcionar sin conexión
@@ -21,13 +21,13 @@
  *  - v11.9: sync.js (cuenta y sincronización). Las peticiones a Supabase son de
  *    otro dominio: no pasan por aquí ni se guardan en caché.
  */
-const CACHE_NAME = 'coleccion-app-v11.9.0';
+const CACHE_NAME = 'coleccion-app-v11.10.0';
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = './index.html';
 // Todos los archivos de la app (si se añade uno, añadirlo también a index.html)
 // CSS y JS se piden con ?v=<versión> (igual que en index.html), así una versión
 // nueva nunca reutiliza archivos de la anterior. Todo va en la raíz, sin carpetas.
-const V = '?v=11.9.0';
+const V = '?v=11.10.0';
 const PRECACHE = [
   APP_SHELL, './app.css' + V,
   ...['util', 'i18n', 'storage', 'model', 'ui', 'screens', 'actions', 'backup', 'scanner', 'sync', 'app'].map((n) => './' + n + '.js' + V),

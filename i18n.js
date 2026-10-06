@@ -2050,6 +2050,63 @@ Object.assign(I18N.ja, {
   'ayuda.sync':'アカウントと同期',
   'ayuda.sync.body':'設定の<b>アカウントと同期</b>で、スマホでも PC でも同じコレクションになります。Supabase で作成したアカウントのメールアドレスとパスワードでログインしてください。アプリから新しいアカウントは作成できません。<br><br>初回、この端末とクラウドの両方にデータがある場合は、どちらを使うか選びます：<b>クラウドのものを使う</b>（先にこの端末の内容のコピーを保存し、ZIP でダウンロードできます）または<b>この端末のものをアップロード</b>（クラウドの内容を置き換えます）。<br><br>その後は自動で同期します：アプリを開いたとき、変更のたび、接続が戻ったとき。オフラインでもすべて使え、変更は待機します。アップロードできない変更があると、設定ボタンに琥珀色の点が付きます。同じアイテムが同期前に2か所で変更された場合は、新しいほうの変更を残してお知らせします。多くのアイテムや写真が一度にクラウドから削除されそうなとき（古いバックアップを読み込んだ後など）は、先に確認します。<br><br>アイテム、フォルダー、カテゴリー、プラットフォーム、コレクションの設定、写真がすべて同期されます。ライト／ダークのテーマは端末ごとです。データは非公開で、あなたのアカウントだけが見られます。ZIP のバックアップはこれまでどおり使え、引き続き作成することをおすすめします。',
 });
+/* ---- v11.10: editor de foto — Círculo (discos sueltos) y Luz y color ---- */
+Object.assign(I18N.es, {
+  'pe.circle':'Círculo',
+  'pe.hint_circle':'Lleva los 4 puntos al borde del disco y muévelo arrastrando desde dentro. Si sale ovalado, al guardar queda redondo.',
+  'pe.oval':'Óvalo corregido', 'pe.oval_off_label':'Dejarlo con su forma ovalada, como en la foto',
+  'pe.oval_kept':'Se queda ovalado', 'pe.oval_fix':'Corregir', 'pe.oval_fix_label':'Corregir el óvalo para que quede redondo',
+  'pe.margin_note_circle':'Blanco alrededor del círculo ({px} px de 1200). Lo que queda fuera del círculo va en blanco, como el resto de tus fotos.',
+  'pe.scanning_disc':'Buscando el disco…', 'pe.disc_none':'No he encontrado el disco: colócalo tú con los 4 puntos.',
+  'pe.tabs':'Ajustes de la foto', 'pe.tab_crop':'Recorte', 'pe.tab_light':'Luz y color',
+  'pe.light':'Luz', 'pe.light_less':'Más oscura', 'pe.light_more':'Más clara',
+  'pe.sat':'Saturación', 'pe.sat_less':'Menos color', 'pe.sat_more':'Más color',
+  'pe.adj_normal':'Normal', 'pe.adj_reset':'Dejar como estaba',
+  'pe.adj_compare':'Ver original', 'pe.adj_compare_label':'Mantén pulsado para ver la foto sin los cambios de luz y color',
+});
+Object.assign(I18N.en, {
+  'pe.circle':'Circle',
+  'pe.hint_circle':'Drag the 4 points to the edge of the disc and move it from inside. If it looks oval, it comes out round when you save.',
+  'pe.oval':'Oval corrected', 'pe.oval_off_label':'Keep its oval shape, as in the photo',
+  'pe.oval_kept':'Kept oval', 'pe.oval_fix':'Correct', 'pe.oval_fix_label':'Correct the oval so it comes out round',
+  'pe.margin_note_circle':'White space around the circle ({px} px of 1200). Everything outside the circle is white, like the rest of your photos.',
+  'pe.scanning_disc':'Looking for the disc…', 'pe.disc_none':'Couldn’t find the disc: place it yourself with the 4 points.',
+  'pe.tabs':'Photo settings', 'pe.tab_crop':'Crop', 'pe.tab_light':'Light & colour',
+  'pe.light':'Light', 'pe.light_less':'Darker', 'pe.light_more':'Lighter',
+  'pe.sat':'Saturation', 'pe.sat_less':'Less colour', 'pe.sat_more':'More colour',
+  'pe.adj_normal':'Normal', 'pe.adj_reset':'Reset',
+  'pe.adj_compare':'Show original', 'pe.adj_compare_label':'Press and hold to see the photo without the light and colour changes',
+});
+Object.assign(I18N.de, {
+  'pe.circle':'Kreis',
+  'pe.hint_circle':'Zieh die 4 Punkte an den Rand der Disc und verschiebe sie von innen. Wirkt sie oval, wird sie beim Speichern rund.',
+  'pe.oval':'Oval korrigiert', 'pe.oval_off_label':'Die ovale Form wie auf dem Foto beibehalten',
+  'pe.oval_kept':'Bleibt oval', 'pe.oval_fix':'Korrigieren', 'pe.oval_fix_label':'Das Oval korrigieren, damit es rund wird',
+  'pe.margin_note_circle':'Weißer Rand um den Kreis ({px} px von 1200). Alles außerhalb des Kreises wird weiß, wie bei deinen anderen Fotos.',
+  'pe.scanning_disc':'Disc wird gesucht…', 'pe.disc_none':'Keine Disc gefunden: Platziere den Kreis selbst mit den 4 Punkten.',
+  'pe.tabs':'Fotoeinstellungen', 'pe.tab_crop':'Zuschnitt', 'pe.tab_light':'Licht & Farbe',
+  'pe.light':'Helligkeit', 'pe.light_less':'Dunkler', 'pe.light_more':'Heller',
+  'pe.sat':'Sättigung', 'pe.sat_less':'Weniger Farbe', 'pe.sat_more':'Mehr Farbe',
+  'pe.adj_normal':'Normal', 'pe.adj_reset':'Zurücksetzen',
+  'pe.adj_compare':'Original zeigen', 'pe.adj_compare_label':'Gedrückt halten, um das Foto ohne die Licht- und Farbänderungen zu sehen',
+});
+Object.assign(I18N.ja, {
+  'pe.circle':'円形',
+  'pe.hint_circle':'4つの点をディスクの縁に合わせ、内側をドラッグして移動します。楕円に写っていても、保存すると円になります。',
+  'pe.oval':'楕円を補正済み', 'pe.oval_off_label':'写真のとおり楕円のままにする',
+  'pe.oval_kept':'楕円のまま', 'pe.oval_fix':'補正', 'pe.oval_fix_label':'楕円を補正して円にする',
+  'pe.margin_note_circle':'円の周りの白い余白（1200 px 中 {px} px）。円の外側は、ほかの写真と同じく白になります。',
+  'pe.scanning_disc':'ディスクを探しています…', 'pe.disc_none':'ディスクが見つかりません。4つの点で位置を合わせてください。',
+  'pe.tabs':'写真の設定', 'pe.tab_crop':'切り抜き', 'pe.tab_light':'明るさと色',
+  'pe.light':'明るさ', 'pe.light_less':'暗く', 'pe.light_more':'明るく',
+  'pe.sat':'彩度', 'pe.sat_less':'色を薄く', 'pe.sat_more':'色を濃く',
+  'pe.adj_normal':'標準', 'pe.adj_reset':'元に戻す',
+  'pe.adj_compare':'元の写真', 'pe.adj_compare_label':'長押しすると、明るさと色を調整する前の写真を表示します',
+});
+I18N.es['ayuda.photos.body'] += '<br><br><b>Círculo</b> es para los discos sueltos: al elegirlo busca el disco y le pone encima un círculo con 4 puntos, uno en cada lado. Cada punto mueve su lado y desde dentro se mueve entero (mientras arrastras sale la lupa). Si el disco salió un poco ovalado en la foto, al guardar queda redondo (<b>Óvalo corregido</b>; con <b>Quitar</b> se queda con su forma). Lo que queda fuera del círculo va en blanco.<br><br>En la pestaña <b>Luz y color</b> puedes aclarar u oscurecer la foto y darle más o menos color, en cualquier modo y también al editar una foto que ya tienes. Solo cambia la foto: el blanco de alrededor sigue blanco. Mantén pulsado <b>Ver original</b> para comparar; <b>Dejar como estaba</b> lo quita.';
+I18N.en['ayuda.photos.body'] += '<br><br><b>Circle</b> is for loose discs: when you choose it, it looks for the disc and places a circle over it with 4 points, one on each side. Each point moves its side and dragging from inside moves the whole circle (a magnifier appears while you drag). If the disc came out slightly oval in the photo, it comes out round when you save (<b>Oval corrected</b>; <b>Undo</b> keeps its shape). Everything outside the circle is white.<br><br>In the <b>Light &amp; colour</b> tab you can make the photo lighter or darker and give it more or less colour, in any mode and also when editing a photo you already have. Only the photo changes: the white around it stays white. Press and hold <b>Show original</b> to compare; <b>Reset</b> removes the changes.';
+I18N.de['ayuda.photos.body'] += '<br><br><b>Kreis</b> ist für lose Discs: Wählst du ihn, sucht er die Disc und legt einen Kreis mit 4 Punkten darüber, einen an jeder Seite. Jeder Punkt verschiebt seine Seite, von innen verschiebst du den ganzen Kreis (beim Ziehen erscheint die Lupe). Ist die Disc auf dem Foto etwas oval, wird sie beim Speichern rund (<b>Oval korrigiert</b>; mit <b>Entfernen</b> behält sie ihre Form). Alles außerhalb des Kreises wird weiß.<br><br>Im Tab <b>Licht &amp; Farbe</b> kannst du das Foto heller oder dunkler machen und ihm mehr oder weniger Farbe geben, in jedem Modus und auch beim Bearbeiten eines vorhandenen Fotos. Nur das Foto ändert sich: Das Weiß drumherum bleibt weiß. Halte <b>Original zeigen</b> gedrückt, um zu vergleichen; <b>Zurücksetzen</b> nimmt die Änderungen zurück.';
+I18N.ja['ayuda.photos.body'] += '<br><br><b>円形</b>はディスク単体の写真用です。選ぶとディスクを探し、各辺に1つずつ、計4つの点がある円を重ねます。各点はその辺を動かし、内側をドラッグすると円全体が動きます（ドラッグ中は拡大鏡が表示されます）。写真でディスクが少し楕円に写っていても、保存すると円になります（<b>楕円を補正済み</b>。<b>解除</b>で元の形のまま）。円の外側は白になります。<br><br><b>明るさと色</b>タブでは、どのモードでも、また保存済みの写真を編集するときも、写真を明るく・暗くしたり、色を濃く・薄くしたりできます。変わるのは写真だけで、周りの白は白のままです。<b>元の写真</b>を長押しすると比較でき、<b>元に戻す</b>で調整を取り消せます。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;

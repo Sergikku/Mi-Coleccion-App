@@ -611,7 +611,18 @@ function isViewerOpen(){ return !!viewerState; }
    El marco se guarda en fracciones de la foto ya girada (0–1): e.rect es
    el rectángulo y, si hay perspectiva, e.quad las 4 esquinas (arriba-izq.,
    arriba-der., abajo-der., abajo-izq.); e.rect es entonces el rectángulo que
-   las encierra. Sin perspectiva todo funciona exactamente como en la v11.5. */
+   las encierra. Sin perspectiva todo funciona exactamente como en la v11.5.
+   v11.10:
+   · Círculo: el óvalo que cabe en e.rect, con un punto en cada lado (cada
+     punto mueve su lado; desde dentro se mueve entero; lupa al arrastrar).
+     Al entrar con la foto entera se busca el disco (detectDiscEllipse, en
+     storage.js) y, si no hay uno claro, sale centrado. Si queda ovalado, al
+     guardar se estira hasta un círculo («Óvalo corregido»; «Quitar» lo deja
+     con su forma: e.keepOval). Fuera del círculo, blanco.
+   · Luz y color (pestaña): e.luz y e.sat de −100 a 100. Solo tocan la foto
+     (el blanco sigue blanco). En pantalla se usa una copia ya ajustada de la
+     vista reducida (e.prevAdj); al guardar se ajusta el cuadrado final.
+     «Ver original» (mantener pulsado) enseña la foto sin luz ni color. */
 const PE_PAD = 22;          // hueco alrededor de la foto para que se vean y se agarren las asas
 const PE_HIT = 24;          // radio para agarrar una esquina (px)
 const PE_EDGE = 16;         // distancia para agarrar un lado (px)
@@ -688,6 +699,7 @@ function peAutoQuad(e){
 }
 function peApplyAuto(e){
   if(!e.det) return false;
+  if(e.mode === 'circle') peLeaveCircle(e);   // v11.10
   e.mode = 'auto'; e.sel = -1;
   peSetQuadNorm(e, peAutoQuad(e));
   return true;
@@ -698,10 +710,14 @@ function peDetToNorm(e, r){
   for(let k = 0; k < e.rot; k++) q = [3, 0, 1, 2].map(i=>[1 - q[i][1], q[i][0]]);
   return q;
 }
-function peShowScan(e, on){
-  e.scanning = !!on;
-  const sc = e.root.querySelector('#peScan'); if(sc) sc.hidden = !on;
-  const st = e.root.querySelector('#peStatus'); if(st) st.textContent = on ? t('pe.scanning') : '';
+/* v11.10: dos búsquedas posibles, la de Auto ('auto') y la del disco ('disc') */
+function peShowScan(e, on, kind){
+  kind = kind || 'auto';
+  if(kind === 'auto') e.scanning = !!on; else e.scanningDisc = !!on;
+  const any = e.scanning || e.scanningDisc, lab = t(e.scanningDisc && (kind === 'disc' || !e.scanning) ? 'pe.scanning_disc' : 'pe.scanning');
+  const sc = e.root.querySelector('#peScan'); if(sc) sc.hidden = !any;
+  const sl = e.root.querySelector('.pe-scan-label'); if(sl && any && sl.textContent !== lab) sl.textContent = lab;
+  const st = e.root.querySelector('#peStatus'); if(st) st.textContent = any ? lab : '';
 }
 /* Busca la pieza (una vez por foto). Si el usuario aún no ha tocado nada, la aplica. */
 async function peRunDetect(e, preset){
@@ -791,6 +807,45 @@ function pePercent(n){
   try{ return new Intl.NumberFormat(OVERRIDES.lang || 'es', { style:'percent', maximumFractionDigits:0 }).format(n / 100); }
   catch(_){ return n + ' %'; }
 }
+/* ---- Luz y color (v11.10) ---- */
+function peAdj(e){ return { luz:e.luz, sat:e.sat }; }
+function peAdjOn(e){ return !!(e.luz || e.sat); }
+/* La vista reducida con la luz y el color aplicados (se rehace solo si cambian).
+   fast: mientras se mueve un deslizador se usa una copia de 800 px (cuatro
+   veces menos trabajo); al soltarlo se rehace a tamaño completo, que es lo
+   que enseña bien la lupa. */
+function peAdjusted(e, fast){
+  const key = e.luz + ':' + e.sat;
+  let base = e.prev, slot = 'prevAdj';
+  if(fast){
+    if(!e.prevSmall){
+      const f = Math.min(1, 800 / Math.max(e.prev.width, e.prev.height));
+      if(f >= 1) e.prevSmall = e.prev;
+      else {
+        const s = document.createElement('canvas');
+        s.width = Math.max(1, Math.round(e.prev.width * f)); s.height = Math.max(1, Math.round(e.prev.height * f));
+        const sx = s.getContext('2d'); sx.imageSmoothingQuality = 'high'; sx.drawImage(e.prev, 0, 0, s.width, s.height);
+        e.prevSmall = s;
+      }
+    }
+    base = e.prevSmall; slot = 'prevAdjS';
+  }
+  if(e[slot] && e[slot + 'Key'] === key) return e[slot];
+  const c = e[slot] || document.createElement('canvas');
+  c.width = base.width; c.height = base.height;
+  const x = c.getContext('2d');
+  x.drawImage(base, 0, 0);
+  try{ applyPhotoAdjust(x, c.width, peAdj(e), c.height); }catch(_){}
+  e[slot] = c; e[slot + 'Key'] = key;
+  return c;
+}
+/* Lo que se ve en pantalla: con luz y color, salvo mientras se pulsa «Ver original» */
+function pePhotoSource(e){
+  if(!peAdjOn(e) || e.showOrig) return e.prev;
+  const full = e.prevAdj && e.prevAdjKey === e.luz + ':' + e.sat;
+  return peAdjusted(e, e.adjFast && !full);
+}
+function peAdjLabel(v){ return !v ? t('pe.adj_normal') : (v > 0 ? '+' : '−') + Math.abs(v); }
 /* La foto (girada) en su sitio de la pantalla */
 function peDrawPhoto(ctx, e){
   const L = e.lay;
@@ -798,7 +853,7 @@ function peDrawPhoto(ctx, e){
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.translate(L.ox + L.dw / 2, L.oy + L.dh / 2); ctx.rotate(e.rot * Math.PI / 2);
   const iw = e.rot % 2 ? L.dh : L.dw, ih = e.rot % 2 ? L.dw : L.dh;
-  ctx.drawImage(e.prev, -iw / 2, -ih / 2, iw, ih);
+  ctx.drawImage(pePhotoSource(e), -iw / 2, -ih / 2, iw, ih);
   ctx.restore();
 }
 function peDraw(){
@@ -811,8 +866,102 @@ function peDraw(){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   peDrawPhoto(ctx, e);
   if(e.mode === 'square') peDrawRectFrame(ctx, e);
+  else if(e.mode === 'circle') peDrawCircleFrame(ctx, e);
   else peDrawQuadFrame(ctx, e);
   peDrawResult(e);
+}
+/* ---- Círculo (v11.10) ---- */
+/* El óvalo en pantalla: centro, radios y los 4 puntos (arriba, derecha, abajo, izquierda) */
+function peEllipseScreen(e){
+  const L = e.lay, f = peFrame(e), rx = f.W / 2, ry = f.H / 2, cx = L.ox + f.X + rx, cy = L.oy + f.Y + ry;
+  return { cx, cy, rx, ry, pts:{ n:[cx, cy - ry], e:[cx + rx, cy], s:[cx, cy + ry], w:[cx - rx, cy] } };
+}
+/* ¿Está ovalado? (en píxeles de la foto, más de un 1,5 % de diferencia entre ancho y alto) */
+function peIsOval(e){
+  const { W, H } = peDims(e), w = e.rect.w * W, h = e.rect.h * H;
+  return Math.abs(w - h) > 0.015 * Math.max(w, h);
+}
+function peDrawCircleFrame(ctx, e){
+  const L = e.lay, E = peEllipseScreen(e), rx = Math.max(0.5, E.rx), ry = Math.max(0.5, E.ry);
+  const oval = ()=>ctx.ellipse(E.cx, E.cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.rect(L.ox, L.oy, L.dw, L.dh); oval();
+  ctx.fillStyle = 'rgba(5,6,10,0.62)'; ctx.fill('evenodd');
+  // mientras se arrastra, el cuadro que lo encierra (ayuda a ver qué lado se mueve)
+  if(e.drag){
+    const f = peFrame(e);
+    ctx.strokeStyle = 'rgba(241,237,227,0.3)'; ctx.lineWidth = 1;
+    ctx.strokeRect(L.ox + f.X + 0.5, L.oy + f.Y + 0.5, Math.max(0, f.W - 1), Math.max(0, f.H - 1));
+  }
+  ctx.strokeStyle = 'rgba(241,237,227,0.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); oval(); ctx.stroke();
+  // cruz del centro
+  const k = Math.min(6, rx / 4, ry / 4);
+  ctx.strokeStyle = 'rgba(241,237,227,0.75)'; ctx.lineWidth = 1.5; ctx.lineCap = 'butt';
+  ctx.beginPath(); ctx.moveTo(E.cx - k, E.cy); ctx.lineTo(E.cx + k, E.cy); ctx.moveTo(E.cx, E.cy - k); ctx.lineTo(E.cx, E.cy + k); ctx.stroke();
+  // los 4 puntos, como las esquinas de Libre
+  const active = e.drag && E.pts[e.drag.h] ? e.drag.h : null;
+  for(const n of ['n', 'e', 's', 'w']){
+    const on = n === active, r = on ? 12 : 9, p = E.pts[n];
+    ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2);
+    ctx.fillStyle = on ? 'rgba(241,237,227,0.35)' : 'rgba(5,6,10,0.35)'; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#f1ede3'; ctx.stroke();
+  }
+  if(active) peDrawLoupeAt(ctx, e, E.pts[active], ()=>{ ctx.beginPath(); oval(); });
+}
+/* ¿Qué se agarra en el círculo? Un punto (n/e/s/w) > dentro ('move') > nada */
+function peHitCircle(e, px, py){
+  const E = peEllipseScreen(e);
+  let best = null, bd = Infinity;
+  for(const n of ['n', 'e', 's', 'w']){ const p = E.pts[n], d = Math.hypot(px - p[0], py - p[1]); if(d <= PE_HIT && d < bd){ bd = d; best = n; } }
+  const nx = (px - E.cx) / Math.max(1, E.rx), ny = (py - E.cy) / Math.max(1, E.ry), inside = nx * nx + ny * ny <= 1;
+  // con un círculo pequeño los puntos lo tapan casi entero: cerca del centro se mueve
+  if(best && !(inside && Math.hypot(px - E.cx, py - E.cy) < bd)) return best;
+  return inside ? 'move' : null;
+}
+/* Círculo centrado (el 80 % del lado corto de la foto) */
+function peCircleCentered(e){
+  const { W, H } = peDims(e), s = 0.8 * Math.min(W, H);
+  e.rect = { x:(W - s) / 2 / W, y:(H - s) / 2 / H, w:s / W, h:s / H };
+}
+/* El disco encontrado (píxeles de la foto sin girar) en fracciones de la foto girada */
+function peDiscRect(e, d){
+  let r = { x:(d.cx - d.rx) / e.w, y:(d.cy - d.ry) / e.h, w:2 * d.rx / e.w, h:2 * d.ry / e.h };
+  for(let k = 0; k < e.rot; k++) r = { x:1 - (r.y + r.h), y:r.x, w:r.h, h:r.w };
+  // si se sale un poco de la foto, se achica alrededor de su centro sin deformarlo
+  const cx = peClamp(r.x + r.w / 2, 0.005, 0.995), cy = peClamp(r.y + r.h / 2, 0.005, 0.995);
+  const f = Math.min(1, 2 * cx / r.w, 2 * (1 - cx) / r.w, 2 * cy / r.h, 2 * (1 - cy) / r.h);
+  const w = Math.max(0.01, r.w * f), h = Math.max(0.01, r.h * f);
+  return { x:peClamp(cx - w / 2, 0, 1 - w), y:peClamp(cy - h / 2, 0, 1 - h), w, h };
+}
+/* Busca el disco (una vez por foto) y, si no se ha tocado el círculo, lo pone encima */
+async function peRunDisc(e){
+  if(e.discBusy){ peShowScan(e, true, 'disc'); return; }   // ya se está buscando (se había salido de Círculo)
+  if(typeof detectDiscEllipse !== 'function'){ e.disc = null; return; }
+  e.discBusy = true;
+  peShowScan(e, true, 'disc');
+  await new Promise(res=>requestAnimationFrame(()=>setTimeout(res, 0)));
+  let r = null;
+  if(photoEditor === e){ try{ r = await detectDiscEllipse(e.src, e.w, e.h); }catch(_){ r = null; } }
+  e.discBusy = false;
+  if(photoEditor !== e) return;
+  peShowScan(e, false, 'disc');
+  e.disc = r || null;
+  peApplyDiscResult(e);
+  peDraw();
+}
+/* Al salir de Círculo: la búsqueda del disco sigue sin tapar la foto y su resultado ya no mueve nada */
+function peLeaveCircle(e){
+  e.circleFresh = false;
+  if(e.scanningDisc) peShowScan(e, false, 'disc');
+}
+/* Si el círculo sigue como se puso (no lo has movido), va al disco encontrado.
+   Con un dedo apoyado se espera a que lo levantes. */
+function peApplyDiscResult(e){
+  if(e.mode !== 'circle' || !e.circleFresh || e.disc === undefined || e.discBusy || e.pointers.size || e.drag) return false;
+  if(e.disc) e.rect = peDiscRect(e, e.disc);
+  else e.noneShown = 'disc';
+  e.circleFresh = false;
+  return true;
 }
 /* Cuadrado: el marco de siempre, con esquinas en L */
 function peDrawRectFrame(ctx, e){
@@ -884,7 +1033,11 @@ function peDrawQuadFrame(ctx, e){
 }
 /* Lupa: la zona de la esquina, ampliada, encima del dedo */
 function peDrawLoupe(ctx, e, P, i){
-  const L = e.lay, R = PE_LOUPE_R, Z = PE_LOUPE_ZOOM, c = P[i], gap = 34;
+  peDrawLoupeAt(ctx, e, P[i], ()=>{ ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); for(let k = 1; k < 4; k++) ctx.lineTo(P[k][0], P[k][1]); ctx.closePath(); });
+}
+/* v11.10: la misma lupa en cualquier punto c; outline() traza el marco (esquinas o círculo) */
+function peDrawLoupeAt(ctx, e, c, outline){
+  const L = e.lay, R = PE_LOUPE_R, Z = PE_LOUPE_ZOOM, gap = 34;
   let cx = c[0], cy = c[1] - R - gap;
   if(cy - R < 4){ cy = c[1]; cx = c[0] < L.cw / 2 ? c[0] + R + gap : c[0] - R - gap; }
   cx = peClamp(cx, R + 4, L.cw - R - 4); cy = peClamp(cy, R + 4, L.ch - R - 4);
@@ -894,7 +1047,7 @@ function peDrawLoupe(ctx, e, P, i){
   ctx.translate(cx, cy); ctx.scale(Z, Z); ctx.translate(-c[0], -c[1]);
   peDrawPhoto(ctx, e);
   ctx.strokeStyle = 'rgba(241,237,227,0.9)'; ctx.lineWidth = 1.2 / Z;
-  ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); for(let k = 1; k < 4; k++) ctx.lineTo(P[k][0], P[k][1]); ctx.closePath(); ctx.stroke();
+  outline(); ctx.stroke();
   ctx.restore();
   ctx.strokeStyle = '#e0876a'; ctx.lineWidth = 1.2; ctx.lineCap = 'butt';
   ctx.beginPath(); ctx.moveTo(cx - 12, cy); ctx.lineTo(cx - 4, cy); ctx.moveTo(cx + 4, cy); ctx.lineTo(cx + 12, cy);
@@ -907,13 +1060,23 @@ function peRequestDraw(){ const e = photoEditor; if(e && !e.raf) e.raf = request
 function peDrawResult(e){
   e.root.querySelectorAll('[data-pe-mode]').forEach(b=>{ const on = b.dataset.peMode===e.mode; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on); });
   const { W, H } = peDims(e), px = peRectPx(e, W, H);
-  const persp = !!e.quad, auto = e.mode === 'auto' && !!e.det;
+  const circle = e.mode === 'circle';
+  const persp = !!e.quad && !circle, auto = e.mode === 'auto' && !!e.det, oval = circle && peIsOval(e);
   const chip = e.root.querySelector('#pePersp'); if(chip) chip.hidden = !persp || auto;
   const achip = e.root.querySelector('#peAuto'); if(achip) achip.hidden = !auto;
+  const ochip = e.root.querySelector('#peOval');
+  if(ochip){
+    ochip.hidden = !oval;
+    const ot = e.root.querySelector('#peOvalText'), ob = e.root.querySelector('#peOvalBtn');
+    const tx = t(e.keepOval ? 'pe.oval_kept' : 'pe.oval'), bt = t(e.keepOval ? 'pe.oval_fix' : 'pe.persp_off');
+    if(ot && ot.textContent !== tx) ot.textContent = tx;
+    if(ob && ob.textContent !== bt){ ob.textContent = bt; ob.setAttribute('aria-label', t(e.keepOval ? 'pe.oval_fix_label' : 'pe.oval_off_label')); }
+  }
   const hint = e.root.querySelector('.pe-hint');
   if(hint){
-    hint.hidden = (persp || auto) && !e.noneShown;
-    const ht = e.noneShown ? t(e.noneShown === 'short' ? 'pe.auto_none_short' : 'pe.auto_none') : t(e.mode === 'square' ? 'pe.hint' : 'pe.hint_free');
+    hint.hidden = (persp || auto || oval) && !e.noneShown;
+    const ht = e.noneShown ? t(e.noneShown === 'disc' ? 'pe.disc_none' : e.noneShown === 'short' ? 'pe.auto_none_short' : 'pe.auto_none')
+                           : t(e.mode === 'square' ? 'pe.hint' : circle ? 'pe.hint_circle' : 'pe.hint_free');
     if(hint.textContent !== ht) hint.textContent = ht;
   }
   const tol = e.root.querySelector('#peTolRow'); if(tol) tol.hidden = !auto;
@@ -922,20 +1085,44 @@ function peDrawResult(e){
   const tv = e.root.querySelector('#peTolVal'); if(tv) tv.textContent = peTolLabel(e.tol);
   const size = e.root.querySelector('#peSize');
   if(size){
-    const o = persp ? quadOutputSize(peQuadPx(e, W, H), W, H) : { w:px.w, h:px.h };
-    size.textContent = Math.round(o.w) + ' × ' + Math.round(o.h) + ' px';
+    let st;
+    if(circle && !e.keepOval) st = 'Ø ' + Math.round(Math.max(px.w, px.h)) + ' px';
+    else { const o = persp ? quadOutputSize(peQuadPx(e, W, H), W, H) : { w:px.w, h:px.h }; st = Math.round(o.w) + ' × ' + Math.round(o.h) + ' px'; }
+    if(size.textContent !== st) size.textContent = st;
   }
   const m = Math.round(e.margin * 100);
   const val = e.root.querySelector('#peMarginVal'); if(val) val.textContent = pePercent(m);
-  const note = e.root.querySelector('#peMarginNote'); if(note) note.textContent = t('pe.margin_note').replace('{px}', Math.round(PHOTO_SIZE * e.margin));
+  const note = e.root.querySelector('#peMarginNote'); if(note) note.textContent = t(circle ? 'pe.margin_note_circle' : 'pe.margin_note').replace('{px}', Math.round(PHOTO_SIZE * e.margin));
   const range = e.root.querySelector('#peMargin'); if(range && Number(range.value) !== m) range.value = m;
+  peDrawLight(e);
   const pv = e.root.querySelector('#pePreview'); if(!pv) return;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const P = Math.max(1, Math.round((pv.clientWidth || 112) * dpr));
   if(pv.width !== P){ pv.width = P; pv.height = P; }
   const pw = e.prev.width, ph = e.prev.height, Wp = e.rot % 2 ? ph : pw, Hp = e.rot % 2 ? pw : ph;
-  if(persp) drawPhotoQuad(pv.getContext('2d'), P, e.prev, pw, ph, e.rot, peQuadPx(e, Wp, Hp), e.margin);
-  else drawPhotoFramed(pv.getContext('2d'), P, e.prev, pw, ph, e.rot, peRectPx(e, Wp, Hp), e.margin);
+  const pc = pv.getContext('2d');
+  if(circle) drawPhotoEllipse(pc, P, e.prev, pw, ph, e.rot, peRectPx(e, Wp, Hp), e.margin, !e.keepOval);
+  else if(persp) drawPhotoQuad(pc, P, e.prev, pw, ph, e.rot, peQuadPx(e, Wp, Hp), e.margin);
+  else drawPhotoFramed(pc, P, e.prev, pw, ph, e.rot, peRectPx(e, Wp, Hp), e.margin);
+  // la luz y el color, igual que al guardar: sobre el cuadrado ya montado
+  if(peAdjOn(e) && !e.showOrig){ try{ applyPhotoAdjust(pc, P, peAdj(e)); }catch(_){} }
+}
+/* Pestañas y la de «Luz y color» */
+function peDrawLight(e){
+  const r = e.root;
+  r.querySelectorAll('[data-pe-tab]').forEach(b=>{ const on = b.dataset.peTab === e.tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; });
+  const pc = r.querySelector('#pePanelCrop'); if(pc) pc.hidden = e.tab !== 'crop';
+  const pl = r.querySelector('#pePanelLight'); if(pl) pl.hidden = e.tab !== 'light';
+  const on = peAdjOn(e);
+  const dot = r.querySelector('#peTabDot'); if(dot) dot.hidden = !on;
+  for(const [k, id] of [['luz', 'peLuz'], ['sat', 'peSat']]){
+    const v = e[k], inp = r.querySelector('#' + id), lab = r.querySelector('#' + id + 'Val'), tx = peAdjLabel(v);
+    if(inp){ if(Number(inp.value) !== v) inp.value = v; if(inp.getAttribute('aria-valuetext') !== tx) inp.setAttribute('aria-valuetext', tx); }
+    if(lab && lab.textContent !== tx) lab.textContent = tx;
+  }
+  const cmp = r.querySelector('#peCompare');
+  if(cmp){ cmp.hidden = e.tab !== 'light'; cmp.disabled = !on; cmp.classList.toggle('active', !!e.showOrig && on); cmp.setAttribute('aria-pressed', !!e.showOrig && on); }
+  const rs = r.querySelector('#peAdjReset'); if(rs) rs.disabled = !on;
 }
 function peLayout(){
   const e = photoEditor; if(!e) return;
@@ -945,8 +1132,21 @@ function peLayout(){
   if(c.width !== BW || c.height !== BH){ c.width = BW; c.height = BH; }
   const { W, H } = peDims(e);
   const s = Math.max(0.0001, Math.min((cw - 2 * PE_PAD) / W, (ch - 2 * PE_PAD) / H));
-  const dw = W * s, dh = H * s;
+  const dw = W * s, dh = H * s, old = e.lay;
   e.lay = { dpr, cw, ch, dw, dh, ox:(cw - dw) / 2, oy:(ch - dh) / 2 };
+  // v11.10: si la foto cambia de tamaño o de sitio a mitad de un arrastre (la
+  // tarjeta de abajo cambia de alto), el arrastre se recoloca: el punto que
+  // llevas sigue debajo del dedo
+  const d = e.drag, L = e.lay;
+  if(d && old && old.dw > 0 && old.dh > 0 && Math.abs(old.dw / old.dh - dw / dh) < 1e-6 && (old.dw !== dw || old.ox !== L.ox || old.oy !== L.oy)){
+    const k = dw / old.dw;
+    if(d.f0) d.f0 = { X:d.f0.X * k, Y:d.f0.Y * k, W:d.f0.W * k, H:d.f0.H * k };
+    if(d.q0) d.q0 = d.q0.map(p=>[p[0] * k, p[1] * k]);
+    if(d.x0 != null){ d.x0 = L.ox + (d.x0 - old.ox) * k; d.y0 = L.oy + (d.y0 - old.oy) * k; }
+    // y el marco se recalcula ya con el dedo donde está (una vez por movimiento,
+    // para que un aviso que aparece y desaparece no lo deje rebotando)
+    if(!d.reapplied){ d.reapplied = true; peDragTo(e); }
+  }
   peDraw();
 }
 /* ¿Qué se agarra en (px, py)? esquina > lado > dentro ('move') > nada.
@@ -955,6 +1155,7 @@ function peLayout(){
 const PE_CORNER_INDEX = { nw:0, ne:1, se:2, sw:3 };
 function peHit(e, px, py){
   const L = e.lay; if(!L) return null;
+  if(e.mode === 'circle') return peHitCircle(e, px, py);
   if(e.quad) return peHitQuad(e, px, py);
   const f = peFrame(e), x0 = L.ox + f.X, y0 = L.oy + f.Y, x1 = x0 + f.W, y1 = y0 + f.H;
   let best = null, bd = Infinity;
@@ -1020,7 +1221,7 @@ function peScaleFrame(e, f0, f){
 }
 /* Cualquier cambio del marco deja de ser «Entera» (salvo que siga siendo la foto entera) */
 function peAfterFrameChange(e){
-  e.touched = true; e.noneShown = false;
+  e.touched = true; e.noneShown = false; e.circleFresh = false;
   if(e.mode === 'auto') e.mode = 'free';
   if(e.quad){ e.mode = 'free'; return; }
   if(e.mode === 'whole'){
@@ -1049,45 +1250,73 @@ function openPhotoEditor(opts){
       <div class="pe-stage"><canvas class="pe-canvas" tabindex="0" role="img" aria-label="${escapeHTML(t('pe.canvas_label'))}"></canvas><div class="pe-scan" id="peScan" hidden><span class="pe-scan-line"></span><span class="pe-scan-label">${t('pe.scanning')}</span></div></div>
       <span class="sr-only" id="peStatus" role="status" aria-live="polite"></span>
       <div class="pe-tools">
-        <div class="pe-row">
+        <div class="pe-row pe-row-modes">
           <div class="segmented pe-modes" role="group" aria-label="${escapeHTML(t('pe.shape'))}">
             <button type="button" class="seg-btn" data-pe-mode="auto" onclick="setPhotoEditorMode('auto')">${t('pe.auto')}</button>
             <button type="button" class="seg-btn" data-pe-mode="free" onclick="setPhotoEditorMode('free')">${t('pe.free')}</button>
             <button type="button" class="seg-btn" data-pe-mode="square" onclick="setPhotoEditorMode('square')">${t('pe.square')}</button>
+            <button type="button" class="seg-btn" data-pe-mode="circle" onclick="setPhotoEditorMode('circle')">${t('pe.circle')}</button>
             <button type="button" class="seg-btn" data-pe-mode="whole" onclick="setPhotoEditorMode('whole')">${t('pe.fit')}</button>
+          </div>
+        </div>
+        <div class="pe-row pe-info">
+          <div class="pe-info-main">
+            <p class="pe-hint">${t('pe.hint_free')}</p>
+            <div class="pe-persp pe-auto" id="peAuto" hidden>${icon('autocrop')}<span class="pe-persp-text">${t('pe.auto_found')}</span><button type="button" class="pe-persp-off" onclick="photoEditorAutoOff()" aria-label="${escapeHTML(t('pe.auto_off_label'))}">${t('pe.persp_off')}</button></div>
+            <div class="pe-persp" id="pePersp" hidden>${icon('perspective')}<span class="pe-persp-text">${t('pe.persp')}</span><button type="button" class="pe-persp-off" onclick="photoEditorFlatten()" aria-label="${escapeHTML(t('pe.persp_off_label'))}">${t('pe.persp_off')}</button></div>
+            <div class="pe-persp pe-oval" id="peOval" hidden>${icon('oval')}<span class="pe-persp-text" id="peOvalText">${t('pe.oval')}</span><button type="button" class="pe-persp-off" id="peOvalBtn" onclick="photoEditorOvalToggle()" aria-label="${escapeHTML(t('pe.oval_off_label'))}">${t('pe.persp_off')}</button></div>
+            <span class="pe-size" id="peSize"></span>
           </div>
           <button type="button" class="btn pe-rotate" id="peRotate" onclick="rotatePhotoEditor()" aria-label="${escapeHTML(t('pe.rotate'))}">${icon('rotate')}<span class="pe-rotate-label">${t('pe.rotate')}</span></button>
         </div>
-        <div class="pe-row pe-info">
-          <p class="pe-hint">${t('pe.hint_free')}</p>
-          <div class="pe-persp pe-auto" id="peAuto" hidden>${icon('autocrop')}<span class="pe-persp-text">${t('pe.auto_found')}</span><button type="button" class="pe-persp-off" onclick="photoEditorAutoOff()" aria-label="${escapeHTML(t('pe.auto_off_label'))}">${t('pe.persp_off')}</button></div>
-          <div class="pe-persp" id="pePersp" hidden>${icon('perspective')}<span class="pe-persp-text">${t('pe.persp')}</span><button type="button" class="pe-persp-off" onclick="photoEditorFlatten()" aria-label="${escapeHTML(t('pe.persp_off_label'))}">${t('pe.persp_off')}</button></div>
-          <span class="pe-size" id="peSize"></span>
-        </div>
         <div class="pe-result">
-          <div class="pe-result-prev">
-            <canvas class="pe-preview" id="pePreview" role="img" aria-label="${escapeHTML(t('pe.result'))}"></canvas>
-            <span>${t('pe.result')}</span>
+          <div class="segmented pe-tabs" role="tablist" aria-label="${escapeHTML(t('pe.tabs'))}">
+            <button type="button" class="seg-btn" role="tab" id="peTabCrop" data-pe-tab="crop" aria-controls="pePanelCrop" onclick="photoEditorTab('crop')">${t('pe.tab_crop')}</button>
+            <button type="button" class="seg-btn" role="tab" id="peTabLight" data-pe-tab="light" aria-controls="pePanelLight" onclick="photoEditorTab('light')">${icon('light')}${t('pe.tab_light')}<span class="pe-tab-dot" id="peTabDot" hidden></span></button>
           </div>
-          <div class="pe-margin">
-            <div class="pe-tol" id="peTolRow" hidden>
-              <div class="pe-margin-top"><label for="peTol">${t('pe.tol')}</label><span class="pe-margin-val" id="peTolVal"></span></div>
-              <input type="range" class="pe-range" id="peTol" min="0" max="100" step="1" value="50" oninput="photoEditorTolerance(this.value)" aria-describedby="peTolEnds">
-              <div class="pe-tol-ends" id="peTolEnds"><span>${t('pe.tol_less')}</span><span>${t('pe.tol_more')}</span></div>
+          <div class="pe-result-body">
+            <div class="pe-result-prev">
+              <canvas class="pe-preview" id="pePreview" role="img" aria-label="${escapeHTML(t('pe.result'))}"></canvas>
+              <span>${t('pe.result')}</span>
+              <button type="button" class="pe-compare" id="peCompare" aria-pressed="false" title="${escapeHTML(t('pe.adj_compare_label'))}" hidden disabled>${icon('eye')}<span>${t('pe.adj_compare')}</span></button>
             </div>
-            <div class="pe-margin-top"><label for="peMargin">${t('pe.margin')}</label><span class="pe-margin-val" id="peMarginVal"></span></div>
-            <input type="range" class="pe-range" id="peMargin" min="0" max="${PE_MAX_MARGIN}" step="1" value="0" oninput="photoEditorMargin(this.value)">
-            <p class="pe-note" id="peMarginNote"></p>
+            <div class="pe-margin pe-panel" id="pePanelCrop" role="tabpanel" aria-labelledby="peTabCrop">
+              <div class="pe-tol" id="peTolRow" hidden>
+                <div class="pe-margin-top"><label for="peTol">${t('pe.tol')}</label><span class="pe-margin-val" id="peTolVal"></span></div>
+                <input type="range" class="pe-range" id="peTol" min="0" max="100" step="1" value="50" oninput="photoEditorTolerance(this.value)" aria-describedby="peTolEnds">
+                <div class="pe-tol-ends" id="peTolEnds"><span>${t('pe.tol_less')}</span><span>${t('pe.tol_more')}</span></div>
+              </div>
+              <div class="pe-margin-top"><label for="peMargin">${t('pe.margin')}</label><span class="pe-margin-val" id="peMarginVal"></span></div>
+              <input type="range" class="pe-range" id="peMargin" min="0" max="${PE_MAX_MARGIN}" step="1" value="0" oninput="photoEditorMargin(this.value)">
+              <p class="pe-note" id="peMarginNote"></p>
+            </div>
+            <div class="pe-margin pe-panel pe-light" id="pePanelLight" role="tabpanel" aria-labelledby="peTabLight" hidden>
+              <div class="pe-margin-top"><label for="peLuz">${t('pe.light')}</label><span class="pe-margin-val" id="peLuzVal"></span></div>
+              <div class="pe-center"><input type="range" class="pe-range" id="peLuz" min="-100" max="100" step="1" value="0" oninput="photoEditorAdjust('luz', this.value)" aria-describedby="peLuzEnds"></div>
+              <div class="pe-tol-ends" id="peLuzEnds"><span>${t('pe.light_less')}</span><span>${t('pe.light_more')}</span></div>
+              <div class="pe-margin-top"><label for="peSat">${t('pe.sat')}</label><span class="pe-margin-val" id="peSatVal"></span></div>
+              <div class="pe-center"><input type="range" class="pe-range" id="peSat" min="-100" max="100" step="1" value="0" oninput="photoEditorAdjust('sat', this.value)" aria-describedby="peSatEnds"></div>
+              <div class="pe-tol-ends" id="peSatEnds"><span>${t('pe.sat_less')}</span><span>${t('pe.sat_more')}</span></div>
+              <button type="button" class="pe-adj-reset" id="peAdjReset" onclick="photoEditorAdjustReset()" disabled>${t('pe.adj_reset')}</button>
+            </div>
           </div>
         </div>
       </div>`;
     document.body.appendChild(root);
     photoEditor = { src, prev, w, h, rot:0, mode:'whole', rect:{ x:0, y:0, w:1, h:1 }, quad:null, sel:-1, margin:0, resolve, root,
       canvas: root.querySelector('.pe-canvas'), pointers: new Map(), drag:null, lay:null, raf:0, returnFocus: document.activeElement,
-      det:undefined, tol:50, touched:false, scanning:false, wantAuto:false, noneShown:false, autoApply: opts.autoApply !== false };
+      det:undefined, tol:50, touched:false, scanning:false, wantAuto:false, noneShown:false, autoApply: opts.autoApply !== false,
+      // v11.10: pestaña, luz y color, círculo
+      tab:'crop', luz:0, sat:0, showOrig:false, prevAdj:null, prevAdjKey:'', prevSmall:null, prevAdjS:null, prevAdjSKey:'', adjFast:false, adjTimer:0,
+      disc:undefined, discBusy:false, scanningDisc:false, circleFresh:false, keepOval:false, ro:null };
     const e = photoEditor;
     peBind(e);
+    peBindLight(e);
     window.addEventListener('resize', peLayout);
+    // v11.10: si la tarjeta de abajo cambia de alto (pestañas, Tolerancia), la foto se recoloca
+    if(typeof ResizeObserver === 'function'){
+      try{ e.ro = new ResizeObserver(()=>{ if(photoEditor === e) peLayout(); }); e.ro.observe(e.canvas); }catch(_){ e.ro = null; }
+    }
     peLayout();
     requestAnimationFrame(()=>{ peLayout(); const b = root.querySelector('#peSave'); if(b) b.focus(); });
     // v11.8: busca la pieza (o usa la que ya se encontró antes de abrir)
@@ -1099,6 +1328,8 @@ function closePhotoEditor(result){
   photoEditor = null;
   if(e.raf) cancelAnimationFrame(e.raf);
   window.removeEventListener('resize', peLayout);
+  if(e.ro){ try{ e.ro.disconnect(); }catch(_){} e.ro = null; }
+  clearTimeout(e.adjTimer);
   e.root.remove();
   if(e.returnFocus && e.returnFocus.focus && document.contains(e.returnFocus)) try{ e.returnFocus.focus(); }catch(_){}
   e.resolve(result || null);
@@ -1110,9 +1341,10 @@ async function savePhotoEditor(){
   if(photoEditor !== e) return;
   let out = null;
   try{
-    const { W, H } = peDims(e);
-    out = e.quad ? squarePhotoQuadDataURL(e.src, e.w, e.h, e.rot, peQuadPx(e, W, H), e.margin)
-                 : squarePhotoDataURL(e.src, e.w, e.h, e.rot, peRectPx(e, W, H), e.margin);
+    const { W, H } = peDims(e), adj = peAdj(e);
+    out = e.mode === 'circle' ? squarePhotoEllipseDataURL(e.src, e.w, e.h, e.rot, peRectPx(e, W, H), e.margin, !e.keepOval, adj)
+        : e.quad ? squarePhotoQuadDataURL(e.src, e.w, e.h, e.rot, peQuadPx(e, W, H), e.margin, adj)
+                 : squarePhotoDataURL(e.src, e.w, e.h, e.rot, peRectPx(e, W, H), e.margin, adj);
   }
   catch(err){ if(btn) btn.classList.remove('is-busy'); showToast(t('photo.read_failed') + ' ' + (err && err.message || ''), { replace:true, duration:6000 }); return; }
   closePhotoEditor(out);
@@ -1121,6 +1353,7 @@ async function savePhotoEditor(){
    marco actual, centrado. Entera: toda la foto. */
 function setPhotoEditorMode(m){
   const e = photoEditor; if(!e) return;
+  if(m === 'circle' && e.mode === 'circle'){ peDraw(); return; }   // ya estás en Círculo: no cambia nada
   e.noneShown = false;
   if(m === 'auto'){
     if(e.det) peApplyAuto(e);
@@ -1130,6 +1363,7 @@ function setPhotoEditorMode(m){
     return;
   }
   e.touched = true; e.wantAuto = false;
+  if(m !== 'circle') peLeaveCircle(e);
   if(m === 'whole'){ e.mode = 'whole'; e.quad = null; e.rect = { x:0, y:0, w:1, h:1 }; }
   else if(m === 'square'){
     const { W, H } = peDims(e), r = peRectPx(e, W, H);
@@ -1137,8 +1371,95 @@ function setPhotoEditorMode(m){
     const x = peClamp(cx - s / 2, 0, W - s), y = peClamp(cy - s / 2, 0, H - s);
     e.mode = 'square'; e.quad = null; e.sel = -1; e.rect = { x:x / W, y:y / H, w:s / W, h:s / H };
   }
+  else if(m === 'circle'){
+    // v11.10: con la foto entera (o con el marco que puso Auto, que no cuenta
+    // como tuyo) se busca el disco; si ya habías puesto un marco, se usa ese
+    const r = e.rect, eps = 1e-6, whole = e.mode === 'auto' || (r.x <= eps && r.y <= eps && r.w >= 1 - eps && r.h >= 1 - eps);
+    e.mode = 'circle'; e.quad = null; e.sel = -1; e.keepOval = false; e.circleFresh = false;
+    if(!whole){
+      // tu marco: si es casi redondo (un disco algo ovalado) el óvalo cabe en él;
+      // si es claramente alargado (una caja), el mayor círculo dentro, centrado
+      const { W, H } = peDims(e), rp = peRectPx(e, W, H), lo = Math.min(rp.w, rp.h), hi = Math.max(rp.w, rp.h);
+      if(lo < 0.75 * hi){
+        const cx = rp.x + rp.w / 2, cy = rp.y + rp.h / 2;
+        e.rect = { x:peClamp(cx - lo / 2, 0, W - lo) / W, y:peClamp(cy - lo / 2, 0, H - lo) / H, w:lo / W, h:lo / H };
+      }
+    }
+    else {
+      if(e.disc) e.rect = peDiscRect(e, e.disc);
+      else {
+        peCircleCentered(e);
+        if(e.disc === null) e.noneShown = 'disc';
+        else { e.circleFresh = true; peRunDisc(e); }
+      }
+    }
+  }
   else e.mode = 'free';
   peDraw();
+}
+/* v11.10: «Quitar» deja el óvalo con su forma; «Corregir» lo vuelve a poner redondo */
+function photoEditorOvalToggle(){
+  const e = photoEditor; if(!e || e.mode !== 'circle') return;
+  e.keepOval = !e.keepOval;
+  peDraw();
+  try{ const b = e.root.querySelector('#peOvalBtn'); if(b) b.focus({ preventScroll:true }); }catch(_){}
+}
+/* v11.10: pestañas «Recorte» y «Luz y color» */
+function photoEditorTab(tab){
+  const e = photoEditor; if(!e || (tab !== 'crop' && tab !== 'light') || e.tab === tab) return;
+  e.tab = tab;
+  peDrawLight(e);
+}
+/* v11.10: Luz (luz) o Saturación (sat), de −100 a 100 */
+function photoEditorAdjust(k, v){
+  const e = photoEditor; if(!e || (k !== 'luz' && k !== 'sat')) return;
+  e[k] = peClamp(Math.round(Number(v) || 0), -100, 100);
+  if(!peAdjOn(e)) e.showOrig = false;
+  // mientras se mueve, la copia rápida; un momento después de parar, la buena
+  e.adjFast = true;
+  clearTimeout(e.adjTimer);
+  e.adjTimer = setTimeout(()=>{ if(photoEditor === e){ e.adjFast = false; peRequestDraw(); } }, 200);
+  peRequestDraw();
+}
+function photoEditorAdjustReset(){
+  const e = photoEditor; if(!e) return;
+  e.luz = 0; e.sat = 0; e.showOrig = false;
+  peDraw();
+  try{ const s = e.root.querySelector('#peLuz'); if(s) s.focus({ preventScroll:true }); }catch(_){}
+}
+/* «Ver original»: mientras se mantiene pulsado (dedo, ratón, Espacio o Intro) */
+function photoEditorCompare(on){
+  const e = photoEditor; if(!e) return;
+  on = !!on && peAdjOn(e);
+  if(e.showOrig === on) return;
+  e.showOrig = on;
+  peDraw();
+}
+function peBindLight(e){
+  const b = e.root.querySelector('#peCompare');
+  if(b){
+    const off = ()=>photoEditorCompare(false);
+    b.addEventListener('pointerdown', ev=>{ if(b.disabled) return; try{ b.setPointerCapture(ev.pointerId); }catch(_){} photoEditorCompare(true); });
+    b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
+    b.addEventListener('keydown', ev=>{ if((ev.key === ' ' || ev.key === 'Enter') && !ev.repeat){ ev.preventDefault(); photoEditorCompare(true); } });
+    b.addEventListener('keyup', ev=>{ if(ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); off(); } });
+    b.addEventListener('blur', off);
+    b.addEventListener('contextmenu', ev=>ev.preventDefault());   // mantener pulsado en el móvil no abre el menú
+  }
+  // pestañas: flechas izquierda/derecha, Inicio y Fin
+  const tl = e.root.querySelector('.pe-tabs');
+  if(tl) tl.addEventListener('keydown', ev=>{
+    const order = ['crop', 'light'], i = order.indexOf(e.tab);
+    let n = null;
+    if(ev.key === 'ArrowRight') n = order[(i + 1) % 2];
+    else if(ev.key === 'ArrowLeft') n = order[(i + 1) % 2];
+    else if(ev.key === 'Home') n = 'crop';
+    else if(ev.key === 'End') n = 'light';
+    if(!n) return;
+    ev.preventDefault();
+    photoEditorTab(n);
+    const nb = e.root.querySelector(`[data-pe-tab="${n}"]`); if(nb) nb.focus();
+  });
 }
 /* «Quitar» el recorte automático: vuelve a la foto entera */
 function photoEditorAutoOff(){
@@ -1177,6 +1498,36 @@ function photoEditorMargin(v){
   e.margin = peClamp(Math.round(Number(v) || 0), 0, PE_MAX_MARGIN) / 100;
   peDrawResult(e);
 }
+/* Aplica el arrastre en curso a la última posición del dedo (o de los dos dedos).
+   v11.10: separado del «pointermove» para poder repetirlo si la foto se recoloca
+   a mitad del arrastre (así el marco queda bajo el dedo también al soltar). */
+function peDragTo(e){
+  const d = e.drag; if(!d) return false;
+  if(d.pinch){
+    if(e.pointers.size < 2) return false;
+    const [a, b] = [...e.pointers.values()];
+    const f = (Math.hypot(a.x - b.x, a.y - b.y) || 1) / d.d0;
+    if(e.quad) peSetQuadScreen(e, peQuadTowards(e, peQuadScreen(e), peQuadScale(e, d.q0, f)));
+    else peSetFrame(e, peScaleFrame(e, d.f0, f));
+  } else {
+    if(!d.last) return false;
+    const dx = d.last.x - d.x0, dy = d.last.y - d.y0;
+    if(d.corner != null){
+      const cur = peQuadScreen(e);
+      peSetQuadScreen(e, peQuadCorner(e, cur, d.corner, d.q0[d.corner][0] + dx, d.q0[d.corner][1] + dy));
+    } else if(d.edge != null){
+      const a = d.q0[d.edge], b = d.q0[(d.edge + 1) % 4], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      const s = (dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / len;
+      peSetQuadScreen(e, peQuadTowards(e, peQuadScreen(e), peQuadEdge(e, d.q0, d.edge, s)));
+    } else if(e.quad && d.h === 'move'){
+      peSetQuadScreen(e, peQuadMove(e, d.q0, dx, dy));
+    } else {
+      peSetFrame(e, peDragFrame(e, d.h, d.f0, dx, dy));
+    }
+  }
+  peAfterFrameChange(e);
+  return true;
+}
 function peBind(e){
   const c = e.canvas;
   const pos = ev=>{ const r = c.getBoundingClientRect(); return { x:ev.clientX - r.left, y:ev.clientY - r.top }; };
@@ -1209,33 +1560,15 @@ function peBind(e){
     }
     e.pointers.set(ev.pointerId, p);
     const d = e.drag; if(!d) return;
-    const dx = p.x - d.x0, dy = p.y - d.y0;
-    if(d.pinch){
-      if(e.pointers.size < 2) return;
-      const [a, b] = [...e.pointers.values()];
-      const f = (Math.hypot(a.x - b.x, a.y - b.y) || 1) / d.d0;
-      if(e.quad) peSetQuadScreen(e, peQuadTowards(e, peQuadScreen(e), peQuadScale(e, d.q0, f)));
-      else peSetFrame(e, peScaleFrame(e, d.f0, f));
-    } else if(d.corner != null){
-      const cur = peQuadScreen(e);
-      peSetQuadScreen(e, peQuadCorner(e, cur, d.corner, d.q0[d.corner][0] + dx, d.q0[d.corner][1] + dy));
-    } else if(d.edge != null){
-      const a = d.q0[d.edge], b = d.q0[(d.edge + 1) % 4], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const s = (dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / len;
-      peSetQuadScreen(e, peQuadTowards(e, peQuadScreen(e), peQuadEdge(e, d.q0, d.edge, s)));
-    } else if(e.quad && d.h === 'move'){
-      peSetQuadScreen(e, peQuadMove(e, d.q0, dx, dy));
-    } else {
-      peSetFrame(e, peDragFrame(e, d.h, d.f0, dx, dy));
-    }
-    peAfterFrameChange(e);
-    peRequestDraw();
+    d.last = p; d.reapplied = false;
+    if(peDragTo(e)) peRequestDraw();
   });
   const up = ev=>{
     if(!e.pointers.has(ev.pointerId)) return;
     e.pointers.delete(ev.pointerId);
     // al soltar un dedo tras pellizcar no se sigue arrastrando (evita saltos)
     if(!e.pointers.size || (e.drag && e.drag.pinch)){ e.drag = null; peSnapQuad(e); }
+    if(!e.pointers.size) peApplyDiscResult(e);   // v11.10: el disco llegó mientras tenías el dedo apoyado
     peRequestDraw();
   };
   c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
@@ -1245,13 +1578,13 @@ function peBind(e){
     if(!e.lay) return;
     const step = 8;
     if(/^[0-4]$/.test(ev.key) && !ev.ctrlKey && !ev.metaKey && !ev.altKey){
-      if(e.mode === 'square') return;
+      if(e.mode === 'square' || e.mode === 'circle') return;
       const n = Number(ev.key) - 1;
       e.sel = (n < 0 || e.sel === n) ? -1 : n;
       ev.preventDefault(); peDraw(); return;
     }
     const k = { ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1] }[ev.key];
-    if(e.sel >= 0 && e.mode !== 'square' && k && !ev.shiftKey){
+    if(e.sel >= 0 && e.mode !== 'square' && e.mode !== 'circle' && k && !ev.shiftKey){
       const cur = peQuadScreen(e);
       peSetQuadScreen(e, peQuadCorner(e, cur, e.sel, cur[e.sel][0] + k[0] * step, cur[e.sel][1] + k[1] * step));
       peSnapQuad(e);
