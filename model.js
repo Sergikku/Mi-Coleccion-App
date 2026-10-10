@@ -161,6 +161,7 @@ let EDITIONS_BY_ID = {};
 
 function buildProducts(){
   PRODUCTS = [];
+  _catalogPos = null;   // v11.11: el «Nº n / total» se recalcula
   const seqByCode = {};
 
   function pushProduct(base){
@@ -340,6 +341,126 @@ function isComplete(product, edition){
   return product.requiredComponents.every(c => !!edition.components[c]);
 }
 
+/* ---------- 3b. COPIAS (v11.11) ----------
+   Cuántas tienes de una pieza y en qué estado está cada una.
+   · La copia 1 es la pieza tal como estaba: sus campos de siempre (sealed,
+     components, conservation) y sus fotos (photo_<id>_front…). No cambia nada.
+   · Las demás van en la propia pieza, en una lista nueva:
+       copias: [{ id:'c2', sealed, components:{…}, conservation:{ general, notas }, paraCambio }]
+     y sus fotos con claves nuevas en el mismo almacén: photo_<id>__c2_front / _back.
+   · paraCambio (de la copia 1) es otro campo nuevo de la pieza.
+   · Siempre se enseña la MEJOR copia (precintada > completa > suelta/incompleta,
+     y si empatan, la mejor conservada; si siguen empatadas, la de número más bajo).
+   Una versión anterior de la app no ve estos campos y los conserva intactos. */
+const COPY_RANK = { precintada:3, completa:2, abierta:2, suelta:1, incompleta:1, nada:0 };
+const MAX_COPIES = 30;
+/* Casillas que describen qué trae una copia (todas menos «Lo tengo») */
+function copyItemsFor(catId){ return checklistForCategory(catId).filter(i=>i.key!=='tengo'); }
+/* ¿Es la casilla del propio juego / cartucho / disco? (para decir «suelta») */
+function isGameItem(item){ return /juego|cartucho|disco|game|spiel|ソフト|cart/.test(normText(item.label || item.key || '')); }
+/* Estado de una copia a partir de lo que trae */
+function copyEstado(catId, c){
+  if(c.sealed) return 'precintada';
+  const items = copyItemsFor(catId);
+  if(!items.length) return 'abierta';                 // categoría sin casillas: precintada o abierta
+  const on = items.filter(i=>c.components && c.components[i.key]);
+  if(on.length===items.length) return 'completa';
+  if(!on.length) return 'nada';
+  if(on.length===1 && isGameItem(on[0])) return 'suelta';
+  return 'incompleta';
+}
+function copyCond(c){ const g = c.conservation && Number(c.conservation.general); return g>=1 && g<=10 ? g : null; }
+function copyScore(catId, c){ return (COPY_RANK[copyEstado(catId, c)] || 0) * 100 + (copyCond(c) || 0); }
+/* Todas las copias de una pieza, normalizadas (la 1 es la propia pieza) */
+function copiesOf(p){
+  const base = { id:'c1', n:1, base:true, sealed:!!p.sealed, components:p.components || {}, conservation:p.conservation || {}, paraCambio:!!p.paraCambio, photoId:p.id };
+  const list = [base];
+  if(Array.isArray(p.copias)){
+    p.copias.forEach(c=>{
+      if(!c || typeof c!=='object' || typeof c.id!=='string' || !/^c\d+$/.test(c.id) || c.id==='c1') return;
+      list.push({ id:c.id, n:list.length + 1, base:false, sealed:!!c.sealed, components:c.components || {}, conservation:c.conservation || {}, paraCambio:!!c.paraCambio, photoId:p.id + '__' + c.id });
+    });
+  }
+  return list;
+}
+/* Nº de copias (0 si no la tienes) */
+function hasExtraCopies(p){ return Array.isArray(p.copias) && p.copias.length > 0; }   // atajo: casi ninguna pieza tiene copias
+function copyCount(p){ return p.possession==='tengo' ? (hasExtraCopies(p) ? copiesOf(p).length : 1) : 0; }
+/* La copia que se enseña: la mejor (ver arriba). Devuelve la copia normalizada. */
+function shownCopy(p){
+  const list = copiesOf(p);
+  if(p.possession!=='tengo' || list.length < 2) return list[0];
+  let best = list[0], bs = copyScore(p.categoryId, best);
+  for(let i=1;i<list.length;i++){ const s = copyScore(p.categoryId, list[i]); if(s > bs){ best = list[i]; bs = s; } }
+  return best;
+}
+/* ¿Se enseña precintada? (la mejor copia lo está) */
+function shownSealed(p){ return p.possession==='tengo' && (hasExtraCopies(p) ? !!shownCopy(p).sealed : !!p.sealed); }
+/* De quién son las fotos que se enseñan: las de la mejor copia si tiene; si
+   no, las de la pieza (copia 1) */
+function shownPhotoId(p){
+  if(p.possession!=='tengo' || !hasExtraCopies(p)) return p.id;
+  const c = shownCopy(p);
+  if(!c.base && (hasPhoto(c.photoId, 'front') || hasPhoto(c.photoId, 'back'))) return c.photoId;
+  return p.id;
+}
+/* La pieza a la que pertenece una foto (la de una copia: <id>__c2) */
+function productForPhotoId(pid){ return PRODUCTS_BY_ID[pid] || PRODUCTS_BY_ID[String(pid || '').replace(/__c\d+$/, '')] || null; }
+function copyForPhotoId(pid){
+  const p = productForPhotoId(pid); if(!p) return null;
+  return copiesOf(p).find(c=>c.photoId===pid) || null;
+}
+/* Copias ordenadas de mejor a peor (para «Orden de tus copias») */
+function rankedCopies(p){
+  return copiesOf(p).map((c, i)=>({ c, i, s: copyScore(p.categoryId, c) })).sort((a,b)=> b.s - a.s || a.i - b.i).map(x=>x.c);
+}
+/* Repetidas: piezas que tienes más de una vez */
+function repeatedStats(list){
+  let pieces = 0, extra = 0, trade = 0;
+  (list || PRODUCTS).forEach(p=>{
+    const n = copyCount(p);
+    if(n > 1){ pieces++; extra += n - 1; trade += copiesOf(p).filter(c=>c.paraCambio).length; }
+  });
+  return { pieces, extra, trade };
+}
+function nextCopyId(p){
+  let max = 1;
+  (Array.isArray(p.copias) ? p.copias : []).forEach(c=>{ const m = c && /^c(\d+)$/.exec(c.id || ''); if(m) max = Math.max(max, Number(m[1])); });
+  // un número que no tenga fotos sueltas de una copia anterior (p. ej. tras importar una copia de seguridad antigua)
+  let n = max + 1;
+  while(n < max + 200 && (hasPhoto(p.id + '__c' + n, 'front') || hasPhoto(p.id + '__c' + n, 'back'))) n++;
+  return 'c' + n;
+}
+
+/* ---------- 3c. Número de la pieza en su plataforma (v11.11) ----------
+   «Nº 12 / 22»: su posición en la plataforma con el orden de siempre (año y
+   nombre). Se calcula al vuelo; no se guarda nada. */
+let _catalogPos = null;
+function catalogPosition(p){
+  // se calcula solo para la plataforma que se pide (con miles de piezas, ordenarlas todas de golpe se nota)
+  if(!_catalogPos) _catalogPos = new Map();
+  const k = p.platformId || '';
+  let pos = _catalogPos.get(k);
+  if(!pos){
+    pos = new Map();
+    const s = sortGames(PRODUCTS.filter(x=> (x.platformId || '')===k));
+    s.forEach((x, i)=> pos.set(x.id, { n:i + 1, total:s.length }));
+    _catalogPos.set(k, pos);
+  }
+  return pos.get(p.id) || { n:0, total:0 };
+}
+
+/* ---------- 3d. Lo que te falta (v11.11) ----------
+   objetivo = { prioridad, precioMax, observaciones }: un campo que ya venía
+   en tus datos (sin pantalla hasta ahora). prioridad: 'alta' (Imprescindible),
+   'media' (Me interesa) o 'baja' (Algún día). */
+const PRIORITY_KEYS = ['alta', 'media', 'baja'];
+function objetivoOf(p){
+  const o = (p.objetivo && typeof p.objetivo==='object') ? p.objetivo : {};
+  return { prioridad: PRIORITY_KEYS.includes(o.prioridad) ? o.prioridad : null, precioMax: typeof o.precioMax==='number' && isFinite(o.precioMax) ? o.precioMax : null, observaciones: o.observaciones || '' };
+}
+function isHunting(p){ return p.possession!=='tengo' && !!objetivoOf(p).prioridad; }
+
 /* ---------- 4. ESTADÍSTICAS CALCULADAS (nunca hardcodeadas) ---------- */
 
 function computeGlobalStats(){
@@ -350,7 +471,7 @@ function computeGlobalStats(){
     const e = x.edition;
     if(e.possession==='tengo'){
       have++;
-      if(e.sealed) sealed++;
+      if(shownSealed(e)) sealed++;   // v11.11: cuenta la copia que se enseña (la mejor)
       if(e.valuation && typeof e.valuation.valorActual === 'number'){ valor += e.valuation.valorActual; valued++; }
     }
     const f = e.valuation && e.valuation.fechaActualizacion;

@@ -22,7 +22,7 @@
      Los archivos de la app llevan ?v=<versión>: al publicar una versión nueva,
      el navegador y el service worker piden los nuevos y nunca mezclan HTML nuevo
      con JS/CSS viejo. Mantener igual que APP_VERSION (util.js) y CACHE_NAME (sw.js). -->
-<link rel="stylesheet" href="app.css?v=11.10.0">
+<link rel="stylesheet" href="app.css?v=11.11.0">
 <script>
   /* Tema antes del primer pintado (evita el destello del tema claro al abrir en oscuro).
      La preferencia real vive en tus datos; esto es solo una copia rápida local. */
@@ -47,7 +47,7 @@
     <nav class="crumbs" id="crumbs" aria-label="Ruta"></nav>
   </div>
   <main class="frame"><div class="frame-inner" id="panel" tabindex="-1"></div></main>
-  <span class="app-version-corner" aria-hidden="true">v.11.10.0</span>
+  <span class="app-version-corner" aria-hidden="true">v.11.11.0</span>
 </div>
 <nav class="bottomnav" id="bottomnav" aria-label="Secciones"></nav>
 <button type="button" id="fab" class="fab" style="display:none;" onclick="fabAction()"></button>
@@ -70,16 +70,19 @@
 </div>
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite"></div>
 
-<script src="util.js?v=11.10.0"></script>
-<script src="i18n.js?v=11.10.0"></script>
-<script src="storage.js?v=11.10.0"></script>
-<script src="model.js?v=11.10.0"></script>
-<script src="ui.js?v=11.10.0"></script>
-<script src="screens.js?v=11.10.0"></script>
-<script src="actions.js?v=11.10.0"></script>
-<script src="backup.js?v=11.10.0"></script>
-<script src="scanner.js?v=11.10.0"></script>
-<script src="sync.js?v=11.10.0"></script>
-<script src="app.js?v=11.10.0"></script>
+<script src="util.js?v=11.11.0"></script>
+<script src="i18n.js?v=11.11.0"></script>
+<script src="storage.js?v=11.11.0"></script>
+<script src="model.js?v=11.11.0"></script>
+<script src="ui.js?v=11.11.0"></script>
+<script src="screens.js?v=11.11.0"></script>
+<script src="actions.js?v=11.11.0"></script>
+<script src="copias.js?v=11.11.0"></script>
+<script src="plano.js?v=11.11.0"></script>
+<script src="estanteria.js?v=11.11.0"></script>
+<script src="backup.js?v=11.11.0"></script>
+<script src="scanner.js?v=11.11.0"></script>
+<script src="sync.js?v=11.11.0"></script>
+<script src="app.js?v=11.11.0"></script>
 </body>
 </html>

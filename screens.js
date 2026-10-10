@@ -171,6 +171,8 @@ function renderDashboard(){
     registerListContext(recent.map(p=>p.id), t('dash.recent'));
     html += `<section class="vit-section">${sectionTitleHTML(t('dash.recent'), `<button type="button" class="link-btn" onclick="goPage('gallery')">${t('dash.gallery_link')}</button>`)}<div class="h-scroll">${recent.map(miniCoverHTML).join('')}</div></section>`;
   }
+  // v11.11: tu estantería 3D
+  if(typeof estDashCardHTML==='function') html += estDashCardHTML();
   // 3. Estanterías · 4. Huecos por llenar
   html += `<div class="dash-columns"><section class="vit-section">` + sectionTitleHTML(t('dash.categories'), fmtCount(cats.length, 'count.category_one', 'count.category_many'));
   html += `<div class="shelf-list">${cats.map(c=>shelfCardHTML(c, counts, false)).join('')}</div>`;
@@ -185,7 +187,9 @@ function renderDashboard(){
     html += `<div class="note note-info dash-note">${t('dash.unconfirmed').replace('{n}', unconfirmed)}
       <div class="note-actions"><button class="btn btn-sm" onclick="goPage('investigacion')">${icon('research')} ${t('nav.investigacion')}</button></div></div>`;
   }
+  const rep = repeatedStats();
   html += `<div class="quiet-links">
+    ${rep.pieces ? `<button class="btn btn-sm btn-ghost" onclick="goInventory('repetidas')">${icon('copies')} ${t('rep.link').replace('{n}', rep.pieces)}</button>` : ''}
     <button class="btn btn-sm btn-ghost" onclick="goPage('gallery')">${icon('camera')} ${t('dash.gallery_link')}</button>
     <button class="btn btn-sm btn-ghost" onclick="goPage('backup')">${icon('archive')} ${t('dash.backup_link')}</button>
     <button class="btn btn-sm btn-ghost" onclick="goPage('ayuda')">${icon('help')} ${t('nav.ayuda')}</button>
@@ -246,6 +250,7 @@ function renderCategoryList(){
   // v11.1: cada categoría es una estantería (un lomo por plataforma)
   const counts = platformCountsMap();
   if(cats.length) html += `<div class="shelf-list">${cats.map(c=>shelfCardHTML(c, counts, true)).join('')}</div>`;
+  if(cats.length && typeof estDashCardHTML==='function') html += estDashCardHTML();   // v11.11: tu estantería 3D
   html += `<button type="button" class="create-btn" id="tour-add-category" onclick="addCategory()">
     <span class="create-btn-icon">${icon('plus')}</span>
     <span><span class="create-btn-label">${t('common.create_category')}</span><span class="create-btn-sub">${t('common.create_category.sub')}</span></span>
@@ -325,16 +330,16 @@ function sortSelectorHTML(){
 }
 function productListBlockHTML(allProds, ctxKey, ctxLabel){
   if(collState.key !== ctxKey){ collState = { key:ctxKey, filter:'all', limit:60 }; }
-  const cnt = { all:allProds.length, have:0, missing:0, sealed:0 };
-  allProds.forEach(p=>{ if(p.possession==='tengo'){ cnt.have++; if(p.sealed) cnt.sealed++; } else cnt.missing++; });
+  const cnt = { all:allProds.length, have:0, missing:0, sealed:0, dups:0 };
+  allProds.forEach(p=>{ if(p.possession==='tengo'){ cnt.have++; if(shownSealed(p)) cnt.sealed++; if(copyCount(p) > 1) cnt.dups++; } else cnt.missing++; });
   const f = collState.filter;
-  const filtered = allProds.filter(p=> f==='have' ? p.possession==='tengo' : f==='missing' ? p.possession!=='tengo' : f==='sealed' ? (p.possession==='tengo' && p.sealed) : true);
+  const filtered = allProds.filter(p=> f==='have' ? p.possession==='tengo' : f==='missing' ? p.possession!=='tengo' : f==='sealed' ? shownSealed(p) : f==='dups' ? copyCount(p) > 1 : true);
   const sorted = sortProductsByMode(filtered);
   const vw = uiPref('collView', 'grid');
   registerListContext(sorted.map(p=>p.id), ctxLabel);
   const chipF = (val, label, n)=> `<button type="button" class="chip ${f===val?'active':''}" aria-pressed="${f===val}" onclick="setCollFilter('${val}')">${label} <span class="chip-count">${n}</span></button>`;
   let html = `<div class="chip-scroll" role="group" aria-label="${t('filter.quick')}">
-      ${chipF('all', t('inv.chip.all'), cnt.all)}${chipF('have', t('inv.chip.have'), cnt.have)}${chipF('missing', t('inv.chip.missing'), cnt.missing)}${cnt.sealed ? chipF('sealed', t('inv.chip.sealed'), cnt.sealed) : ''}
+      ${chipF('all', t('inv.chip.all'), cnt.all)}${chipF('have', t('inv.chip.have'), cnt.have)}${cnt.dups || f==='dups' ? chipF('dups', t('inv.chip.dups'), cnt.dups) : ''}${chipF('missing', t('inv.chip.missing'), cnt.missing)}${cnt.sealed ? chipF('sealed', t('inv.chip.sealed'), cnt.sealed) : ''}
     </div>
     <div class="toolbar">
       <span class="result-count" aria-live="polite">${sorted.length===allProds.length ? fmtCount(allProds.length,'count.item_one','count.item_many') : t('count.filtered').replace('{n}',sorted.length).replace('{total}',allProds.length)}</span>
@@ -377,7 +382,8 @@ function platHeroHTML(o){
   } else if(st.total){
     slots = `<div class="plat-bar is-lg" aria-hidden="true"><span style="width:${st.pct}%"></span></div>`;
   }
-  const meta = o.meta.filter(Boolean).concat(st.total ? [`${n(st.have)} / ${n(st.total)} ${t('dash.pieces_word')}`, missTxt] : []).join(' · ');
+  const extra = repeatedStats(o.list).extra;   // v11.11
+  const meta = o.meta.filter(Boolean).concat(st.total ? [`${n(st.have)} / ${n(st.total)} ${t('dash.pieces_word')}`, missTxt] : []).concat(extra ? [t(extra===1 ? 'rep.extra_one_long' : 'rep.extra_many_long').replace('{n}', n(extra))] : []).join(' · ');
   return `<header class="screen-head plat-hero" style="--plat:${pv.color}">
     <div class="plat-hero-top">
       ${o.chip ? `<span class="code-chip${o.chipIcon ? ' is-icon' : ''}" aria-hidden="true">${o.chip}</span>` : '<span></span>'}
@@ -570,10 +576,17 @@ async function renderProductDetail(prodId){
     ${possessButtonHTML(p, 'possess-main')}
     <div class="status-chips">${completoBadgeHTML(p)}${productBadgesHTML(p, { noRegion:true })}</div>
   </div>`;
+  // v11.11: si la tienes, cuántas y en qué estado está cada copia; si te falta, su ficha de búsqueda
+  if(p.possession==='tengo') html += copiesSectionHTML(p);
+  else html += busquedaSectionHTML(p);
   // v11.6: si te falta, dónde buscarla a la venta (con su nombre original si lo tiene)
   if(p.possession!=='tengo' && typeof huntHTML==='function') html += `<div class="detail-section hunt-section">${huntHTML(p, 'ficha')}</div>`;
+  // v11.11: dónde está en tu estantería
+  if(typeof estPieceRowHTML==='function') html += estPieceRowHTML(p);
+  const multi = copyCount(p) > 1;
+  const c1 = multi ? ` · ${escapeHTML(t('copy.n').replace('{n}', 1))}` : '';
   // Qué incluye (checklist en fichas táctiles; mismas casillas de siempre)
-  html += `<section class="detail-section">${sectionTitleHTML(t('p.includes'), `<button type="button" class="btn btn-sm" onclick="markComplete('${p.id}')">${icon('checkCircle')} ${plainLabel(t('p.mark_complete'))}</button>`)}
+  html += `<section class="detail-section">${sectionTitleHTML(t('p.includes') + c1, `<button type="button" class="btn btn-sm" onclick="markComplete('${p.id}')">${icon('checkCircle')} ${plainLabel(t('p.mark_complete'))}</button>`)}
     ${checklistProgressHTML(p)}
     <div class="checklist checklist-chips">
       ${checklistForCategory(p.categoryId).map(item=> checkItem(escapeHTML(checklistLabel(item)), p.components[item.key], `updateComponent('${p.id}','${item.key}',this.checked)`, false, `chk_${p.id}_${item.key}`, checklistIcon(item))).join('')}
@@ -593,6 +606,12 @@ async function renderProductDetail(prodId){
   identBody += editableField('text', t('p.barcode'), p.barcode, `updateEditionField('${p.id}','barcode',this.value)`, '', 'inputmode="numeric"');
   identBody += editableField('text', t('p.exact_date'), p.releaseDateExact, `updateEditionField('${p.id}','releaseDateExact',this.value)`, t('p.date_ph'));
   identBody += `</div>`;
+  // v11.11: formato (para su plano y la estantería) y medidas
+  const dd = piezaDims(p);
+  identBody += `<div class="spec ident-extra">
+    <button type="button" class="spec-row" onclick="openFormatoSheet('${p.id}')"><span class="spec-k">${t('fmt.label')}</span><span class="spec-v">${escapeHTML(formatoLabel(formatoDe(p)))}</span></button>
+    <button type="button" class="spec-row ${dd.exact ? '' : 'is-empty'}" onclick="openMedidasSheet('${p.id}')"><span class="spec-k">${t('dims.label')}</span><span class="spec-v">${(dd.exact ? '' : '≈ ') + [dd.w, dd.h, dd.d].map(fmtCm).join(' × ')} cm</span></button>
+  </div>`;
   if((p.tags||[]).length) identBody += `<div class="field-label">${t('p.tags')}</div><div class="badge-row tag-row">${p.tags.map(tg=>`<span class="vtag">${escapeHTML(tg)}</span>`).join('')}</div>`;
   // resumen a la derecha de cada sección, como en una ficha de archivo
   const nIdent = [p.year, p.nameJp, p.language, p.catalogNumber, p.productCode, p.barcode, p.releaseDateExact].filter(Boolean).length + ((p.tags||[]).length ? 1 : 0);
@@ -600,7 +619,7 @@ async function renderProductDetail(prodId){
 
   let consBody = `<div class="field-grid">${conservationSelect(t('p.condition_general'), p.conservation.general, `updateConservation('${p.id}','general',this.value)`)}</div>`
     + editableTextarea(t('p.condition_notes'), p.conservation.notas, `updateConservation('${p.id}','notas',this.value)`);
-  sections += disclosureHTML('conservacion', t('p.conservation'), consBody, productSectionsOpen, p.conservation.general ? p.conservation.general + '/10' : '');
+  sections += disclosureHTML('conservacion', t('p.conservation') + c1, consBody, productSectionsOpen, p.conservation.general ? p.conservation.general + '/10' : '');
 
   let valBody = `<div class="field-grid">
     ${numberField(t('p.value_bought')+' ('+currencySymbol()+')', p.valuation.valorAdquisicion, `updateValuation('${p.id}','valorAdquisicion',this.value)`)}
@@ -663,7 +682,13 @@ function moveToolPlatformChanged(productId){
    ninguna foto: dos huecos grandes, delantera y trasera, que abren la cámara
    o la galería. Todo en el mismo sitio, sin pestaña aparte. */
 function productPhotosHTML(p, anyPhoto){
-  return productMainPhotosHTML(p, anyPhoto) + extraPhotosHTML(p);
+  // v11.11: si te falta y no tiene foto, su plano (con medidas) y, debajo, los botones para añadir fotos
+  if(!anyPhoto && p.possession!=='tengo'){
+    return planoBigHTML(p) + `<div class="photo-pick-row" id="photo-slots">${['front','back'].map(side=> photoPickerHTML('btn btn-sm', 'photo_' + p.id + '_' + side,
+        `${icon('camera')} ${t(side==='back' ? 'photo.add_back' : 'photo.add_front')}`, t(side==='back' ? 'photo.add_back' : 'photo.add_front') + ' — ' + p.name)).join('')}</div>` + extraPhotosHTML(p);
+  }
+  const multi = copyCount(p) > 1;
+  return (multi ? `<p class="photo-copy-label">${icon('camera')} ${escapeHTML(t('copy.photos_of').replace('{n}', 1))}</p>` : '') + productMainPhotosHTML(p, anyPhoto) + extraPhotosHTML(p);
 }
 /* v11.3: hasta 4 fotos extra para documentar lo que no se ve en la portada
    (manual, insertos, cartucho, precinto, ticket…). Tocar una la abre en el
@@ -771,7 +796,8 @@ function inventoryFilteredEditions(stateOverride){
   if(st.filter==='tengo') list = list.filter(p=>p.possession==='tengo');
   if(st.filter==='falta') list = list.filter(p=>p.possession!=='tengo');
   if(st.filter==='sinconfirmar') list = list.filter(p=>p.existence!=='confirmado');
-  if(st.filter==='sellado') list = list.filter(p=>p.sealed);
+  if(st.filter==='sellado') list = list.filter(p=>p.sealed || shownSealed(p));   // v11.11: también si la mejor copia lo está
+  if(st.filter==='repetidas') list = list.filter(p=>copyCount(p) > 1);
   if(st.cat) list = list.filter(p=>p.categoryId===st.cat);
   if(st.plat) list = list.filter(p=>p.platformId===st.plat);
   if(st.region==='none') list = list.filter(p=>regionKeysFor(p).length===0);
@@ -822,10 +848,11 @@ function renderInventarioResults(){
       actions: anyFilter ? `<button class="btn" onclick="clearInvFilters(true)">${t('filter.clear_all')}</button>`
              : (getAllCategories().length ? `<button class="btn primary" onclick="openQuickAdd()">${icon('plus')} ${t('fab.add_product')}</button>` : '') });
   }
+  if(invState.filter==='repetidas') html += repeatedSummaryHTML(eds.map(x=>x.product));   // v11.11
   if(vw==='wall') return html + wallHTML(eds, total);
   html += vw==='grid'
     ? `<div class="title-grid">${shown.map(x=>productCardHTML(x.product)).join('')}</div>`
-    : `<div class="item-list">${shown.map(x=>productRowHTML(x.product, { showId:true })).join('')}</div>`;
+    : `<div class="item-list">${shown.map(x=>productRowHTML(x.product, { showId:true, copies: invState.filter==='repetidas' })).join('')}</div>`;
   if(total > invState.limit){
     html += `<button class="btn load-more" onclick="invState.limit+=60; render();">${t('inv.load_more').replace('{n}', total - invState.limit)}</button>`;
   }
@@ -835,11 +862,15 @@ function renderInventarioResults(){
    si ordenas por plataforma). Tocar una pieza abre su ficha. */
 function wallTileHTML(p){
   const pv = platVisual(p.platformId);
-  const has = hasPhoto(p.id,'front');
-  const label = [p.name, p.platformName, p.year, regionShortText(p)].filter(Boolean).join(' · ') + (p.possession!=='tengo' ? ' — ' + t('cover.missing') : '');
-  return `<button type="button" class="wall-tile ${coverStateClass(p)}" style="--plat:${pv.color}" onclick="goProduct('${p.id}')" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">
-    ${has ? photoImgHTML(p,'front','thumb') : `<span class="wall-code">${escapeHTML(pv.code)}</span>`}
-    ${p.possession==='tengo' && p.sealed ? `<span class="cover-seal">${icon('shield')}</span>` : ''}
+  const photoId = shownPhotoId(p);   // v11.11: la mejor copia
+  const has = hasPhoto(photoId,'front');
+  const miss = p.possession!=='tengo';
+  const n = copyCount(p);
+  const label = [p.name, p.platformName, p.year, regionShortText(p)].filter(Boolean).join(' · ') + (miss ? ' — ' + t('cover.missing') : '') + (n > 1 ? ' — ' + t('copy.count_title').replace('{n}', n) : '');
+  return `<button type="button" class="wall-tile ${coverStateClass(p)}" data-pid="${escapeHTML(p.id)}" style="--plat:${pv.color}" onclick="goProduct('${p.id}')" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">
+    ${has ? photoImgHTML(p,'front','thumb','',photoId) : miss ? planoMiniHTML(p) : `<span class="wall-code">${escapeHTML(pv.code)}</span>`}
+    ${shownSealed(p) ? `<span class="cover-seal">${icon('shield')}</span>` : ''}
+    ${n > 1 ? `<span class="qty-badge is-small${copiesOf(p).some(c=>c.paraCambio) ? ' is-trade' : ''}" aria-hidden="true">×${n}</span>` : ''}
   </button>`;
 }
 function wallHTML(eds, total){
@@ -874,7 +905,7 @@ function renderInventario(){
   let html = screenHeadHTML({ kicker:t('inv.kicker'), title:t('inv.title') });
   html += searchbarHTML({ placeholder:t('inv.search.ph_short'), value:invState.search, oninput:'invSearch(this.value)', scan:'icon' });
   html += `<div class="chip-scroll" role="group" aria-label="${t('filter.quick')}">
-    ${chip(t('inv.chip.all'),'todos')}${chip(t('inv.chip.have'),'tengo')}${chip(t('inv.chip.missing'),'falta')}${chip(t('inv.chip.unconfirmed'),'sinconfirmar')}${chip(t('inv.chip.sealed'),'sellado')}
+    ${chip(t('inv.chip.all'),'todos')}${chip(t('inv.chip.have'),'tengo')}${chip(t('inv.chip.missing'),'falta')}${chip(t('inv.chip.unconfirmed'),'sinconfirmar')}${chip(t('inv.chip.sealed'),'sellado')}${invState.filter==='repetidas' || repeatedStats().pieces ? chip(t('inv.chip.dups'),'repetidas') : ''}
   </div>`;
   html += `<div class="toolbar inv-toolbar">
     <button type="button" class="btn btn-sm filter-btn" onclick="openFilterSheet()" aria-haspopup="dialog">${icon('filter')} ${t('filter.title')}${nAdv ? ` <span class="count-dot">${nAdv}</span>` : ''}</button>
@@ -977,7 +1008,10 @@ function printMissingList(){
   Object.keys(byCat).sort(compareNames).forEach(catName=>{
     body += `<h2>${escapeHTML(catName)}</h2><ul>`;
     byCat[catName].sort((a,b)=>compareNames(a.product.name, b.product.name)).forEach(x=>{
-      body += `<li><span class="box"></span> ${escapeHTML(x.product.name)}${x.product.platformName?' — '+escapeHTML(x.product.platformName):''}${x.edition.year?' ('+escapeHTML(x.edition.year)+')':''}</li>`;
+      // v11.11: con su prioridad y lo máximo que pagarías, si lo has puesto
+      const o = objetivoOf(x.product);
+      const want = [o.prioridad ? t('prio.' + o.prioridad) : '', o.precioMax!==null ? t('falta.max_price') + ' ' + fmtMoney(o.precioMax) : ''].filter(Boolean).join(' · ');
+      body += `<li><span class="box"></span> ${escapeHTML(x.product.name)}${x.product.platformName?' — '+escapeHTML(x.product.platformName):''}${x.edition.year?' ('+escapeHTML(x.edition.year)+')':''}${want ? ` <em>· ${escapeHTML(want)}</em>` : ''}</li>`;
     });
     body += `</ul>`;
   });
@@ -989,6 +1023,7 @@ function printMissingList(){
     h2{font-size:15px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px;}
     ul{list-style:none;padding:0;} li{padding:6px 0;font-size:13px;display:flex;align-items:center;gap:8px;}
     .box{width:13px;height:13px;border:1.5px solid #444;border-radius:3px;flex-shrink:0;display:inline-block;}
+    li em{font-style:normal;color:#a44a34;}
     @media print{ body{padding:0;} }
   </style></head><body>${body}</body></html>`);
   w.document.close();
@@ -1067,7 +1102,7 @@ function renderInvestigacion(){
   return html;
 }
 function renderGallery(){
-  const withPhoto = sortGames(PRODUCTS.filter(p=>hasPhoto(p.id,'front')));
+  const withPhoto = sortGames(PRODUCTS.filter(p=>hasPhoto(p.id,'front') || hasPhoto(shownPhotoId(p),'front')));   // v11.11: también si solo tiene foto su mejor copia
   let html = screenHeadHTML({ kicker:t('gallery.kicker'), title:t('gallery.title'), sub: withPhoto.length ? fmtCount(withPhoto.length,'count.photo_one','count.photo_many') : '' });
   if(withPhoto.length===0){
     return html + emptyStateHTML({ icon:'camera', title:t('gallery.empty'), text:t('gallery.empty.sub') });
@@ -1076,7 +1111,8 @@ function renderGallery(){
   const shown = withPhoto.slice(0, galleryLimit);
   html += `<div class="gallery-grid">`;
   shown.forEach(p=>{
-    html += `<button type="button" class="gallery-cell" onclick="goProduct('${p.id}')" aria-label="${escapeHTML(p.name)}">${photoImgHTML(p,'front','thumb')}</button>`;
+    const ph = shownPhotoId(p);
+    html += `<button type="button" class="gallery-cell" onclick="goProduct('${p.id}')" aria-label="${escapeHTML(p.name)}">${photoImgHTML(p,'front','thumb','', hasPhoto(ph,'front') ? ph : p.id)}</button>`;
   });
   html += `</div>`;
   if(withPhoto.length > galleryLimit){
@@ -1090,6 +1126,7 @@ function renderAyuda(){
     ['mover','shuffle', 'ayuda.move'], ['renombrar','pencil', 'ayuda.rename'], ['completo','checkCircle', 'ayuda.complete'],
     ['fotos','camera', 'ayuda.photos'], ['orden','sortIcon', 'ayuda.order'], ['excluir','toggleIcon', 'ayuda.exclude'],
     ['backup','archive', 'ayuda.backup'], ['cuenta','cloud', 'ayuda.sync'], ['idioma','globe', 'ayuda.language'],
+    ['copias','copies', 'ayuda.copies'], ['falta','target', 'ayuda.missing'], ['estanteria','cabinet', 'ayuda.shelf'],
   ];
   let html = screenHeadHTML({ kicker:t('ayuda.kicker'), title:t('ayuda.title') });
   html += `<p class="ayuda-intro">${t('ayuda.intro')}</p><div class="ayuda-list">`;

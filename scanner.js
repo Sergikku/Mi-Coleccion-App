@@ -335,7 +335,7 @@ function scannerShowPiece(id, code){
   if(have){
     const complete = isComplete(p, p);
     const chips = (complete===null ? '' : `<span class="completo-badge ${complete ? 'completo-yes' : 'completo-no'}">${complete ? icon('check') : ''}${t('p.complete')}: ${complete ? t('p.yes') : t('p.no')}</span>`)
-      + (p.sealed ? `<span class="badge badge-sealed">${t('state.sealed')}</span>` : '') + productBadgesHTML(p, { noRegion:true });
+      + (shownSealed(p) ? `<span class="badge badge-sealed">${t('state.sealed')}</span>` : '') + productBadgesHTML(p, { noRegion:true });
     if(chips.trim()) html += `<div class="status-chips scan-chips">${chips}</div>`;
     html += scanIncludesHTML(p);
   } else {
@@ -355,7 +355,7 @@ function scannerShowMulti(code, list){
 function scanRowHTML(p, action){
   const pv = platVisual(p.platformId);
   const region = regionKeysFor(p).map(k=>k.label).join(' / ');
-  const state = p.possession==='tengo' ? (p.sealed ? t('state.sealed') : t('legend.have')) : t('legend.missing');
+  const state = p.possession==='tengo' ? (shownSealed(p) ? t('state.sealed') : t('legend.have')) : t('legend.missing');
   const meta = [p.platformName, p.year, region].filter(Boolean).map(escapeHTML).join(' · ');
   return `<div class="scan-row">
     ${pv.code ? `<span class="code-chip" style="--plat:${pv.color}" aria-hidden="true">${escapeHTML(pv.code)}</span>` : ''}

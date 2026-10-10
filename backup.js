@@ -92,6 +92,8 @@ function buildPortableSnapshot(){
     tourSeen: true,
     seedEnabled: false,
   };
+  // v11.11: tu estantería 3D (si la has montado)
+  if(OVERRIDES.estanterias && typeof OVERRIDES.estanterias==='object') snapshot.estanterias = JSON.parse(JSON.stringify(OVERRIDES.estanterias));
   PRODUCTS.forEach(p=>{
     snapshot.customProducts.push(Object.assign({}, p));
     snapshot.products[p.id] = Object.assign({}, p);

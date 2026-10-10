@@ -197,6 +197,14 @@ async function quickTogglePossession(id){
   }
   refreshPossessButton(id);
   refreshCompletoBadge(id);
+  // v11.11: al conseguirla, aviso con el progreso de su plataforma; en su ficha,
+  // el plano se repasa en verde («CONSEGUIDA») y la ficha pasa a la de una pieza que tienes
+  if(next==='tengo') gotToast(rec.edition);
+  if(view.productId===id){
+    const big = document.getElementById('plano-big-' + id);
+    if(next==='tengo' && big) playGotAnimation(big, ()=>{ if(view.productId===id) renderKeepFocus(); });
+    else renderKeepFocus();
+  }
 }
 async function confirmMoveProduct(productId){
   const catSel = document.getElementById('movecat_'+productId);
@@ -268,6 +276,7 @@ async function removePhotoSlot(key){
 async function updateProductField(id, field, value){
   const p = PRODUCTS_BY_ID[id]; if(p) p[field]=value;
   await setProductField(id, field, value);
+  if(field==='year' || field==='name') _catalogPos = null;   // v11.11: el «Nº n/t» se recalcula
   if(['existence','standalone','dlc','special'].includes(field)) refreshProductMeta(id);
 }
 async function toggleProductFlag(id, field, checked){
@@ -288,6 +297,7 @@ async function updateEditionField(id, field, value){
   } else if(field==='sealed'){
     await syncPossessionFromChecklist(id);
     refreshPossessButton(id);
+    if(typeof refreshCopiesSection==='function') refreshCopiesSection(id);   // v11.11
   }
 }
 /* Posesión a partir del checklist (v10.1):
@@ -311,17 +321,21 @@ async function syncPossessionFromChecklist(id, changedKey, changedValue){
   await setEditionField(id, 'possession', next);
   refreshPossessButton(id);
   refreshCompletoBadge(id);
+  // v11.11: la ficha cambia (copias ↔ ficha de búsqueda)
+  if(view.productId===id) requestAnimationFrame(()=>{ if(view.productId===id) render(); });
 }
 async function updateComponent(id, field, value){
   const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.components[field]=value;
   await setEditionNested(id,'components',field,value);
   refreshCompletoBadge(id);
   await syncPossessionFromChecklist(id, field, value);
+  if(typeof refreshCopiesSection==='function') refreshCopiesSection(id);   // v11.11: la copia 1 ha cambiado
 }
 async function updateConservation(id, field, value){
   const v = (field==='notas') ? value : (value===''?null:Number(value));
   const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.conservation[field]=v;
   await setEditionNested(id,'conservation',field,v);
+  if(field!=='notas' && typeof refreshCopiesSection==='function') refreshCopiesSection(id);   // v11.11
 }
 async function updateValuation(id, field, value){
   const numeric = ['valorAdquisicion','valorActual'].includes(field);
@@ -336,8 +350,14 @@ async function updateValuation(id, field, value){
   }
 }
 async function updateObjetivo(id, field, value){
-  const v = (field==='precioMax') ? (value===''?null:Number(value)) : value;
-  const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.objetivo[field]=v;
+  // v11.11: ya tiene pantalla (ficha de búsqueda). Antes fallaba si la pieza no traía «objetivo».
+  let v = value;
+  if(field==='precioMax'){ v = (value===''||value===null||value===undefined) ? null : Number(String(value).replace(',', '.')); if(!isFinite(v) || v < 0) v = null; }
+  const rec = EDITIONS_BY_ID[id];
+  if(rec){
+    if(!rec.edition.objetivo || typeof rec.edition.objetivo!=='object') rec.edition.objetivo = { prioridad:null, precioMax:null, observaciones:'' };
+    rec.edition.objetivo[field] = v;
+  }
   await setEditionNested(id,'objetivo',field,v);
 }
 
@@ -353,8 +373,11 @@ async function markComplete(id){
   await persistOverrides();
   fields.forEach(f=>{ const el=document.getElementById('chk_'+id+'_'+f); if(el) el.checked=true; });
   refreshCompletoBadge(id);
+  const was = document.getElementById('plano-big-' + id);
   refreshPossessButton(id);
   showToast(t('toast.marked_complete'), { ok:true, replace:true });
+  // v11.11: si te faltaba, su ficha pasa a la de una pieza que tienes (con el repaso del plano)
+  if(view.productId===id && was){ playGotAnimation(was, ()=>{ if(view.productId===id) renderKeepFocus(); }); }
 }
 async function addProductToPlatform(catId, platId, folderId){
   const r = await showFormModal(t('dlg.new_product_title'), [

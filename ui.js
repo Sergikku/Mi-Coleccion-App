@@ -15,7 +15,7 @@ const NAV = [
   { id:'estadisticas',  labelKey:'nav.estadisticas',  icon:'chart' },
   { id:'investigacion', labelKey:'nav.investigacion', icon:'research' },
 ];
-const SECONDARY_PAGES = { ayuda:'nav.ayuda', backup:'backup.kicker', gallery:'gallery.kicker', cuenta:'sync.title' };
+const SECONDARY_PAGES = { ayuda:'nav.ayuda', backup:'backup.kicker', gallery:'gallery.kicker', cuenta:'sync.title', estanteria:'est.title' };
 
 let view = { page:'dashboard' };
 /* Estado del Inventario: búsqueda, filtro rápido (los chips de siempre),
@@ -70,8 +70,10 @@ window.addEventListener('popstate', ()=>{
     return;
   }
   if(isPhotoEditorOpen()){ closePhotoEditor(null); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
+  if(typeof estInspectOpen==='function' && estInspectOpen()){ estCloseInspect(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }   // v11.11
   // v11.6: «¿Lo tengo?» — primero se cierra el resultado y, después, la cámara
   if(typeof isScannerOpen==='function' && isScannerOpen()){ scannerBack(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
+  if(isViewerOpen() && isSheetOpen()){ closePhotoViewer(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }   // v11.11
   if(isSheetOpen()){
     closeSheet();
     try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){}
@@ -159,6 +161,17 @@ function commitPendingEdit(){
   if(!a.matches('input[onchange]:not([type=file]):not([type=checkbox]):not([type=radio]), textarea[onchange]')) return;
   if(a.value !== a.defaultValue) a.blur();
 }
+/* v11.11: redibujar sin perder el foco del teclado (botón «Lo tengo», «+»/«−»
+   de las copias…): se vuelve a poner en el mismo botón (o en `fallback`) */
+async function renderKeepFocus(fallback){
+  const a = document.activeElement;
+  const key = a && a!==document.body ? (a.id ? '#' + CSS.escape(a.id) : (a.dataset && a.dataset.fk ? `[data-fk="${CSS.escape(a.dataset.fk)}"]` : null)) : null;
+  await render();
+  if(!key) return;
+  const pick = sel=> sel ? [...document.querySelectorAll(sel)].find(el=> !el.disabled && el.offsetParent!==null) : null;
+  const el = pick(key) || pick(fallback);
+  if(el){ try{ el.focus({ preventScroll:true }); }catch(e){} }
+}
 async function render(){
   commitPendingEdit();
   _platVisual.clear();   // v11.1: colores/códigos de plataforma al día (p. ej. tras importar una copia)
@@ -192,6 +205,7 @@ async function render(){
   delete document.body.dataset.rendering;
   updateFab();
   hydrate(panel);
+  if(typeof estAfterRender==='function') estAfterRender();   // v11.11: la estantería 3D necesita su tamaño real
   updateDocumentTitle();
   if(tourActive) advanceTourIfDone();
   requestAnimationFrame(()=>{ animateBars(); window.scrollTo(0, scrollY); });
@@ -208,6 +222,7 @@ function renderScreen(){
     case 'backup': return renderBackup();
     case 'cuenta': return typeof renderCuenta==='function' ? renderCuenta() : renderDashboard();   // v11.9
     case 'gallery': return renderGallery();
+    case 'estanteria': return renderEstanteria();   // v11.11
     default: return renderDashboard();
   }
 }
@@ -382,9 +397,12 @@ async function loadLazyImg(img){
   img.src = url;
   if(img.complete && img.naturalWidth) img.classList.add('is-loaded');
 }
-function photoImgHTML(p, side, size, extra){
-  const label = escapeHTML(p.name) + ' — ' + escapeHTML(photoSideLabel(side));
-  return `<img data-pid="${escapeHTML(p.id)}" data-side="${side}" data-size="${size}" alt="${label}" ${extra||''}>`;
+function photoImgHTML(p, side, size, extra, photoId){
+  // v11.11: photoId = de quién es la foto (la de una copia: <id>__c2); por defecto, la propia pieza
+  const pid = photoId || p.id;
+  const c = pid!==p.id ? copyForPhotoId(pid) : null;
+  const label = escapeHTML(p.name) + (c ? ' — ' + escapeHTML(t('copy.n').replace('{n}', c.n)) : '') + ' — ' + escapeHTML(photoSideLabel(side));
+  return `<img data-pid="${escapeHTML(pid)}" data-side="${side}" data-size="${size}" alt="${label}" ${extra||''}>`;
 }
 /* Foto de una pieza (v11.1.1). Solo se voltea si tiene foto trasera (tocar,
    deslizar o Intro/Espacio); si no, tocarla hace lo útil: en las rejillas
@@ -393,15 +411,16 @@ function photoImgHTML(p, side, size, extra){
 function flipViewHTML(p, opts){
   opts = opts || {};
   const size = opts.size || 'thumb';
-  const hasFront = hasPhoto(p.id,'front'), hasBack = hasPhoto(p.id,'back');
+  const pid = opts.photoId || p.id;   // v11.11: fotos de la mejor copia
+  const hasFront = hasPhoto(pid,'front'), hasBack = hasPhoto(pid,'back');
   const ph = (key)=> `<span class="flip-placeholder">${icon('image')}<span class="ph-txt">${t(key)}</span></span>`;
-  const front = hasFront ? photoImgHTML(p,'front',size) : ph('p.no_photo_front');
-  const back = hasBack ? photoImgHTML(p,'back',size, hasFront ? '' : 'data-eager="1"') : ph('p.no_photo_back');
+  const front = hasFront ? photoImgHTML(p,'front',size,'',pid) : ph('p.no_photo_front');
+  const back = hasBack ? photoImgHTML(p,'back',size, hasFront ? '' : 'data-eager="1"', pid) : ph('p.no_photo_back');
   const flippable = hasBack;
   const tap = flippable ? '' : (opts.tap || '');
   // el teclado llega a la foto solo si hace algo propio (en las rejillas, el nombre ya abre la ficha)
   const keyLabel = flippable ? t('photo.flip') : tap==='zoom' ? t('photo.enlarge') : '';
-  return `<div class="flip-card${hasBack && !hasFront ? ' flipped' : ''}" ${keyLabel ? `role="button" tabindex="0" aria-label="${keyLabel}: ${escapeHTML(p.name)}"` : ''} data-flip-pid="${escapeHTML(p.id)}"${flippable ? ' data-flippable="1"' : ''}${tap ? ` data-tap="${tap}"` : ''}>
+  return `<div class="flip-card${hasBack && !hasFront ? ' flipped' : ''}" ${keyLabel ? `role="button" tabindex="0" aria-label="${keyLabel}: ${escapeHTML(p.name)}"` : ''} data-flip-pid="${escapeHTML(p.id)}"${pid!==p.id ? ` data-photo-pid="${escapeHTML(pid)}"` : ''}${flippable ? ' data-flippable="1"' : ''}${tap ? ` data-tap="${tap}"` : ''}>
     <div class="flip-inner">
       <div class="flip-face flip-front">${front}</div>
       <div class="flip-face flip-back">${back}</div>
@@ -420,7 +439,7 @@ function flipCard(card){
 function photoTapAction(card){
   if(card.dataset.flippable==='1'){ flipCard(card); return true; }
   if(card.dataset.tap==='open'){ goProduct(card.dataset.flipPid); return true; }
-  if(card.dataset.tap==='zoom'){ openPhotoViewer(card.dataset.flipPid, card.classList.contains('flipped') ? 'back' : 'front'); return true; }
+  if(card.dataset.tap==='zoom'){ openPhotoViewer(card.dataset.photoPid || card.dataset.flipPid, card.classList.contains('flipped') ? 'back' : 'front'); return true; }
   return false;   // sin acción propia (miniatura de una fila): el toque llega a la fila
 }
 function attachFlipHandlers(){
@@ -446,7 +465,7 @@ function attachFlipHandlers(){
       touchStart = null;
       const side = card.classList.contains('flipped') ? 'back' : 'front';
       const face = card.querySelector(side==='back' ? '.flip-back img' : '.flip-front img');
-      if(face && face.classList.contains('is-loaded')) openPhotoViewer(card.dataset.flipPid, side, { fromImg:face, touches:e.touches });
+      if(face && face.classList.contains('is-loaded')) openPhotoViewer(card.dataset.photoPid || card.dataset.flipPid, side, { fromImg:face, touches:e.touches });
       return;
     }
     const tt = e.touches[0];
@@ -534,7 +553,7 @@ async function openPhotoViewer(pid, side, opts){
   opts = opts || {};
   if(!side || !hasPhoto(pid, side)) side = hasPhoto(pid,'front') ? 'front' : 'back';
   const { ov, img } = viewerEls();
-  const p = PRODUCTS_BY_ID[pid];
+  const p = productForPhotoId(pid);   // v11.11: también las fotos de una copia (<id>__c2)
   if(!ov || !img || !p || !hasPhoto(pid, side)) return;
   if(!viewerState) _viewerReturnFocus = document.activeElement;   // al cambiar de cara, el foco vuelve igualmente al botón de origen
   const from = opts.fromImg;
@@ -550,7 +569,8 @@ async function openPhotoViewer(pid, side, opts){
     img.removeAttribute('src');
     viewerClamp(v);
   }
-  img.alt = p.name + ' — ' + photoSideLabel(side);
+  const vc = pid!==p.id ? copyForPhotoId(pid) : null;
+  img.alt = p.name + (vc ? ' — ' + t('copy.n').replace('{n}', vc.n) : '') + ' — ' + photoSideLabel(side);
   const close = document.getElementById('viewerClose'); close.hidden = false; close.setAttribute('aria-label', t('common.close'));
   // v11.3: todas las fotos de la pieza (delantera, trasera y extra); deslizar o ← → pasa de una a otra
   const sides = photoSidesFor(pid);
@@ -561,7 +581,8 @@ async function openPhotoViewer(pid, side, opts){
     + `<button type="button" class="round-btn" id="viewerZoomIn" onclick="viewerZoomBy(1.6)" aria-label="${t('viewer.zoom_in')}" title="${t('viewer.zoom_in')}">${icon('plus')}</button></span>`
     + `<button type="button" class="chip viewer-edit" id="viewerEdit" onclick="editViewerPhoto()">${icon('crop')} ${t('pe.edit')}</button>`;
   ov.classList.add('is-open');
-  ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true'); ov.setAttribute('aria-label', p.name);
+  ov.classList.toggle('is-over-sheet', isSheetOpen());   // v11.11: abierto desde una hoja (la de una copia): va por encima
+  ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true'); ov.setAttribute('aria-label', p.name + (vc ? ' — ' + t('copy.n').replace('{n}', vc.n) : ''));
   viewerApply(false);
   viewerListen(true);
   if(from && opts.touches && opts.touches.length>=2) viewerStartPinch(opts.touches, true);
@@ -580,7 +601,7 @@ function viewerStep(dir){
 }
 function closePhotoViewer(){
   const { ov, img } = viewerEls();
-  if(ov){ ov.classList.remove('is-open','is-zoomed'); ov.removeAttribute('role'); ov.removeAttribute('aria-modal'); }
+  if(ov){ ov.classList.remove('is-open','is-zoomed','is-over-sheet'); ov.removeAttribute('role'); ov.removeAttribute('aria-modal'); }
   if(img){ img.removeAttribute('src'); img.style.transform = ''; img.classList.remove('is-animating'); }
   viewerState = null; _viewerGesture = null;
   viewerListen(false);
@@ -1808,7 +1829,9 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Escape'){
     if(isModalOpen()){ e.preventDefault(); modalCancelAction(); return; }
     if(isPhotoEditorOpen()){ e.preventDefault(); closePhotoEditor(null); return; }
+    if(typeof estInspectOpen==='function' && estInspectOpen()){ e.preventDefault(); estCloseInspect(); return; }   // v11.11
     if(typeof isScannerOpen==='function' && isScannerOpen()){ e.preventDefault(); scannerBack(); return; }
+    if(isViewerOpen() && isSheetOpen()){ e.preventDefault(); closePhotoViewer(); return; }   // v11.11
     if(isSheetOpen()){ e.preventDefault(); closeSheet(); return; }
     if(isViewerOpen()){ e.preventDefault(); closePhotoViewer(); return; }
   }
@@ -1824,7 +1847,7 @@ document.addEventListener('keydown', (e)=>{
     if((k==='ArrowRight' || k==='ArrowLeft') && viewerStep(k==='ArrowRight' ? 1 : -1)){ e.preventDefault(); return; }
   }
   if(e.key==='Tab'){
-    const box = isModalOpen() ? document.querySelector('#modalOverlay .modal-card') : isPhotoEditorOpen() ? photoEditor.root : (typeof isScannerOpen==='function' && isScannerOpen()) ? scanner.root : isSheetOpen() ? document.querySelector('#sheetOverlay .sheet') : isViewerOpen() ? document.getElementById('pinchOverlay') : null;
+    const box = isModalOpen() ? document.querySelector('#modalOverlay .modal-card') : isPhotoEditorOpen() ? photoEditor.root : (typeof estInspectOpen==='function' && estInspectOpen()) ? document.getElementById('estInspect') : (typeof isScannerOpen==='function' && isScannerOpen()) ? scanner.root : (isViewerOpen() && isSheetOpen()) ? document.getElementById('pinchOverlay') : isSheetOpen() ? document.querySelector('#sheetOverlay .sheet') : isViewerOpen() ? document.getElementById('pinchOverlay') : null;
     if(!box) return;
     const f = [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled && el.offsetParent!==null);
     if(!f.length) return;
@@ -1853,7 +1876,8 @@ function openSheet(opts){
   ov.dataset.kind = opts.kind || '';
   ov.classList.add('open');
   ov.onclick = (e)=>{ if(e.target===ov) closeSheet(); };
-  setTimeout(()=>{ const b = ov.querySelector('.sheet-body button, .sheet-body select, .sheet-body input') || ov.querySelector('.sheet-head button'); if(b) b.focus(); }, 40);
+  // opts.focus (v11.11): dónde empieza el foco (p. ej. no en un campo de texto, para que no salga el teclado)
+  setTimeout(()=>{ const b = (opts.focus && ov.querySelector(opts.focus)) || ov.querySelector('.sheet-body button, .sheet-body select, .sheet-body input') || ov.querySelector('.sheet-head button'); if(b) b.focus(); }, 40);
 }
 function updateSheetBody(html){ const b = document.getElementById('sheetBody'); if(b) b.innerHTML = html; }
 function closeSheet(){
@@ -1882,7 +1906,8 @@ function settingsBodyHTML(){
         <button type="button" class="seg-btn ${theme==='dark'?'active':''}" aria-pressed="${theme==='dark'}" onclick="setTheme('dark')">${icon('moon')} ${t('settings.theme_dark')}</button>
       </div></div>
     <div class="sheet-group"><div class="field-label">${t('settings.language')}</div><div class="chip-row" role="group" aria-label="${t('settings.language')}">
-      ${langs.map(([c,l])=>`<button type="button" class="chip ${lang===c?'active':''}" aria-pressed="${lang===c}" onclick="setLang('${c}')" lang="${c}">${l}</button>`).join('')}</div></div>`)
+      ${langs.map(([c,l])=>`<button type="button" class="chip ${lang===c?'active':''}" aria-pressed="${lang===c}" onclick="setLang('${c}')" lang="${c}">${l}</button>`).join('')}</div></div>
+    ${faltaStyleSettingHTML()}`)
   + group('collection', `<div class="sheet-group"><div class="field-label">${t('settings.currency')}</div><div class="chip-row" role="group" aria-label="${t('settings.currency')}">
       ${curs.map(([c,l])=>`<button type="button" class="chip ${cur===c?'active':''}" aria-pressed="${cur===c}" onclick="setCurrency('${c}')">${escapeHTML(l)}</button>`).join('')}</div>
       <p class="settings-note">${t('settings.currency_note')}</p></div>
@@ -2043,14 +2068,14 @@ function productBadgesHTML(p, opts){
    neutro si no lo tienes. */
 function possessClass(p){
   if(p.possession!=='tengo') return 'tone-not-have';
-  return p.sealed ? 'tone-sealed' : 'tone-have';
+  return shownSealed(p) ? 'tone-sealed' : 'tone-have';   // v11.11: la mejor copia
 }
 function possessLabel(p){
-  return p.possession==='tengo' ? (p.sealed ? t('p.have_sealed') : t('p.have_yes')) : t('p.have_no');
+  return p.possession==='tengo' ? (shownSealed(p) ? t('p.have_sealed') : t('p.have_yes')) : t('p.have_no');
 }
 /* v11.2: el botón lleva su icono (✓ la tienes · escudo precintada · + te falta),
    así el estado se reconoce sin leer y sin depender solo del color. */
-function possessShortLabel(p){ return p.possession!=='tengo' ? t('legend.missing') : (p.sealed ? t('state.sealed') : t('legend.have')); }
+function possessShortLabel(p){ return p.possession!=='tengo' ? t('legend.missing') : (shownSealed(p) ? t('state.sealed') : t('legend.have')); }
 function possessInnerHTML(p, short){
   const ic = `<span class="possess-ic" aria-hidden="true">${possessDotIcon(p)}</span>`;
   // en las filas de la lista, una etiqueta corta (el lector de pantalla oye la completa)
@@ -2063,12 +2088,24 @@ function possessButtonHTML(p, cls){
 /* Botón redondo de posesión de las portadas (v11.1): verde con ✓ si lo
    tienes, dorado con escudo si además está precintada, "+" si te falta.
    Hace lo mismo que el botón de siempre (quickTogglePossession). */
-function possessDotIcon(p){ return icon(p.possession!=='tengo' ? 'plus' : (p.sealed ? 'shield' : 'check')); }
+function possessDotIcon(p){ return icon(p.possession!=='tengo' ? 'plus' : (shownSealed(p) ? 'shield' : 'check')); }
 function possessDotHTML(p){
   const have = p.possession==='tengo';
   return `<button type="button" class="possess-dot ${possessClass(p)}" id="possess_${p.id}" aria-pressed="${have}" aria-label="${escapeHTML(t('cover.have_label').replace('{name}', p.name))}" title="${escapeHTML(plainLabel(possessLabel(p)))}" onclick="event.stopPropagation(); quickTogglePossession('${p.id}')">${possessDotIcon(p)}</button>`;
 }
-function coverStateClass(p){ return p.possession!=='tengo' ? 'is-missing' : (p.sealed ? 'is-sealed' : 'is-have'); }
+function planoHitHTML(p){ return `<span class="plano-hit" onclick="goProduct('${p.id}')">${planoCoverHTML(p)}</span>`; }
+function ensurePlanoIn(card, e){
+  if(card.querySelector('.plano')) return;
+  if(card.classList.contains('cover-card')){
+    const cover = card.querySelector('.cover');
+    if(cover && cover.querySelector('.cover-empty')) cover.insertAdjacentHTML('afterbegin', planoHitHTML(e));
+  } else {
+    const row = card.querySelector('.row-thumb-empty'), wall = card.querySelector('.wall-code');
+    if(row) row.insertAdjacentHTML('beforeend', planoMiniHTML(e, 'rt-plano'));
+    else if(wall) wall.outerHTML = planoMiniHTML(e);
+  }
+}
+function coverStateClass(p){ return p.possession!=='tengo' ? 'is-missing' : (shownSealed(p) ? 'is-sealed' : 'is-have'); }
 function refreshPossessButton(id){
   const rec = EDITIONS_BY_ID[id]; if(!rec) return;
   const e = rec.edition;
@@ -2081,10 +2118,24 @@ function refreshPossessButton(id){
     // respuesta visual breve al cambiar (se omite con «reducir movimiento»)
     btn.classList.remove('is-changed'); void btn.offsetWidth; btn.classList.add('is-changed');
   });
-  // la portada cambia de aspecto al momento (hueco discontinuo ↔ pieza que tienes)
-  document.querySelectorAll('.cover-card[data-pid="'+CSS.escape(id)+'"], .inv-item[data-pid="'+CSS.escape(id)+'"]').forEach(card=>{
+  // la portada cambia de aspecto al momento (plano ↔ pieza que tienes)
+  document.querySelectorAll('.cover-card[data-pid="'+CSS.escape(id)+'"], .inv-item[data-pid="'+CSS.escape(id)+'"], .wall-tile[data-pid="'+CSS.escape(id)+'"]').forEach(card=>{
+    const was = card.classList.contains('is-missing');
     card.classList.remove('is-have','is-missing','is-sealed');
     card.classList.add(coverStateClass(e));
+    // v11.11: si ahora te falta y no tiene foto, se le pone su plano (solo se construye cuando hace falta)
+    if(e.possession!=='tengo') ensurePlanoIn(card, e);
+    // v11.11: al conseguirla, el plano se repasa en verde y sale el sello «CONSEGUIDA»
+    if(was && e.possession==='tengo' && card.classList.contains('cover-card')){
+      const pl = card.querySelector('.cover .plano');
+      if(pl && !reducedMotion()){
+        card.classList.add('just-got');
+        playGotAnimation(pl, ()=>{ card.classList.remove('just-got'); pl.classList.remove('is-got'); const g = pl.querySelector('.plano-stamp.is-got'); if(g) g.remove(); });
+      }
+    }
+    const qty = card.querySelector('.qty-badge'); if(qty) qty.hidden = copyCount(e) < 2;
+    const stamp = card.querySelector('.plano-stamp:not(.is-got)');
+    if(stamp){ stamp.textContent = planoStampText(e); stamp.classList.toggle('is-hunt', isHunting(e)); }
   });
 }
 
@@ -2139,18 +2190,32 @@ function coverTagsHTML(p){
    la plataforma y las insignias; debajo el nombre (abre la ficha) y el botón
    de posesión. Sin foto: el color de la plataforma y "Añadir foto". Si te
    falta: hueco con borde discontinuo. */
+/* v11.11: insignia «×3» si tienes varias copias (dorada si alguna es para cambio) */
+function qtyBadgeHTML(p, cls){
+  const n = copyCount(p);
+  const trade = n > 1 && copiesOf(p).some(c=>c.paraCambio);
+  // dorado y con las flechas de cambio si alguna copia es «para cambio»
+  const label = t('copy.count_title').replace('{n}', n) + (trade ? ' · ' + t('copy.trade') : '');
+  return `<span class="qty-badge${trade ? ' is-trade' : ''}${cls ? ' ' + cls : ''}" ${n < 2 ? 'hidden' : ''} title="${escapeHTML(label)}"><span aria-hidden="true">${trade ? icon('swap') : ''}×${n}</span><span class="sr-only">${escapeHTML(label)}</span></span>`;
+}
 function productCardHTML(p, opts){
   opts = opts || {};
   const pv = platVisual(p.platformId);
-  const anyPhoto = hasPhoto(p.id,'front') || hasPhoto(p.id,'back');
-  const meta = [p.year, regionShortText(p), opts.showPlatform===false ? '' : p.platformName].filter(Boolean).map(escapeHTML).join(' · ');
-  // sin foto: el hueco ES el botón para hacerla o elegirla (se guarda como foto delantera, sin salir de la lista)
-  const cover = anyPhoto ? flipViewHTML(p, { tap:'open' })
+  const photoId = shownPhotoId(p);   // v11.11: se enseña la mejor copia
+  const anyPhoto = hasPhoto(photoId,'front') || hasPhoto(photoId,'back');
+  const num = p.possession!=='tengo' ? catalogNumText(p) : '';   // v11.11: «Nº 12/22» en lo que te falta
+  const meta = [num, p.year, regionShortText(p), opts.showPlatform===false ? '' : p.platformName].filter(Boolean).map(escapeHTML).join(' · ');
+  // sin foto: el hueco ES el botón para hacerla o elegirla (se guarda como foto delantera, sin salir de la lista).
+  // v11.11: si te falta, se ve su plano y el botón de la foto queda como una cámara pequeña
+  const cover = anyPhoto ? flipViewHTML(p, { tap:'open', photoId })
     : photoPickerHTML('cover-empty', 'photo_' + p.id + '_front', `${icon('camera')}<span class="cover-empty-txt">${t('cover.add_photo')}</span>`, t('cover.add_photo_for').replace('{name}', p.name));
-  return `<article class="title-card cover-card ${coverStateClass(p)}" data-pid="${escapeHTML(p.id)}" style="--plat:${pv.color}">
-    <div class="cover">${cover}
+  // (el plano solo se construye si te falta; si deja de tenerse, refreshPossessButton lo añade al momento)
+  const plano = anyPhoto || p.possession==='tengo' ? '' : planoHitHTML(p);
+  return `<article class="title-card cover-card ${coverStateClass(p)} plst-${faltaStyle()}" data-pid="${escapeHTML(p.id)}" style="--plat:${pv.color}">
+    <div class="cover">${plano}${cover}
       ${pv.code ? `<span class="cover-code" aria-hidden="true">${escapeHTML(pv.code)}</span>` : ''}
-      <span class="cover-missing">${t('cover.missing')}</span>
+      ${qtyBadgeHTML(p)}
+      ${planoStampHTML(p)}
       ${coverTagsHTML(p)}
     </div>
     <div class="cover-info">
@@ -2165,12 +2230,15 @@ function productCardHTML(p, opts){
 /* Portada pequeña que abre la ficha (Recién añadidas, En la misma estantería) */
 function miniCoverHTML(p){
   const pv = platVisual(p.platformId);
-  const has = hasPhoto(p.id,'front');
+  const photoId = shownPhotoId(p);
+  const has = hasPhoto(photoId,'front');
+  const miss = p.possession!=='tengo';
   const meta = [p.year, regionShortText(p)].filter(Boolean).map(escapeHTML).join(' · ');
   return `<button type="button" class="mini-cover ${coverStateClass(p)}" style="--plat:${pv.color}" onclick="goProduct('${p.id}')">
-    <span class="mini-photo">${has ? photoImgHTML(p,'front','thumb') : `<span class="mini-code">${escapeHTML(pv.code)}</span>`}
+    <span class="mini-photo">${has ? photoImgHTML(p,'front','thumb','',photoId) : miss ? planoMiniHTML(p) + `<span class="mini-code is-over">${escapeHTML(pv.code)}</span>` : `<span class="mini-code">${escapeHTML(pv.code)}</span>`}
       ${has && pv.code ? `<span class="cover-code" aria-hidden="true">${escapeHTML(pv.code)}</span>` : ''}
-      ${p.possession==='tengo' && p.sealed ? `<span class="cover-seal" title="${escapeHTML(t('wall.sealed'))}">${icon('shield')}</span>` : ''}
+      ${shownSealed(p) ? `<span class="cover-seal" title="${escapeHTML(t('wall.sealed'))}">${icon('shield')}</span>` : ''}
+      ${qtyBadgeHTML(p, 'is-small')}
     </span>
     <span class="mini-name">${escapeHTML(p.name)}</span>
     ${meta ? `<span class="mini-meta">${meta}</span>` : ''}
@@ -2179,17 +2247,20 @@ function miniCoverHTML(p){
 function productRowHTML(p, opts){
   opts = opts || {};
   const reg = regionShortText(p);
-  const meta = [opts.showPlatform===false ? '' : p.platformName, p.year, reg].filter(Boolean).map(escapeHTML).join(' · ');
+  const meta = [p.possession!=='tengo' ? catalogNumText(p) : '', opts.showPlatform===false ? '' : p.platformName, p.year, reg].filter(Boolean).map(escapeHTML).join(' · ');
   const pv = platVisual(p.platformId);
-  const thumb = (hasPhoto(p.id,'front') || hasPhoto(p.id,'back')) ? flipViewHTML(p, { hint:false })
-    : `<span class="row-thumb-empty" style="--plat:${pv.color}" aria-hidden="true">${escapeHTML(pv.code)}</span>`;
-  const badges = productBadgesHTML(p, { noRegion:true }).trim();
+  const photoId = shownPhotoId(p);   // v11.11: la mejor copia; si te falta y no hay foto, su plano
+  const thumb = (hasPhoto(photoId,'front') || hasPhoto(photoId,'back')) ? flipViewHTML(p, { hint:false, photoId })
+    : `<span class="row-thumb-empty" style="--plat:${pv.color}" aria-hidden="true"><span class="rt-code">${escapeHTML(pv.code)}</span>${p.possession!=='tengo' ? planoMiniHTML(p, 'rt-plano') : ''}</span>`;
+  const n = copyCount(p);
+  const badges = ((n > 1 ? `<span class="badge badge-qty${copiesOf(p).some(c=>c.paraCambio) ? ' is-trade' : ''}">×${n}</span>` : '') + productBadgesHTML(p, { noRegion:true })).trim();
   return `<div class="inv-item ${coverStateClass(p)}" data-pid="${escapeHTML(p.id)}" onclick="goProduct('${p.id}')" role="link" tabindex="0" onkeydown="if(event.key==='Enter'){goProduct('${p.id}')}">
     ${thumb}
     <div class="inv-main">
       <div class="inv-name">${escapeHTML(p.name)}</div>
       <div class="inv-meta">${meta || '—'}</div>
       ${badges ? `<div class="badge-row">${badges}</div>` : ''}
+      ${opts.copies && n > 1 ? `<div class="copy-mini">${copiesOf(p).map(c=>`<span class="cm${c.paraCambio ? ' is-trade' : ''}">${escapeHTML(t('copy.n').replace('{n}', c.n))} · ${escapeHTML(copyLine(p, c))}${c.paraCambio ? ' · ' + escapeHTML(t('copy.trade')) : ''}</span>`).join('')}</div>` : ''}
       ${opts.showId ? `<div class="inv-id">${escapeHTML(p.id)}</div>` : ''}
     </div>
     <div class="inv-side">${possessButtonHTML(p, 'possess-pill')}</div>

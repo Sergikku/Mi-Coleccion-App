@@ -888,6 +888,7 @@ function syncUnitName(k){
     const c = (typeof getAllCategories==='function' ? getAllCategories() : []).find(x=> x.id===id);
     if(c && c.name) return c.name;
   }
+  if(top==='estanterias') return t('est.title');   // v11.11
   return t('sync.conflict_settings');
 }
 /* Muchas piezas o fotos que se quitarían de la nube de golpe → se pregunta antes.
