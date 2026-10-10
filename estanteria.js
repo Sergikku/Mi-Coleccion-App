@@ -240,7 +240,8 @@ function estAutoPlan(opts){
    ===================================================================== */
 /* Las fotos de la app son cuadradas con blanco alrededor. Para la estantería
    se recorta ese blanco (sin tocar la foto guardada): se busca la zona que no
-   es blanca y se hace una copia solo de ella. Devuelve { url, ar } o null. */
+   es blanca y se hace una copia solo de ella. Devuelve { url, ar, avg, light }
+   o null (avg: el color medio de la pieza, para pintar su lomo). */
 const _trimCache = new Map(), _trimPending = new Map(), _trimBig = [];
 async function estTrimmedPhoto(photoId, side, size){
   const key = photoKeyFor(photoId, side); if(!key) return null;
@@ -266,12 +267,20 @@ async function estTrimmedPhoto(photoId, side, size){
     while(left < W - 1 && colInk(left, top, bot) < minC) left++;
     while(right > left && colInk(right, top, bot) < minC) right--;
     const w = right - left + 1, h = bot - top + 1;
-    if(w < W * 0.15 || h < H * 0.15) return { url:src, ar:W / H };
-    if(w > W * 0.985 && h > H * 0.985) return { url:src, ar:W / H };
+    // color medio (de la parte con la pieza), algo oscurecido para que el nombre en blanco se lea
+    const avgOf = (x0, y0, x1, y1)=>{ let r = 0, g = 0, b = 0, n = 0; const st = Math.max(1, Math.floor(Math.min(x1 - x0, y1 - y0) / 40));
+      for(let y=y0; y<=y1; y+=st) for(let xx=x0; xx<=x1; xx+=st){ const i = (y * W + xx) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+      if(!n) return { avg:null, light:false };
+      r /= n; g /= n; b /= n;
+      const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      return { avg:`rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`, light: lum > 0.62 }; };
+    if(w < W * 0.15 || h < H * 0.15) return Object.assign({ url:src, ar:W / H }, avgOf(0, 0, W - 1, H - 1));
+    const col = avgOf(left, top, right, bot);
+    if(w > W * 0.985 && h > H * 0.985) return Object.assign({ url:src, ar:W / H }, col);
     const o = document.createElement('canvas'); o.width = w; o.height = h;
     o.getContext('2d').drawImage(c, left, top, w, h, 0, 0, w, h);
     const blob = await new Promise(res=> o.toBlob(b=>res(b), 'image/jpeg', 0.88));
-    return blob ? { url: URL.createObjectURL(blob), ar: w / h } : { url:src, ar:W / H };
+    return Object.assign(blob ? { url: URL.createObjectURL(blob), ar: w / h } : { url:src, ar:W / H }, col);
   })();
   _trimPending.set(ck, job);
   let out = null;
@@ -284,40 +293,52 @@ async function estTrimmedPhoto(photoId, side, size){
   }
   return out;
 }
-/* Pone las fotos recortadas en las caras que las piden (data-ph="id|lado|tamaño") */
+/* Pone las fotos recortadas en las caras que las piden (data-ph="id|lado|tamaño").
+   Los lomos (data-ph-avg) llevan el color de su portada, no un trozo de ella. */
 function estHydratePhotos(root){
   root.querySelectorAll('[data-ph]:not([data-ph-done])').forEach(el=>{
     el.dataset.phDone = '1';
     const [pid, side, size] = el.dataset.ph.split('|');
-    estTrimmedPhoto(pid, side, size).then(r=>{ if(r && document.contains(el)){ el.style.backgroundImage = `url("${r.url}")`; el.classList.add('has-ph'); } });
+    estTrimmedPhoto(pid, side, size).then(r=>{
+      if(!r || !document.contains(el)) return;
+      if(el.hasAttribute('data-ph-avg')){ if(r.avg){ el.style.backgroundColor = r.avg; el.classList.add('has-avg'); if(r.light) el.classList.add('is-light'); } return; }
+      el.style.backgroundImage = `url("${r.url}")`; el.classList.add('has-ph');
+    });
   });
 }
 
 /* =====================================================================
-   4. DIBUJO 3D (CSS)
+   4. DIBUJO: siempre de frente, a la altura de la estantería
+   ---------------------------------------------------------------------
+   No hay cámara libre. Tres niveles fijos:
+     · Sala: todos los muebles, uno al lado de otro.
+     · Mueble: el mueble entero, de frente. Tocas una balda y entras.
+     · Balda: dentro de una balda, de cerca y a su altura; se desliza a
+       los lados y se pasa a la de arriba o la de abajo con los botones.
+   Cada balda es una caja con su propia perspectiva (fondo, suelo, techo y
+   laterales), iluminada por la tira de luz de arriba. Las piezas, de cerca,
+   son cajas con sus fotos (se ven de lado las que están a los lados); en el
+   mueble entero, lomos planos (mucho más ligero en el móvil).
    ===================================================================== */
-const EST = { view:'mueble', mid:null, rx:-6, ry:-18, zoom:1, panX:0, panY:0, night:false, doors:false, sel:null, s:4 };
+const EST = { view:'mueble', mid:null, bsid:null, night:false, doors:false, covers:false, sel:null, s:4, delAsk:false };
 function estMid(){
   const E = estData();
   if(!E.muebles.length) return null;
   if(!E.muebles.some(m=>m.id===EST.mid)) EST.mid = E.muebles[0].id;
   return EST.mid;
 }
-/* Una cara: rectángulo de w × h (px) centrado en su sitio, con su giro */
-function estFace(w, h, tf, cls, style, inner){
-  return `<div class="est-f ${cls || ''}" style="width:${w.toFixed(2)}px;height:${h.toFixed(2)}px;margin:${(-h / 2).toFixed(2)}px 0 0 ${(-w / 2).toFixed(2)}px;transform:${tf};${style || ''}">${inner || ''}</div>`;
+/* Las superficies de un mueble, de arriba abajo: «encima» y las baldas */
+function estSurfaceIds(m){ return ['top'].concat(m.baldas.map(b=>b.id)); }
+/* La balda que se está viendo de cerca (si ya no existe, la primera con piezas) */
+function estBsid(m){
+  const ids = estSurfaceIds(m);
+  if(EST.bsid && ids.includes(EST.bsid) && (EST.bsid!=='top' || estKnownCount(m.encima.items) || !m.baldas.length)) return EST.bsid;
+  EST.bsid = m.baldas.find(b=>estKnownCount(b.items)) ? m.baldas.find(b=>estKnownCount(b.items)).id : (m.baldas[0] ? m.baldas[0].id : 'top');
+  return EST.bsid;
 }
-/* Un bloque (6 caras) centrado en (x,y,z) px. La de abajo también: las baldas
-   altas se ven desde abajo (como en un mueble de verdad) y tapan lo de encima. */
-function estBox(x, y, z, w, h, d, wood, cls){
-  const at = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,${z.toFixed(2)}px)`;
-  const g = `background-color:VAR;`;
-  return estFace(w, h, `${at} translateZ(${(d / 2).toFixed(2)}px)`, 'est-wood ' + (cls || ''), g.replace('VAR', wood.f))
-    + estFace(w, h, `${at} rotateY(180deg) translateZ(${(d / 2).toFixed(2)}px)`, 'est-wood ' + (cls || ''), g.replace('VAR', wood.e))
-    + estFace(d, h, `${at} rotateY(-90deg) translateZ(${(w / 2).toFixed(2)}px)`, 'est-wood is-side ' + (cls || ''), g.replace('VAR', wood.s))
-    + estFace(d, h, `${at} rotateY(90deg) translateZ(${(w / 2).toFixed(2)}px)`, 'est-wood is-side ' + (cls || ''), g.replace('VAR', wood.s))
-    + estFace(w, d, `${at} rotateX(90deg) translateZ(${(h / 2).toFixed(2)}px)`, 'est-wood is-top ' + (cls || ''), g.replace('VAR', wood.t))
-    + estFace(w, d, `${at} rotateX(-90deg) translateZ(${(h / 2).toFixed(2)}px)`, 'est-wood is-bottom ' + (cls || ''), g.replace('VAR', wood.e));
+/* Una cara (rectángulo de w × h px) con su transformación */
+function estFace(w, h, tf, cls, style, inner, attrs){
+  return `<div class="est-f ${cls || ''}" ${attrs || ''} style="width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;margin:${(-h / 2).toFixed(1)}px 0 0 ${(-w / 2).toFixed(1)}px;transform:${tf};${style || ''}">${inner || ''}</div>`;
 }
 function estLightColor(m, b){
   const L = EST_LIGHTS[m.luz];
@@ -326,205 +347,297 @@ function estLightColor(m, b){
   const first = b && b.items.map(it=>PRODUCTS_BY_ID[it.pid]).find(Boolean);
   return first ? platVisual(first.platformId).color : '#ffcf8a';
 }
-/* Una pieza como caja 3D (con sus fotos sin margen) */
-function estPieceBox(r, X, Y, Z, s, opts){
-  const p = r.p, b = r.b, d0 = b.dims;
-  const w = d0.w * s, h = d0.h * s, d = d0.d * s;
-  const pv = platVisual(p.platformId);
-  const miss = p.possession!=='tengo';
-  const ph = shownPhotoId(p);
-  const name = escapeHTML(p.name);
-  const at = `translate3d(${X.toFixed(2)}px,${Y.toFixed(2)}px,${Z.toFixed(2)}px)`;
-  // tumbada: con el lomo hacia delante y la portada hacia arriba
-  const pose = b.pose==='tumbado' ? `rotateY(${r.it.rot || 0}deg) rotateZ(-90deg) rotateY(90deg)` : `rotateY(${b.ang}deg)`;
-  const base = at + ' ' + pose;
-  const sel = opts && opts.sel ? ' is-sel' : '';
-  const data = `data-it="${r.idx}" data-pid="${escapeHTML(p.id)}"`;
-  const cover = (side)=> !miss && hasPhoto(ph, side) ? ` data-ph="${escapeHTML(ph)}|${side}|thumb"` : '';
-  const fs = Math.max(5, Math.min(13, d * 0.55));
-  const spine = `<span class="est-spine-txt" style="font-size:${fs.toFixed(1)}px">${name}</span>${estCodeFits(pv.code, d) ? `<span class="est-spine-code">${escapeHTML(pv.code)}</span>` : ''}`;
-  const frontInner = miss ? `<span class="est-ghost-q">?</span>` : `<span class="est-cover-txt"><b>${escapeHTML(pv.code)}</b>${name}</span>`;
-  const st = `--plat:${pv.color}`;
-  return `<div class="est-piece${miss ? ' is-ghost' : ''}${b.pose==='tumbado' ? ' is-flat' : ''}${sel}" ${data} style="${st}">`
-    + estFace(w, h, `${base} translateZ(${(d / 2).toFixed(2)}px)`, 'est-pc is-front', st, frontInner).replace('class="est-f est-pc is-front"', `class="est-f est-pc is-front"${cover('front')}`)
-    + estFace(w, h, `${base} rotateY(180deg) translateZ(${(d / 2).toFixed(2)}px)`, 'est-pc is-back', st, '').replace('class="est-f est-pc is-back"', `class="est-f est-pc is-back"${cover('back')}`)
-    + estFace(d, h, `${base} rotateY(-90deg) translateZ(${(w / 2).toFixed(2)}px)`, 'est-pc is-spine', st, spine)
-    + estFace(d, h, `${base} rotateY(90deg) translateZ(${(w / 2).toFixed(2)}px)`, 'est-pc is-edge', st)
-    + estFace(w, d, `${base} rotateX(90deg) translateZ(${(h / 2).toFixed(2)}px)`, 'est-pc is-top', st)
-    + `</div>`;
-}
 /* ¿Cabe el código de la plataforma al pie de un lomo de w px? */
 function estCodeFits(code, w){ return !!code && w >= code.length * 4.6 + 4; }
-/* Una fila de lomos «normales» (de lomo, sin girar ni apilar): un solo plano
-   con todos los lomos dentro — mucho más ligero para el móvil */
-function estSpineRun(recs, x0, yBase, zFront, s, selIdx){
-  if(!recs.length) return '';
-  const minX = Math.min(...recs.map(r=>r.x - r.b.fw / 2)), maxX = Math.max(...recs.map(r=>r.x + r.b.fw / 2));
-  const maxH = Math.max(...recs.map(r=>r.y + r.b.hgt));
-  const W = (maxX - minX) * s, H = maxH * s;
-  const cx = x0 + (minX + maxX) / 2 * s, cy = yBase - H / 2;
-  const kids = recs.map(r=>{
-    const p = r.p, pv = platVisual(p.platformId), miss = p.possession!=='tengo';
-    const w = r.b.fw * s, h = r.b.hgt * s, left = (r.x - r.b.fw / 2 - minX) * s;
-    const fs = Math.max(5, Math.min(13, w * 0.55));
-    return `<span class="est-spine${miss ? ' is-ghost' : ''}${r.idx===selIdx ? ' is-sel' : ''}" data-it="${r.idx}" data-pid="${escapeHTML(p.id)}" style="--plat:${pv.color};left:${left.toFixed(2)}px;width:${w.toFixed(2)}px;height:${h.toFixed(2)}px${r.y ? `;bottom:${(r.y * s).toFixed(2)}px` : ''}">${miss ? '<span class="est-ghost-q">?</span>' : `<span class="est-spine-txt" style="font-size:${fs.toFixed(1)}px">${escapeHTML(p.name)}</span>${estCodeFits(pv.code, w) ? `<span class="est-spine-code">${escapeHTML(pv.code)}</span>` : ''}`}</span>`;
-  }).join('');
-  return estFace(W, H, `translate3d(${cx.toFixed(2)}px,${cy.toFixed(2)}px,${zFront.toFixed(2)}px)`, 'est-run', '', kids);
+/* El nombre a lo largo del lomo: en una o dos líneas según el grosor (W) y
+   el largo (L) del lomo. Si es demasiado pequeño para leerse, no se pone. */
+function estSpineLabel(p, W, L, horizontal){
+  if(L < 30) return '';
+  const pv = platVisual(p.platformId);
+  const name = String(p.name || '');
+  const MIN = 7.5;                                                   // por debajo no se lee
+  const need = (f)=> name.length * f * 0.55;                        // largo aproximado del nombre
+  const room = (f, withCode)=> L - f * 1.2 - (withCode ? f * (pv.code.length * 0.62 + 1.5) : 0);
+  const maxF = (n)=> Math.min(14, n===1 ? W * 0.6 : n===2 ? W / 2.4 : W / 3.5);
+  const code0 = !!(pv.code && L >= 110 && W >= 16);
+  // Se prueba en 1, 2 y 3 líneas y se queda la que muestra el nombre ENTERO
+  // con la letra más grande. Para que quepa: primero se quita el código de la
+  // plataforma y, si aún no cabe, la letra baja (hasta MIN). Si en ninguna
+  // cabe entero, la que enseña más nombre (acaba en «…»).
+  let best = null;
+  for(const n of [1, 2, 3]){
+    let f = maxF(n); if(f < MIN) continue;
+    let code = code0 && need(f) <= n * room(f, true);
+    while(f > MIN && need(f) > n * room(f, code)){ code = false; f = Math.max(MIN, f - 0.5); }
+    const shown = Math.min(1, n * room(f, code) / Math.max(1, need(f)));
+    const score = shown >= 1 ? 2 + f / 100 : shown;
+    if(!best || score > best.score) best = { f, n, code, score };
+  }
+  if(!best) return '';
+  return `<span class="est-sl${horizontal ? ' is-h' : ''}" style="--L:${L.toFixed(1)}px;--T:${W.toFixed(1)}px;font-size:${best.f.toFixed(1)}px"><span class="est-sl-name" style="-webkit-line-clamp:${best.n}">${escapeHTML(name)}</span>${best.code ? `<b class="est-sl-code">${escapeHTML(pv.code)}</b>` : ''}</span>`;
 }
-/* El contenido de una superficie (balda o encima) */
-function estSurfaceHTML(m, sid, sf, x0, yBase, zMid, depth, s, lite){
-  const L = estLayout(sf.items, sid==='top' ? m.ancho : m.ancho, estSurfaceH(m, sid));
-  const sel = EST.sel && EST.sel.mid===m.id && EST.sel.sid===sid ? sf.items.findIndex(it=>it.pid===EST.sel.pid) : -1;
-  const zFrontEdge = zMid + depth / 2;
-  const run = [], boxes = [];
-  L.recs.forEach(r=>{
-    const simple = (r.b.pose==='lomo' && !(r.it.rot) && !r.it.apilado && r.idx!==sel && !(sf.items[r.idx + 1] && sf.items[r.idx + 1].apilado));
-    if(simple || lite) run.push(r); else boxes.push(r);
-  });
-  let html = estSpineRun(run, x0, yBase, zFrontEdge - EST_FRONT * s - 0.6, s, sel);
-  boxes.forEach(r=>{
-    const X = x0 + r.x * s, Y = yBase - (r.y + r.b.hgt / 2) * s;
-    const Z = zFrontEdge - (EST_FRONT + r.b.fd / 2) * s + (r.idx===sel ? 2.2 * s : 0);
-    html += estPieceBox(r, X, Y, Z, s, { sel: r.idx===sel });
-  });
-  return { html, L };
+/* Foto (sin margen blanco) para una cara: se pone al hidratar */
+function estPh(p, side, avg){
+  if(p.possession!=='tengo') return '';
+  const ph = shownPhotoId(p);
+  return hasPhoto(ph, side) ? ` data-ph="${escapeHTML(ph)}|${side}|thumb"${avg ? ' data-ph-avg' : ''}` : '';
 }
-/* Un mueble entero, centrado en (cx, 0, 0). lite: versión ligera (sala). */
-function estMuebleHTML(m, s, cx, lite){
+/* Una pieza plana (vista del mueble entero): lo que se ve de frente */
+function estFlatHTML(r, s, selPid){
+  const p = r.p, b = r.b, d0 = b.dims, pv = platVisual(p.platformId);
+  const miss = p.possession!=='tengo';
+  const w = b.fw * s, h = b.hgt * s;
+  const left = (r.x - b.fw / 2) * s, bottom = r.y * s;
+  const face = b.pose==='portada' ? 'cover' : b.pose==='diagonal' ? 'cover is-diag' : b.pose==='tumbado' ? 'spine is-h' : 'spine';
+  const ph = estPh(p, 'front', face.startsWith('spine'));
+  const lbl = face.startsWith('spine') ? estSpineLabel(p, b.pose==='tumbado' ? h : w, b.pose==='tumbado' ? w : h, b.pose==='tumbado') : '';
+  return `<span class="est-sp is-${face}${miss ? ' is-ghost' : ''}${p.id===selPid ? ' is-sel' : ''}" data-pid="${escapeHTML(p.id)}"${ph} style="--plat:${pv.color};left:${left.toFixed(1)}px;bottom:${bottom.toFixed(1)}px;width:${w.toFixed(1)}px;height:${h.toFixed(1)}px">${miss ? '<span class="est-ghost-q">?</span>' : lbl}</span>`;
+}
+/* Una pieza como caja (de cerca): 5 caras, con sus fotos; las de detrás no se pintan */
+/* Orden de pintado: primero las más alejadas de tus ojos (a los lados), así
+   cada una tapa el lado de la de al lado, como en una estantería de verdad */
+function estZ(x, eyeX){ return Math.max(1, 3000 - Math.round(Math.abs(x - eyeX))); }
+function estBoxHTML(r, X, Y, Z, s, sel, eyeX){
+  const p = r.p, b = r.b, d0 = b.dims, pv = platVisual(p.platformId);
+  const miss = p.possession!=='tengo';
+  const w = d0.w * s, h = d0.h * s, d = d0.d * s;
+  // la postura va en cada cara (no en el contenedor): así el navegador sabe
+  // siempre qué pieza tocas, también la que tienes justo delante
+  const pose = b.pose==='tumbado' ? `rotateY(${r.it.rot || 0}deg) rotateZ(-90deg) rotateY(90deg)` : `rotateY(${b.ang}deg)`;
+  const lift = sel ? ` translateZ(${(2 * s).toFixed(1)}px)` : '';
+  const at = `translate3d(${X.toFixed(1)}px,${Y.toFixed(1)}px,${Z.toFixed(1)}px)${lift}`;
+  const q = miss ? '<span class="est-ghost-q">?</span>' : '';
+  const cls = `est-pz is-${b.pose}${r.it.rot ? ' is-rot' : ''}${miss ? ' is-ghost' : ''}${sel ? ' is-sel' : ''}${b.pose==='tumbado' ? ' is-flat' : ''}`;
+  // la elegida: una marca encima, para verla de un vistazo
+  const mark = sel ? `<span class="est-mark" style="transform:translate(-50%,-100%) translate3d(0,${(-(b.hgt * s) / 2 - 8).toFixed(1)}px,${((b.fd * s) / 2).toFixed(1)}px)" aria-hidden="true"></span>` : '';
+  return `<div class="${cls}" data-pid="${escapeHTML(p.id)}" data-x="${X.toFixed(0)}" title="${escapeHTML(p.name)}" style="--plat:${pv.color};z-index:${sel ? 3100 : estZ(X, eyeX)};transform:${at}">`
+    + estFace(w, h, `${pose} translateZ(${(d / 2).toFixed(1)}px)`, 'est-pc is-front', '', miss ? q : `<span class="est-cover-txt"><b>${escapeHTML(pv.code)}</b>${escapeHTML(p.name)}</span>`, estPh(p, 'front'))
+    + estFace(w, h, `${pose} rotateY(180deg) translateZ(${(d / 2).toFixed(1)}px)`, 'est-pc is-back', '', '', estPh(p, 'back'))
+    + estFace(d, h, `${pose} rotateY(-90deg) translateZ(${(w / 2).toFixed(1)}px)`, 'est-pc is-spine', '', estSpineLabel(p, d, h, false) || q, estPh(p, 'front', true))
+    + estFace(d, h, `${pose} rotateY(90deg) translateZ(${(w / 2).toFixed(1)}px)`, 'est-pc is-edge', '', '')
+    + estFace(w, d, `${pose} rotateX(90deg) translateZ(${(h / 2).toFixed(1)}px)`, 'est-pc is-top', '', '')
+    + mark + `</div>`;
+}
+/* Una balda (o «encima»): la caja con su luz y las piezas.
+   o = { lite, eyeX, eyeY (px, respecto a la balda), P (perspectiva), selPid, open } */
+function estBayHTML(m, sid, sf, w, h, s, o){
+  const D = m.fondo * s;
+  const H = estSurfaceH(m, sid);
+  const L = estLayout(sf.items, m.ancho, H);
+  const b = sid==='top' ? null : estSurface(m, sid);
+  const light = o.open ? null : estLightColor(m, b);
   const wood = EST_WOODS[m.madera];
-  const OW = (m.ancho + 2 * EST_T) * s, OD = (m.fondo + EST_T) * s, OH = estMuebleHeight(m) * s, T = EST_T * s;
-  const top = -OH / 2, bottom = OH / 2;
-  let h = `<div class="est-mueble" data-mid="${escapeHTML(m.id)}">`;
-  // laterales, fondo, copete y zócalo
-  h += estBox(cx - OW / 2 + T / 2, 0, 0, T, OH, OD, wood, 'est-side-panel');
-  h += estBox(cx + OW / 2 - T / 2, 0, 0, T, OH, OD, wood, 'est-side-panel');
-  const inTop = top + EST_CROWN * s, inBot = bottom - EST_PLINTH * s;
-  h += estFace(OW - 2 * T, inBot - inTop, `translate3d(${cx.toFixed(2)}px,${((inTop + inBot) / 2).toFixed(2)}px,${(-OD / 2 + T / 2).toFixed(2)}px)`, 'est-wood est-back', `background-color:${wood.e}`);
-  h += estBox(cx, top + EST_CROWN * s / 2, 0.6 * s, OW + 2 * s, EST_CROWN * s, OD + 1.2 * s, wood, 'est-crown');
-  h += estBox(cx, bottom - EST_PLINTH * s / 2, -0.6 * s, OW - 1.5 * s, EST_PLINTH * s, OD - 1.2 * s, wood, 'est-plinth');
-  // encima
-  const zMid = T / 2;
-  const encima = estSurfaceHTML(m, 'top', m.encima, cx - (m.ancho * s) / 2, top, zMid, OD - T, s, lite);
-  h += encima.html;
+  let inner = '';
+  if(!o.open){
+    // fondo, suelo, techo y laterales (de madera, con la luz que cae desde arriba)
+    inner += `<div class="est-bk" style="width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;transform:translateZ(${(-D).toFixed(1)}px);background-color:${wood.e}"></div>`;
+    inner += `<div class="est-fl" style="top:${h.toFixed(1)}px;width:${w.toFixed(1)}px;height:${D.toFixed(1)}px;background-color:${wood.t}"></div>`;
+    inner += `<div class="est-cl" style="width:${w.toFixed(1)}px;height:${D.toFixed(1)}px;background-color:${wood.e}"></div>`;
+    inner += `<div class="est-wl" style="width:${D.toFixed(1)}px;height:${h.toFixed(1)}px;background-color:${wood.s}"></div>`;
+    inner += `<div class="est-wl is-r" style="left:${w.toFixed(1)}px;width:${D.toFixed(1)}px;height:${h.toFixed(1)}px;background-color:${wood.s}"></div>`;
+  }
+  // piezas
+  const zFront = -EST_FRONT * s;
+  if(o.lite){
+    inner += `<div class="est-run" style="width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;transform:translateZ(${zFront.toFixed(1)}px)">${L.recs.map(r=>estFlatHTML(r, s, o.selPid)).join('')}</div>`;
+  } else {
+    L.recs.forEach(r=>{
+      const X = r.x * s, Y = h - (r.y + r.b.hgt / 2) * s, Z = zFront - (r.b.fd / 2) * s;
+      inner += estBoxHTML(r, X, Y, Z, s, r.p.id===o.selPid, o.eyeX);
+    });
+  }
+  const glow = light ? `--glow:${light};` : '';
+  return `<div class="est-bay${o.open ? ' is-open' : ''}${light ? ' has-light' : ''}" data-sid="${sid}" style="${glow}width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;perspective:${o.P.toFixed(0)}px;perspective-origin:${o.eyeX.toFixed(1)}px ${o.eyeY.toFixed(1)}px">
+    ${inner}${light ? '<span class="est-led" aria-hidden="true"></span>' : ''}</div>`;
+}
+/* El mueble entero, de frente. Devuelve { html, W, H } (px) */
+function estCabinetHTML(m, s, o){
+  o = o || {};
+  const wood = EST_WOODS[m.madera];
+  const T = EST_T * s, OW = (m.ancho + 2 * EST_T) * s, inW = m.ancho * s;
+  const topCm = o.noTop ? 0 : Math.min(EST_TOP_H, estTopUsed(m));
+  const topH = topCm * s, crownH = EST_CROWN * s, plinthH = EST_PLINTH * s;
+  const bodyH = estMuebleHeight(m) * s;
+  const H = topH + bodyH;
+  const eyeY = topH + crownH + (bodyH - crownH - plinthH) * 0.42;   // a la altura de los ojos: algo por encima de la mitad
+  const eyeX = OW / 2;
+  const P = Math.max(500, 150 * s);
+  const wst = `background-color:${wood.f}`;
+  let h = `<div class="est-cab${o.lite ? ' is-lite' : ''}" data-mid="${escapeHTML(m.id)}" style="width:${OW.toFixed(1)}px;height:${H.toFixed(1)}px">`;
+  // encima del mueble
+  if(topH > 0){
+    h += `<div class="est-on-top" style="left:${T.toFixed(1)}px;top:0;width:${inW.toFixed(1)}px;height:${topH.toFixed(1)}px">${estBayHTML(m, 'top', m.encima, inW, topH, s, { lite:true, open:true, eyeX:eyeX - T, eyeY:eyeY, P, selPid:o.selPid })}</div>`;
+  }
+  // copete, laterales y zócalo
+  h += `<div class="est-wood est-crown" style="${wst};left:${(-1.2 * s).toFixed(1)}px;top:${topH.toFixed(1)}px;width:${(OW + 2.4 * s).toFixed(1)}px;height:${crownH.toFixed(1)}px"></div>`;
+  h += `<div class="est-wood est-side" style="${wst};left:0;top:${(topH + crownH).toFixed(1)}px;width:${T.toFixed(1)}px;height:${(bodyH - crownH).toFixed(1)}px"></div>`;
+  h += `<div class="est-wood est-side is-r" style="${wst};left:${(OW - T).toFixed(1)}px;top:${(topH + crownH).toFixed(1)}px;width:${T.toFixed(1)}px;height:${(bodyH - crownH).toFixed(1)}px"></div>`;
+  h += `<div class="est-wood est-plinth" style="${wst};left:${(0.6 * s).toFixed(1)}px;top:${(H - plinthH).toFixed(1)}px;width:${(OW - 1.2 * s).toFixed(1)}px;height:${plinthH.toFixed(1)}px"></div>`;
   // baldas
-  let y = inTop;
+  let y = topH + crownH;
   const plate = EST_PLATES[m.placas];
   m.baldas.forEach((b, i)=>{
-    const yB = y + b.alto * s;
-    const light = estLightColor(m, b);
-    // luz: tira LED arriba y resplandor en el fondo
-    if(light){
-      h += estFace(OW - 2 * T, b.alto * s, `translate3d(${cx.toFixed(2)}px,${(y + b.alto * s / 2).toFixed(2)}px,${(-OD / 2 + T + 0.3).toFixed(2)}px)`, 'est-glow', `--glow:${light}`);
-      h += estFace(OW - 2 * T - 2 * s, 0.6 * s, `translate3d(${cx.toFixed(2)}px,${(y + 0.4 * s).toFixed(2)}px,${(OD / 2 - 2 * s).toFixed(2)}px) rotateX(-90deg)`, 'est-led', `--glow:${light}`);
+    const bh = b.alto * s;
+    h += `<div class="est-slot" style="left:${T.toFixed(1)}px;top:${y.toFixed(1)}px">${estBayHTML(m, b.id, b, inW, bh, s, { lite:true, eyeX:eyeX - T, eyeY:eyeY - y, P, selPid:o.selPid })}</div>`;
+    y += bh;
+    if(i < m.baldas.length - 1){
+      h += `<div class="est-wood est-board" style="${wst};left:${T.toFixed(1)}px;top:${y.toFixed(1)}px;width:${inW.toFixed(1)}px;height:${T.toFixed(1)}px"></div>`;
     }
-    const sf = estSurfaceHTML(m, b.id, b, cx - (m.ancho * s) / 2, yB, zMid, OD - T, s, lite);
-    h += sf.html;
-    // tablero de debajo (salvo la última, que apoya en el zócalo)
-    if(i < m.baldas.length - 1) h += estBox(cx, yB + T / 2, zMid, OW - 2 * T, T, OD - T, wood, 'est-board');
-    // placa
+    // placa (en el canto de la balda)
     const txt = estPlateText(b);
-    if(plate && txt && !lite){
-      const fs = Math.max(6, Math.min(12, 1.55 * s));
-      const pw = Math.min((m.ancho - 8) * s, txt.length * fs * 0.74 + 10);
-      const px = cx - (OW / 2 - T) + pw / 2 + 2.5 * s;
-      h += estFace(pw, Math.max(fs + 5, 2.4 * s), `translate3d(${px.toFixed(2)}px,${(yB + T / 2).toFixed(2)}px,${(OD / 2 + 0.6).toFixed(2)}px)`, 'est-plate', `--p1:${plate[0]};--p2:${plate[1]};--p3:${plate[2]};font-size:${fs.toFixed(1)}px`, escapeHTML(txt));
+    if(plate && txt && !o.lite){
+      // en el canto de la balda, colgando hacia abajo (no tapa los pies de las piezas)
+      const fs = Math.max(6.5, Math.min(11, 1.3 * s));
+      const pw = Math.min(inW - 6, txt.length * fs * 0.72 + 12);
+      h += `<span class="est-plate" style="--p1:${plate[0]};--p2:${plate[1]};--p3:${plate[2]};left:${(T + 2 * s).toFixed(1)}px;top:${(y - 0.5).toFixed(1)}px;width:${pw.toFixed(1)}px;height:${(fs + 5).toFixed(1)}px;font-size:${fs.toFixed(1)}px">${escapeHTML(txt)}</span>`;
     }
-    y = yB + T;
+    if(i < m.baldas.length - 1) y += T;
   });
-  // puertas de cristal (no se pueden tocar: el toque llega a las piezas)
-  if(m.puertas!=='sin' && m.baldas.length){
-    const dh = inBot - inTop, dw = (OW - 2 * T) / 2;
-    // abiertas con el botón; al elegir una pieza se apartan del todo (no tapan nada)
-    const away = !EST.doors && EST.sel && EST.sel.mid===m.id;
-    const open = EST.doors || away;
-    const zD = OD / 2 + 0.4 * s;
-    const cls = 'est-door' + (m.puertas==='ahumado' ? ' is-smoked' : '') + (open ? ' is-open' : '') + (away ? ' is-away' : '');
-    h += `<div class="${cls} is-left" style="width:${dw.toFixed(2)}px;height:${dh.toFixed(2)}px;margin:${(-dh / 2).toFixed(2)}px 0 0 0;transform:translate3d(${(cx - (OW - 2 * T) / 2).toFixed(2)}px,${((inTop + inBot) / 2).toFixed(2)}px,${zD.toFixed(2)}px) rotateY(${open ? -100 : 0}deg);--frame:${wood.f}"></div>`;
-    h += `<div class="${cls} is-right" style="width:${dw.toFixed(2)}px;height:${dh.toFixed(2)}px;margin:${(-dh / 2).toFixed(2)}px 0 0 ${(-dw).toFixed(2)}px;transform:translate3d(${(cx + (OW - 2 * T) / 2).toFixed(2)}px,${((inTop + inBot) / 2).toFixed(2)}px,${zD.toFixed(2)}px) rotateY(${open ? 100 : 0}deg);--frame:${wood.f}"></div>`;
+  // puertas de cristal (se abren con el botón o al entrar en una balda)
+  if(m.puertas!=='sin' && m.baldas.length && !EST.doors){
+    const top = topH + crownH, dh = bodyH - crownH - plinthH;
+    h += `<div class="est-glass${m.puertas==='ahumado' ? ' is-smoked' : ''}" style="--frame:${wood.f};left:${T.toFixed(1)}px;top:${top.toFixed(1)}px;width:${inW.toFixed(1)}px;height:${dh.toFixed(1)}px"><i></i><i></i></div>`;
   }
-  return h + `</div>`;
-}
-/* Tamaño del escenario y escala px/cm para que el mueble (o la sala) quepa */
-function estStageSize(){
-  const st = document.getElementById('estStage');
-  const w = st ? st.clientWidth : Math.min(innerWidth - 24, 1100);
-  const h = st ? st.clientHeight : Math.round(innerHeight * 0.6);
-  return { w, h };
-}
-function estSceneHTML(){
-  const E = estData();
-  const { w, h } = estStageSize();
-  let inner = '', floorW = 0, totalH = 0, salaDrop = 0, zBack = 0;
-  if(EST.view==='sala'){
-    const gap = 26;
-    const widths = E.muebles.map(m=> m.ancho + 2 * EST_T);
-    const totW = widths.reduce((a, b)=>a + b, 0) + gap * Math.max(0, E.muebles.length - 1);
-    const maxH = Math.max(...E.muebles.map(m=>estMuebleHeight(m) + EST_TOP_H * 0.5));
-    // todos caben a lo ancho (también en el móvil) y se apoyan en el suelo, en el tercio de abajo
-    const s = Math.max(0.12, Math.min((w * 0.9) / totW, (h * 0.62) / maxH)) * EST.zoom;
-    EST.s = s;
-    salaDrop = Math.max(0, h * 0.34 - (maxH * s / 2 - EST_TOP_H * 0.25 * s));
-    let x = -totW / 2;
-    E.muebles.forEach((m, i)=>{
-      const mh = estMuebleHeight(m);
-      inner += `<div class="est-place" style="transform:translate3d(0,${((maxH - mh) / 2 * s - EST_TOP_H * 0.25 * s + salaDrop).toFixed(2)}px,0)">${estMuebleHTML(m, s, (x + widths[i] / 2) * s, true)}</div>`;
-      x += widths[i] + gap;
-    });
-    floorW = Math.max(totW * s + 400, w * 2); totalH = maxH * s;
-    zBack = -Math.max(...E.muebles.map(m=> m.fondo + EST_T)) * s / 2;
-  } else {
-    const m = estMueble(estMid()); if(!m) return '';
-    const mh = estMuebleHeight(m) + Math.min(EST_TOP_H, estTopUsed(m)) ;
-    const s = Math.max(1, Math.min((w * 0.82) / (m.ancho + 2 * EST_T + 4), (h * 0.82) / mh)) * EST.zoom;
-    EST.s = s;
-    const shift = (Math.min(EST_TOP_H, estTopUsed(m)) / 2) * s;
-    inner = `<div class="est-place" style="transform:translate3d(0,${shift.toFixed(2)}px,0)">${estMuebleHTML(m, s, 0, false)}</div>`;
-    floorW = (m.ancho + 120) * s; totalH = estMuebleHeight(m) * s;
-    zBack = -(m.fondo + EST_T) * s / 2;
-  }
-  // el suelo, justo debajo de los muebles
-  const floorY = EST.view==='sala' ? totalH / 2 - EST_TOP_H * 0.25 * EST.s + salaDrop : totalH / 2 + (Math.min(EST_TOP_H, estTopUsed(estMueble(estMid()) || { encima:{ items:[] } })) / 2) * EST.s;
-  // el suelo empieza en la pared (detrás de los muebles) y viene hacia ti: así nunca se dibuja por encima de ellos
-  const D = floorW * 0.55;
-  const floor = `<div class="est-floor" style="width:${floorW.toFixed(0)}px;height:${D.toFixed(0)}px;margin:${(-D / 2).toFixed(0)}px 0 0 ${(-floorW / 2).toFixed(0)}px;transform:translate3d(0,${floorY.toFixed(2)}px,${(zBack + D / 2).toFixed(2)}px) rotateX(90deg)"><span class="est-rug"></span></div>`;
-  return floor + inner;
+  h += `</div>`;
+  return { html:h, W:OW, H };
 }
 function estTopUsed(m){
-  if(!m || !m.encima || !m.encima.items.length) return 0;
+  if(!m || !m.encima || !estKnownCount(m.encima.items)) return 0;
   const L = estLayout(m.encima.items, m.ancho, EST_TOP_H);
   return Math.max(0, ...L.cols.map(c=>c.top)) + 2;
 }
-function estCamTf(scale){
-  return `translate(${EST.panX.toFixed(1)}px,${EST.panY.toFixed(1)}px) translateZ(-60px) rotateX(${EST.rx.toFixed(2)}deg) rotateY(${EST.ry.toFixed(2)}deg)` + (scale ? ` scale(${scale.toFixed(3)})` : '');
+/* Tamaño útil del escenario */
+function estStageEl(){ return document.getElementById('estStage'); }
+function estStageWidth(){ const st = estStageEl(); return st ? st.clientWidth : Math.min(innerWidth - 24, 1100); }
+/* La escena según el nivel. Devuelve el HTML y fija la altura del escenario. */
+function estSceneHTML(){
+  const E = estData();
+  const st = estStageEl();
+  const W = estStageWidth();
+  const maxH = Math.round(innerHeight * (innerWidth < 880 ? 0.7 : 0.74));
+  if(EST.view==='sala' && E.muebles.length > 1){
+    const gap = 24;
+    const widths = E.muebles.map(m=> m.ancho + 2 * EST_T);
+    const heights = E.muebles.map(m=> estMuebleHeight(m) + Math.min(EST_TOP_H, estTopUsed(m)));
+    const totW = widths.reduce((a, b)=>a + b, 0) + gap * (E.muebles.length - 1);
+    const tallest = Math.max(...heights);
+    let s = (W * 0.92) / totW;
+    const floor = 34;
+    let stH = Math.round(tallest * s + floor + 28);
+    if(stH > maxH){ s = (maxH - floor - 28) / tallest; stH = maxH; }
+    stH = Math.max(stH, 260);
+    if(st) st.style.height = stH + 'px';
+    EST.s = s;
+    let x = (W - totW * s) / 2;
+    const base = stH - floor;
+    let html = `<div class="est-floor" style="top:${base}px"></div>`;
+    E.muebles.forEach((m, i)=>{
+      const c = estCabinetHTML(m, s, { lite:true });
+      html += `<div class="est-place is-tap" data-mid="${escapeHTML(m.id)}" style="left:${x.toFixed(1)}px;top:${(base - c.H).toFixed(1)}px;width:${c.W.toFixed(1)}px;height:${c.H.toFixed(1)}px" title="${escapeHTML(m.nombre)}">${c.html}<span class="est-shadow"></span><span class="est-place-name">${escapeHTML(m.nombre)}</span></div>`;
+      x += (widths[i] + gap) * s;
+    });
+    return html;
+  }
+  const m = estMueble(estMid()); if(!m) return '';
+  if(EST.view==='balda') return estBaldaSceneHTML(m);
+  // el mueble entero: ocupa el ancho; si es muy alto, cabe de alto
+  const cmW = m.ancho + 2 * EST_T + 8;
+  const cmH = estMuebleHeight(m) + Math.min(EST_TOP_H, estTopUsed(m));
+  const floor = 30, pad = 54;   // arriba, sitio para los botones
+  let s = W / cmW;
+  let stH = Math.round(cmH * s + floor + pad);
+  if(stH > maxH){ s = (maxH - floor - pad) / cmH; stH = maxH; }
+  if(st) st.style.height = stH + 'px';
+  EST.s = s;
+  const c = estCabinetHTML(m, s, { selPid: EST.sel && EST.sel.mid===m.id ? EST.sel.pid : null });
+  const base = stH - floor;
+  return `<div class="est-floor" style="top:${base}px"></div>
+    <div class="est-place" style="left:${((W - c.W) / 2).toFixed(1)}px;top:${(base - c.H).toFixed(1)}px;width:${c.W.toFixed(1)}px;height:${c.H.toFixed(1)}px">${c.html}<span class="est-shadow"></span></div>`;
 }
-function estApplyCam(){
-  const sc = document.getElementById('estScene'); if(!sc) return;
-  sc.style.transform = estCamTf();
+/* Dentro de una balda: de cerca, a su altura, deslizando a los lados.
+   El escenario tiene siempre el mismo alto (no salta al cambiar de balda):
+   arriba, los botones; abajo, el nombre de la pieza que tienes delante (o
+   los controles de la elegida). */
+const EST_BAR_H = 62;
+function estBaldaSceneHTML(m){
+  const st = estStageEl();
+  const W = estStageWidth();
+  const sid = estBsid(m);
+  const sf = estSurface(m, sid);
+  const top = 56, bottom = EST_BAR_H;
+  const stH = Math.round(Math.max(340, Math.min(innerHeight * (innerWidth < 880 ? 0.56 : 0.64), 580)));
+  if(st) st.style.height = stH + 'px';
+  const Hcm = sid==='top' ? Math.max(20, estTopUsed(m) + 4) : sf.alto;
+  const avail = stH - top - bottom;
+  const s = Math.min(avail / (Hcm + 3.2 * EST_T), W / 22);
+  EST.s = s;
+  const T = EST_T * s, h = Hcm * s;
+  // «Portadas» puede ser más largo que la balda: el mueble se alarga con ellas
+  let w = m.ancho * s;
+  if(EST.covers){ const cw = estCoversWidth(sf, h); w = Math.max(w, cw); }
+  const pad = Math.max(24, W * 0.18);
+  const stripW = w + 2 * T + 2 * pad;
+  const yTop = top + (avail - (h + 3 * T)) / 2 + T * 1.4;
+  const wood = EST_WOODS[m.madera];
+  const wst = `background-color:${wood.f}`;
+  const plate = EST_PLATES[m.placas];
+  const b = sid==='top' ? null : sf;
+  const txt = b ? estPlateText(b) : '';
+  const scroll = st && st.querySelector('.est-scroll') ? st.querySelector('.est-scroll').scrollLeft : 0;
+  const eyeX = Math.min(Math.max(scroll + W / 2 - pad - T, -W), w + W);
+  let html = `<div class="est-strip${sid==='top' ? ' is-top' : ''}" style="width:${stripW.toFixed(1)}px;height:${stH}px">`;
+  // la pared se ve detrás de «encima»; en las baldas, el mueble alrededor
+  if(sid!=='top'){
+    html += `<div class="est-wood est-board is-up" style="${wst};left:${pad.toFixed(1)}px;top:${(yTop - T * 1.4).toFixed(1)}px;width:${(w + 2 * T).toFixed(1)}px;height:${(T * 1.4).toFixed(1)}px"></div>`;
+    html += `<div class="est-wood est-board is-down" style="${wst};left:${pad.toFixed(1)}px;top:${(yTop + h).toFixed(1)}px;width:${(w + 2 * T).toFixed(1)}px;height:${(T * 1.6).toFixed(1)}px"></div>`;
+    html += `<div class="est-wood est-side" style="${wst};left:${pad.toFixed(1)}px;top:${(yTop - T * 1.4).toFixed(1)}px;width:${T.toFixed(1)}px;height:${(h + T * 3).toFixed(1)}px"></div>`;
+    html += `<div class="est-wood est-side is-r" style="${wst};left:${(pad + T + w).toFixed(1)}px;top:${(yTop - T * 1.4).toFixed(1)}px;width:${T.toFixed(1)}px;height:${(h + T * 3).toFixed(1)}px"></div>`;
+  } else {
+    html += `<div class="est-wood est-crown" style="${wst};left:${(pad - 1.2 * s).toFixed(1)}px;top:${(yTop + h).toFixed(1)}px;width:${(w + 2 * T + 2.4 * s).toFixed(1)}px;height:${(EST_CROWN * s).toFixed(1)}px"></div>`;
+  }
+  html += `<div class="est-slot is-near" style="left:${(pad + T).toFixed(1)}px;top:${yTop.toFixed(1)}px">${EST.covers ? estCoversHTML(m, sf, w, h) : estBayHTML(m, sid, sf, w, h, s, { lite:false, open: sid==='top', eyeX, eyeY: h * 0.45, P: Math.max(700, 150 * s), selPid: EST.sel && EST.sel.mid===m.id ? EST.sel.pid : null })}</div>`;
+  if(plate && txt && sid!=='top'){
+    const fs = Math.max(9, Math.min(15, 1.3 * s));
+    html += `<span class="est-plate" style="--p1:${plate[0]};--p2:${plate[1]};--p3:${plate[2]};left:${(pad + T + 2 * s).toFixed(1)}px;top:${(yTop + h + T * 0.8 - (fs + 7) / 2).toFixed(1)}px;height:${(fs + 7).toFixed(1)}px;font-size:${fs.toFixed(1)}px;padding:0 ${(fs * 0.7).toFixed(1)}px">${escapeHTML(txt)}</span>`;
+  }
+  html += `</div>`;
+  return `<div class="est-scroll" data-pad="${pad.toFixed(1)}" data-t="${T.toFixed(1)}">${html}</div>`;
 }
-/* Lleva la pieza elegida al centro (si estás acercado o se sale de la vista) */
-function estCenterOnSel(force){
-  if(!EST.sel) return;
-  const st = document.getElementById('estStage'); if(!st) return;
-  const el = st.querySelector(`[data-pid="${CSS.escape(EST.sel.pid)}"]`); if(!el) return;
-  const r = (el.classList.contains('est-piece') ? (el.querySelector('.is-front') || el) : el).getBoundingClientRect(), sr = st.getBoundingClientRect();
-  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  const out = cx < sr.left + 30 || cx > sr.right - 30 || cy < sr.top + 60 || cy > sr.bottom - 30;
-  if(!force && !out && EST.zoom <= 1.15) return;
-  EST.panX += sr.left + sr.width / 2 - cx; EST.panY += sr.top + sr.height / 2 - cy;
-  estApplyCam();
+/* «Portadas»: las piezas de la balda de frente, una tras otra, para verlas */
+const EST_CV_GAP = 16;
+function estCoversItems(sf){ return sf.items.map(it=>PRODUCTS_BY_ID[it.pid]).filter(Boolean); }
+function estCoversWidth(sf, h){
+  const ch = h * 0.74, items = estCoversItems(sf);
+  return items.reduce((a, p)=>{ const d = piezaDims(p); return a + ch * (d.w / d.h); }, 0) + EST_CV_GAP * Math.max(0, items.length - 1) + 24;
 }
+function estCoversHTML(m, sf, w, h){
+  const items = estCoversItems(sf);
+  if(!items.length) return `<div class="est-covers is-empty" style="width:${w.toFixed(1)}px;height:${h.toFixed(1)}px"><span>${escapeHTML(t('est.surf_empty'))}</span></div>`;
+  const ch = h * 0.74;
+  return `<div class="est-covers" style="width:${w.toFixed(1)}px;height:${h.toFixed(1)}px">${items.map(p=>{
+    const d = piezaDims(p), cw = ch * (d.w / d.h), pv = platVisual(p.platformId), miss = p.possession!=='tengo';
+    const sel = EST.sel && EST.sel.pid===p.id;
+    return `<span class="est-cv${miss ? ' is-ghost' : ''}${sel ? ' is-sel' : ''}" data-pid="${escapeHTML(p.id)}"${estPh(p, 'front')} title="${escapeHTML(p.name)}" style="--plat:${pv.color};width:${cw.toFixed(1)}px;height:${ch.toFixed(1)}px">${miss ? '<span class="est-ghost-q">?</span>' : `<span class="est-cover-txt"><b>${escapeHTML(pv.code)}</b>${escapeHTML(p.name)}</span>`}<span class="est-cv-name">${escapeHTML(p.name)}</span></span>`;
+  }).join('')}</div>`;
+}
+/* Pintar el nivel actual */
 function estDraw(){
+  const st = estStageEl(); if(!st) return;
   const sc = document.getElementById('estScene'); if(!sc) return;
-  const wrap = sc.closest('.est-stage-wrap'); if(wrap){ wrap.classList.toggle('has-sel', !!EST.sel && EST.view!=='sala'); wrap.classList.toggle('is-sala', EST.view==='sala'); }
+  const E = estData();
+  const keep = EST.view==='balda' && sc.querySelector('.est-scroll') ? sc.querySelector('.est-scroll').scrollLeft : null;
+  st.dataset.view = EST.view;
+  st.classList.toggle('is-night', EST.night);
+  st.dataset.wall = E.pared;
   sc.innerHTML = estSceneHTML();
-  estApplyCam();
-  const st = document.getElementById('estStage');
-  if(st){
-    const E = estData();
-    st.classList.toggle('is-night', EST.night);
-    st.dataset.wall = E.pared;
+  const scr = sc.querySelector('.est-scroll');
+  if(scr){
+    if(keep!==null) scr.scrollLeft = keep;
+    estBindScroll(scr);
   }
   estHydratePhotos(sc);
+  estRefreshCtl();
+  if(EST.view==='balda') requestAnimationFrame(estUpdateRail);
 }
 /* Redibujar lo que se ve de la estantería (escenario y panel), si está abierta */
 function estRefresh(){
@@ -532,110 +645,191 @@ function estRefresh(){
   estDraw();
   estRefreshPanel();
 }
+/* Dentro de una balda: al deslizar, la vista se mueve contigo (los lados de
+   las piezas cambian como si caminaras delante de la estantería) */
+function estBindScroll(scr){
+  if(scr.dataset.bound) return;
+  scr.dataset.bound = '1';
+  let raf = 0;
+  scr.addEventListener('scroll', ()=>{
+    if(raf) return;
+    raf = requestAnimationFrame(()=>{
+      raf = 0;
+      const bay = scr.querySelector('.est-slot.is-near .est-bay'); if(!bay) return;
+      const pad = Number(scr.dataset.pad) || 0, T = Number(scr.dataset.t) || 0;
+      const x = scr.scrollLeft + scr.clientWidth / 2 - pad - T;
+      bay.style.perspectiveOrigin = `${x.toFixed(1)}px ${bay.style.perspectiveOrigin.split(' ')[1] || '50%'}`;
+      bay.querySelectorAll('.est-pz:not(.is-sel)').forEach(el=>{ el.style.zIndex = estZ(Number(el.dataset.x) || 0, x); });
+    });
+    clearTimeout(scr._railT); scr._railT = setTimeout(estUpdateRail, 60);
+  }, { passive:true });
+}
+/* La pieza elegida, centrada en la balda (al entrar o al cambiarla de sitio) */
+function estScrollToSel(smooth){
+  const scr = document.querySelector('#estScene .est-scroll'); if(!scr || !EST.sel) return;
+  const el = scr.querySelector(`[data-pid="${CSS.escape(EST.sel.pid)}"]`); if(!el) return;
+  const r = el.getBoundingClientRect(), sr = scr.getBoundingClientRect();
+  const target = scr.scrollLeft + (r.left + r.width / 2) - (sr.left + sr.width / 2);
+  scr.scrollTo({ left: Math.max(0, target), behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' });
+}
 
 /* =====================================================================
-   5. GESTOS: girar, ampliar, tocar una pieza y moverla
+   5. TOCAR: entrar, elegir una pieza y arrastrarla por su balda
    ===================================================================== */
 function estBindStage(){
-  const st = document.getElementById('estStage'); if(!st || st.dataset.bound) return;
+  const st = estStageEl(); if(!st || st.dataset.bound) return;
   st.dataset.bound = '1';
-  const ptrs = new Map();
   let g = null;
-  st.addEventListener('contextmenu', (e)=>{ e.preventDefault(); });
+  const scroller = ()=> st.querySelector('#estScene .est-scroll');
   st.addEventListener('pointerdown', (e)=>{
-    if(e.target.closest('.est-ctl')) return;
-    ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
-    try{ st.setPointerCapture(e.pointerId); }catch(_){}
-    if(ptrs.size===2){
-      const [a, b] = [...ptrs.values()];
-      g = { kind:'pinch', d0:Math.hypot(a.x - b.x, a.y - b.y), z0:EST.zoom, mx:(a.x + b.x) / 2, my:(a.y + b.y) / 2, px:EST.panX, py:EST.panY };
-      return;
-    }
-    // ratón: botón derecho o central, o Mayús + arrastrar → desplazar la vista
-    if(e.pointerType==='mouse' && (e.button===1 || e.button===2 || e.shiftKey)){ g = { kind:'pan', x0:e.clientX, y0:e.clientY, px:EST.panX, py:EST.panY, moved:true }; return; }
-    const hit = e.target.closest('[data-it]');
-    const onSel = hit && EST.sel && hit.dataset.pid===EST.sel.pid;
-    g = { kind:'tap', x0:e.clientX, y0:e.clientY, rx0:EST.rx, ry0:EST.ry, hit, onSel, moved:false };
+    if(e.button && e.button!==0) return;
+    if(e.target.closest('.est-ctl, .est-bar')) return;
+    const hit = e.target.closest('[data-pid], [data-sid], [data-mid]');
+    const onSel = EST.view==='balda' && hit && hit.dataset.pid && EST.sel && hit.dataset.pid===EST.sel.pid && !EST.covers;
+    const scr = scroller();
+    // con el ratón, arrastrar la balda la desliza (en el móvil ya lo hace el dedo)
+    const pan = !onSel && e.pointerType==='mouse' && scr ? scr.scrollLeft : null;
+    g = { x0:e.clientX, y0:e.clientY, hit, onSel, moved:false, id:e.pointerId, pan };
+    if(onSel || pan!==null){ try{ st.setPointerCapture(e.pointerId); }catch(_){} }
   });
   st.addEventListener('pointermove', (e)=>{
-    if(!ptrs.has(e.pointerId) || !g) return;
-    ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
-    if(g.kind==='pinch'){
-      if(ptrs.size!==2) return;
-      const [a, b] = [...ptrs.values()];
-      const z = Math.min(4, Math.max(0.6, g.z0 * Math.hypot(a.x - b.x, a.y - b.y) / g.d0));
-      EST.panX = g.px + (a.x + b.x) / 2 - g.mx; EST.panY = g.py + (a.y + b.y) / 2 - g.my;
-      const sc = document.getElementById('estScene');
-      if(sc) sc.style.transform = estCamTf(z / EST.zoom);
-      g.z = z;
-      return;
-    }
-    if(g.kind==='pan'){ EST.panX = g.px + e.clientX - g.x0; EST.panY = g.py + e.clientY - g.y0; estApplyCam(); return; }
+    if(!g || e.pointerId!==g.id) return;
     const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
-    if(!g.moved && Math.hypot(dx, dy) < 7) return;
+    if(!g.moved && Math.hypot(dx, dy) < 10) return;
     g.moved = true;
-    if(g.onSel){
-      // mover la pieza elegida por la balda
-      g.kind = 'move';
-      g.dcm = dx / (EST.s * Math.max(0.5, Math.cos(EST.ry * Math.PI / 180)));
-      document.querySelectorAll(`#estScene [data-pid="${CSS.escape(EST.sel.pid)}"]`).forEach(el=>{ el.style.translate = `${(g.dcm * EST.s).toFixed(1)}px 0`; });
-      return;
+    if(g.pan!==null){ const scr = scroller(); if(scr) scr.scrollLeft = g.pan - dx; return; }
+    // la pieza elegida solo se arrastra de lado (si el gesto es de lado)
+    if(g.onSel && (g.drag || Math.abs(dx) > Math.abs(dy))){
+      g.drag = true; g.dx = dx;
+      st.querySelectorAll(`#estScene [data-pid="${CSS.escape(EST.sel.pid)}"]`).forEach(el=>{ el.style.translate = `${dx.toFixed(1)}px 0`; });
     }
-    g.kind = 'rot';
-    EST.ry = Math.max(-55, Math.min(55, g.ry0 + dx * 0.28));
-    EST.rx = Math.max(-28, Math.min(24, g.rx0 + dy * 0.18));
-    estApplyCam();
   });
   const end = (e)=>{
-    if(!ptrs.has(e.pointerId)) return;
-    ptrs.delete(e.pointerId);
-    if(!g) return;
-    // al levantar un dedo del pellizco se aplica el zoom; el otro dedo ya no hace nada hasta soltarlo
-    if(g.kind==='pinch'){ if(g.z) EST.zoom = g.z; g = null; estDraw(); return; }
-    if(g.kind==='pan'){ g = null; return; }
-    if(g.kind==='move'){ const d = g.dcm; g = null; if(e.type==='pointerup') estDragEnd(d); else estDraw(); return; }
-    if(!g.moved && e.type==='pointerup'){
-      if(g.hit) estSelectByEl(g.hit); else estSelect(null);
+    if(!g || e.pointerId!==g.id) return;
+    const gg = g; g = null;
+    if(gg.drag){
+      const cm = gg.dx / EST.s;
+      // un toque algo movido (menos de medio centímetro) no mueve la pieza
+      if(e.type==='pointerup' && Math.abs(cm) >= 0.5) estDragEnd(cm); else estDraw();
+      return;
     }
-    g = null;
+    if(gg.moved || e.type!=='pointerup') return;
+    estTap(gg.hit);
   };
   st.addEventListener('pointerup', end);
   st.addEventListener('pointercancel', end);
-  // rueda: Ctrl + rueda (o pellizco en el panel táctil) acerca; la rueda sola mueve la página
-  let wf = 1, wraf = 0;
+  // rueda del ratón dentro de una balda: la desliza a los lados (en los extremos, la página sigue)
   st.addEventListener('wheel', (e)=>{
-    if(!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    wf *= Math.exp(-Math.max(-80, Math.min(80, e.deltaY)) * 0.0045);
-    if(!wraf) wraf = requestAnimationFrame(()=>{ const f = wf; wf = 1; wraf = 0; estZoom(f); });
+    const scr = EST.view==='balda' ? scroller() : null; if(!scr || e.ctrlKey) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    const max = scr.scrollWidth - scr.clientWidth;
+    if((d > 0 && scr.scrollLeft < max - 1) || (d < 0 && scr.scrollLeft > 0)){ e.preventDefault(); scr.scrollLeft += d; }
   }, { passive:false });
 }
-function estZoom(f){
-  const z = Math.min(4, Math.max(0.6, EST.zoom * f));
-  f = z / EST.zoom; EST.zoom = z;
-  EST.panX *= f; EST.panY *= f;   // se acerca hacia el centro de lo que ves
-  estDraw();
-  if(EST.sel) estCenterOnSel(true);
+/* Un toque en el escenario */
+function estTap(el){
+  if(EST.view==='sala'){
+    const mEl = el && el.closest('[data-mid]');
+    if(mEl){ estShowMueble(mEl.dataset.mid); EST.fromSala = true; }
+    return;
+  }
+  const m = estMueble(estMid()); if(!m) return;
+  const pid = el && el.dataset.pid;
+  if(EST.view==='mueble'){
+    // en el mueble entero: tocar una pieza o una balda es entrar en ella
+    if(pid){ const f = estFind(pid); if(f){ estEnterBalda(f.sid, pid); return; } }
+    const bay = el && el.closest('[data-sid]');
+    if(bay) estEnterBalda(bay.dataset.sid, null);
+    return;
+  }
+  // dentro de una balda: elegir (o soltar) una pieza
+  if(pid){
+    const f = estFind(pid);
+    if(f) estSelect(EST.sel && EST.sel.pid===pid ? null : { mid:f.m.id, sid:f.sid, idx:f.i, pid });
+  } else if(EST.sel) estSelect(null);
 }
-function estResetCam(){ EST.rx = -6; EST.ry = -18; EST.zoom = 1; EST.panX = 0; EST.panY = 0; estDraw(); }
-function estTurn(d){ EST.ry = Math.max(-55, Math.min(55, EST.ry + d)); estApplyCam(); }
-function estToggleNight(){ EST.night = !EST.night; setUiPref('estNight', EST.night ? '1' : ''); estDraw(); estRefreshCtl(); }
-function estToggleDoors(){ EST.doors = !EST.doors; estDraw(); estRefreshCtl(); }
-function estSelectByEl(el){
-  const pid = el.dataset.pid;
-  const f = estFind(pid); if(!f) return;
-  const sel = { mid:f.m.id, sid:f.sid, idx:f.i, pid };
-  // desde la sala: se entra en ese mueble con la pieza elegida
-  if(EST.view==='sala' || EST.mid!==f.m.id){ EST.view = 'mueble'; EST.mid = f.m.id; EST.sel = sel; EST.zoom = 1.8; EST.panX = EST.panY = 0; render(); return; }
-  estSelect(sel);
+/* ---------- Niveles ---------- */
+function estEnterBalda(sid, pid){
+  const m = estMueble(estMid()); if(!m) return;
+  EST.view = 'balda'; EST.bsid = sid; EST.covers = false;
+  const f = pid ? estFind(pid) : null;
+  EST.sel = f ? { mid:f.m.id, sid:f.sid, idx:f.i, pid } : null;
+  estDraw(); estRefreshPanel();
+  estEnterAnim();
+  requestAnimationFrame(()=>{ if(EST.sel) estScrollToSel(false); const st = estStageEl(); if(st && st.getBoundingClientRect().top < 0) st.scrollIntoView({ block:'start' }); });
 }
+function estEnterAnim(){
+  if(reducedMotion()) return;
+  const sc = document.getElementById('estScene'); if(!sc) return;
+  sc.classList.remove('is-enter'); void sc.offsetWidth; sc.classList.add('is-enter');
+}
+function estExitBalda(){ EST.view = 'mueble'; EST.sel = null; EST.covers = false; estDraw(); estRefreshPanel(); estEnterAnim(); }
+/* Pasar a la balda de arriba (-1) o de abajo (+1) */
+function estBaldaStep(d){
+  const m = estMueble(estMid()); if(!m) return;
+  const ids = estSurfaceIds(m).filter(id=> id!=='top' || estKnownCount(m.encima.items) || EST.bsid==='top');
+  const i = ids.indexOf(estBsid(m)), j = i + d;
+  if(j < 0 || j >= ids.length) return;
+  EST.bsid = ids[j];
+  if(EST.sel && EST.sel.sid!==EST.bsid) EST.sel = null;
+  const sc = document.querySelector('#estScene .est-scroll'); if(sc) sc.scrollLeft = 0;
+  estDraw(); estRefreshPanel(); estEnterAnim();
+}
+/* «Atrás» dentro de la estantería (devuelve true si lo ha hecho): primero se
+   suelta la pieza elegida; después, de la balda al mueble, y del mueble a la
+   sala si veníamos de ella */
+function estBackLevel(){
+  if(view.page!=='estanteria' || view.productId) return false;
+  if(EST.view==='balda' && EST.sel){ estSelect(null); return true; }
+  if(EST.view==='balda'){ estExitBalda(); return true; }
+  if(EST.view==='mueble' && EST.fromSala && estData().muebles.length > 1){ estShowSala(); return true; }
+  return false;
+}
+/* Cambiar la postura con un toque (de lomo → de frente → en diagonal → tumbada) */
+function estCyclePose(){
+  const x = estSelItem(); if(!x) return;
+  const cur = x.it.pose || 'lomo';
+  estSetPose(EST_POSES[(EST_POSES.indexOf(cur) + 1) % EST_POSES.length]);
+}
+/* La pieza que tienes delante (en el centro de la balda) */
+function estCenterPid(){
+  const scr = document.querySelector('#estScene .est-scroll'); if(!scr) return null;
+  const pad = Number(scr.dataset.pad) || 0, T = Number(scr.dataset.t) || 0;
+  const x = scr.scrollLeft + scr.clientWidth / 2 - pad - T;
+  let best = null, bd = 1e9;
+  scr.querySelectorAll('.est-pz[data-x]').forEach(el=>{ const dd = Math.abs((Number(el.dataset.x) || 0) - x); if(dd < bd){ bd = dd; best = el.dataset.pid; } });
+  if(!best){
+    // «Portadas»: por su posición en pantalla
+    const sr = scr.getBoundingClientRect(), cx = sr.left + sr.width / 2;
+    scr.querySelectorAll('.est-cv[data-pid]').forEach(el=>{ const r = el.getBoundingClientRect(), dd = Math.abs(r.left + r.width / 2 - cx); if(dd < bd){ bd = dd; best = el.dataset.pid; } });
+  }
+  return best;
+}
+/* El nombre de la que tienes delante, abajo (se lee entero aunque su lomo sea fino) */
+function estUpdateRail(){
+  const rail = document.getElementById('estRail'); if(!rail) return;
+  const pid = estCenterPid(), p = pid && PRODUCTS_BY_ID[pid];
+  rail.dataset.pid = p ? p.id : '';
+  rail.hidden = !p;
+  if(!p) return;
+  const pv = platVisual(p.platformId);
+  rail.innerHTML = `<span class="est-rail-code" style="--plat:${pv.color}">${escapeHTML(pv.code || '')}</span><span class="est-rail-name">${escapeHTML(p.name)}</span>${p.possession!=='tengo' ? `<span class="est-rail-miss">${escapeHTML(t('cover.missing'))}</span>` : ''}`;
+  rail.setAttribute('aria-label', t('est.rail_pick').replace('{name}', p.name));
+}
+function estPickCenter(){ const rail = document.getElementById('estRail'); const pid = rail && rail.dataset.pid; if(pid) estTap(document.querySelector(`#estScene [data-pid="${CSS.escape(pid)}"]`)); }
+function estToggleNight(){ EST.night = !EST.night; setUiPref('estNight', EST.night ? '1' : ''); estDraw(); }
+function estToggleDoors(){ EST.doors = !EST.doors; estDraw(); }
+function estToggleCovers(){ EST.covers = !EST.covers; estDraw(); }
+function estSelectByEl(el){ estTap(el); }
 function estSelect(sel){
+  if(sel && (EST.view!=='balda' || EST.bsid!==sel.sid || EST.mid!==sel.mid)){
+    // desde la lista: se entra en su balda
+    EST.mid = sel.mid; estEnterBalda(sel.sid, sel.pid); return;
+  }
   EST.sel = sel;
   estDraw();
-  if(sel) requestAnimationFrame(()=>estCenterOnSel(false));
   estRefreshPanel();
-  // los controles de la pieza, a la vista (en el móvil, justo debajo del escenario, que se queda arriba)
-  if(sel){ const card = document.getElementById('estSelCard'); if(card && card.getBoundingClientRect().top > innerHeight - 140) card.scrollIntoView({ block: innerWidth < 880 ? 'start' : 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); }
+  if(sel) requestAnimationFrame(()=>estScrollToSel(true));
 }
 function estSelItem(){
   if(!EST.sel) return null;
@@ -760,10 +954,12 @@ function estRemoveSel(){
 function goEstanteria(opts){
   pushHistory();
   view = { page:'estanteria' };
+  EST.delAsk = false;
   if(opts && opts.pid){
+    // «Verla en la estantería»: directamente dentro de su balda, elegida
     const f = estFind(opts.pid);
-    if(f){ EST.view = 'mueble'; EST.mid = f.m.id; EST.sel = { mid:f.m.id, sid:f.sid, idx:f.i, pid:opts.pid }; EST.zoom = 2.2; EST.panX = EST.panY = 0; }
-  }
+    if(f){ EST.mid = f.m.id; EST.view = 'balda'; EST.bsid = f.sid; EST.covers = false; EST.sel = { mid:f.m.id, sid:f.sid, idx:f.i, pid:opts.pid }; }
+  } else if(EST.view==='balda'){ EST.view = 'mueble'; EST.sel = null; }
   render();
 }
 function estCountPlaced(){ const s = estPlacedSet(); return PRODUCTS.filter(p=>s.has(p.id)).length; }
@@ -782,6 +978,7 @@ function renderEstanteria(){
       </div></div>`;
     return html;
   }
+  if(EST.view==='sala' && E.muebles.length < 2) EST.view = 'mueble';
   const mid = estMid();
   // muebles (y la sala)
   html += `<div class="chip-scroll est-tabs" role="group" aria-label="${escapeHTML(t('est.muebles'))}">
@@ -789,26 +986,59 @@ function renderEstanteria(){
     ${E.muebles.map(m=>`<button type="button" class="chip ${EST.view!=='sala' && m.id===mid ? 'active' : ''}" aria-pressed="${EST.view!=='sala' && m.id===mid}" onclick="estShowMueble('${m.id}')">${escapeHTML(m.nombre || t('est.mueble_default'))}</button>`).join('')}
     <button type="button" class="chip" onclick="estAddMueble()" aria-label="${escapeHTML(t('est.add_mueble'))}">${icon('plus')}</button>
   </div>`;
-  // el escenario
+  // el escenario (siempre de frente; los botones van encima)
   html += `<div class="est-stage-wrap">
-    <div class="est-stage" id="estStage" data-wall="${E.pared}" aria-hidden="true"><div class="est-cam"><div class="est-scene" id="estScene"></div></div></div>
-    <div class="est-ctl est-ctl-l">
-      <button type="button" class="round-btn est-btn" onclick="estZoom(1/1.2)" aria-label="${escapeHTML(t('viewer.zoom_out'))}" title="${escapeHTML(t('viewer.zoom_out'))}">${icon('minus')}</button>
-      <button type="button" class="round-btn est-btn" onclick="estZoom(1.2)" aria-label="${escapeHTML(t('viewer.zoom_in'))}" title="${escapeHTML(t('viewer.zoom_in'))}">${icon('plus')}</button>
-      <button type="button" class="round-btn est-btn" onclick="estTurn(-15)" aria-label="${escapeHTML(t('est.turn_left'))}" title="${escapeHTML(t('est.turn_left'))}">${icon('rotateLeft')}</button>
-      <button type="button" class="round-btn est-btn" onclick="estTurn(15)" aria-label="${escapeHTML(t('est.turn_right'))}" title="${escapeHTML(t('est.turn_right'))}">${icon('rotate')}</button>
-    </div>
-    <div class="est-ctl est-ctl-r" id="estCtlR">${estCtlRHTML()}</div>
+    <div class="est-stage" id="estStage" data-wall="${E.pared}" data-view="${EST.view}"><div class="est-scene" id="estScene" aria-hidden="true"></div>
+      <div class="est-ctl" id="estCtl"></div><div class="est-bar" id="estBar"></div></div>
   </div>`;
   html += `<div id="estPanel">${estPanelHTML()}</div>`;
   return html;
 }
-function estCtlRHTML(){
-  return `<button type="button" class="round-btn est-btn" onclick="estResetCam()" aria-label="${escapeHTML(t('est.reset_view'))}" title="${escapeHTML(t('est.reset_view'))}">${icon('target')}</button>
-    <button type="button" class="round-btn est-btn ${EST.night ? 'is-on' : ''}" onclick="estToggleNight()" aria-pressed="${EST.night}" aria-label="${escapeHTML(t('est.night'))}" title="${escapeHTML(t('est.night'))}">${icon(EST.night ? 'sun' : 'moon')}</button>
-    ${estData().muebles.some(m=>m.puertas!=='sin') ? `<button type="button" class="round-btn est-btn ${EST.doors ? 'is-on' : ''}" onclick="estToggleDoors()" aria-pressed="${EST.doors}" aria-label="${escapeHTML(t('est.doors'))}" title="${escapeHTML(t('est.doors'))}">${icon('doors')}</button>` : ''}`;
+/* Botones sobre el escenario, según el nivel */
+function estCtlHTML(){
+  const m = estMueble(estMid());
+  const btn = (fn, ic, label, extra)=> `<button type="button" class="round-btn est-btn ${extra || ''}" onclick="${fn}" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${icon(ic)}</button>`;
+  const night = `<button type="button" class="round-btn est-btn ${EST.night ? 'is-on' : ''}" onclick="estToggleNight()" aria-pressed="${EST.night}" aria-label="${escapeHTML(t('est.night'))}" title="${escapeHTML(t('est.night'))}">${icon(EST.night ? 'sun' : 'moon')}</button>`;
+  if(EST.view==='balda' && m){
+    const sid = estBsid(m);
+    const ids = estSurfaceIds(m).filter(id=> id!=='top' || estKnownCount(m.encima.items) || sid==='top');
+    const i = ids.indexOf(sid);
+    const where = sid==='top' ? t('est.top') : t('est.bay_of').replace('{n}', m.baldas.findIndex(b=>b.id===sid) + 1).replace('{t}', m.baldas.length);
+    return `<div class="est-ctl-l"><button type="button" class="btn btn-sm est-back" data-fk="back" onclick="estExitBalda()" aria-label="${escapeHTML(t('est.to_mueble') + ' · ' + where)}" title="${escapeHTML(t('est.to_mueble'))}">${icon('chevronLeft')} <span>${escapeHTML(m.nombre || t('est.mueble_default'))}</span> <small>${escapeHTML(where)}</small></button></div>
+      <div class="est-ctl-r">
+        <button type="button" class="round-btn est-btn" data-fk="up" onclick="estBaldaStep(-1)" ${i <= 0 ? 'disabled' : ''} aria-label="${escapeHTML(t('est.up'))}" title="${escapeHTML(t('est.up'))}">${icon('chevronUp')}</button>
+        <button type="button" class="round-btn est-btn" data-fk="down" onclick="estBaldaStep(1)" ${i >= ids.length - 1 ? 'disabled' : ''} aria-label="${escapeHTML(t('est.down'))}" title="${escapeHTML(t('est.down'))}">${icon('chevronDown')}</button>
+        <button type="button" class="round-btn est-btn ${EST.covers ? 'is-on' : ''}" onclick="estToggleCovers()" aria-pressed="${EST.covers}" aria-label="${escapeHTML(t('est.covers'))}" title="${escapeHTML(t('est.covers'))}">${icon('image')}</button>
+        ${night}
+      </div>`;
+  }
+  const doors = m && EST.view!=='sala' && m.puertas!=='sin' ? `<button type="button" class="round-btn est-btn ${EST.doors ? 'is-on' : ''}" onclick="estToggleDoors()" aria-pressed="${EST.doors}" aria-label="${escapeHTML(t('est.doors'))}" title="${escapeHTML(t('est.doors'))}">${icon('doors')}</button>` : '';
+  return `<div class="est-ctl-l"><span class="est-where-chip is-hint">${escapeHTML(t(EST.view==='sala' ? 'est.sala_tap' : 'est.enter_hint'))}</span></div>
+    <div class="est-ctl-r">${doors}${night}</div>`;
 }
-function estRefreshCtl(){ const el = document.getElementById('estCtlR'); if(el) el.innerHTML = estCtlRHTML(); }
+/* Abajo, dentro de una balda: el nombre de la que tienes delante o, con una
+   pieza elegida, sus controles más usados (postura, mover, girar, sacarla) */
+function estBarHTML(){
+  if(EST.view!=='balda') return '';
+  const x = estSelItem();
+  if(!x) return `<button type="button" class="est-rail" id="estRail" hidden onclick="estPickCenter()"></button>`;
+  const pose = x.it.pose || 'lomo';
+  const btn = (fk, fn, ic, label)=> `<button type="button" class="round-btn est-btn" data-fk="${fk}" onclick="${fn}" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${icon(ic)}</button>`;
+  return `<div class="est-qb" role="group" aria-label="${escapeHTML(t('est.place_tools'))}">
+    <button type="button" class="btn btn-sm est-qb-pose" data-fk="qb-pose" onclick="estCyclePose()" aria-label="${escapeHTML(t('est.pose') + ': ' + t('est.pose.' + pose))}" title="${escapeHTML(t('est.pose'))}">${icon('rotate')} ${escapeHTML(t('est.pose_s.' + pose))}</button>
+    ${btn('qb-l', 'estMove(-1)', 'chevronLeft', t('est.move_left'))}${btn('qb-r', 'estMove(1)', 'chevronRight', t('est.move_right'))}
+    ${btn('qb-rl', 'estRotate(-15)', 'rotateLeft', t('est.rot_left'))}${btn('qb-rr', 'estRotate(15)', 'rotate', t('est.rot_right'))}
+    ${btn('qb-out', `estInspect('${escapeHTML(x.it.pid)}')`, 'expand', t('est.take_out'))}
+  </div>`;
+}
+/* Repinta los botones del escenario sin perder el foco del teclado */
+function estRefreshCtl(){
+  const a = document.activeElement;
+  const fk = a && a.closest && a.closest('#estStage') && a.dataset ? a.dataset.fk : null;
+  const el = document.getElementById('estCtl'); if(el) el.innerHTML = estCtlHTML();
+  const bar = document.getElementById('estBar'); if(bar){ bar.innerHTML = estBarHTML(); bar.hidden = EST.view!=='balda'; }
+  if(fk){ const b = document.querySelector(`#estStage [data-fk="${CSS.escape(fk)}"]`); if(b && !b.disabled) b.focus({ preventScroll:true }); }
+}
 function estRefreshPanel(){
   const el = document.getElementById('estPanel'); if(!el) return;
   // se conservan las baldas abiertas y el botón con el foco (teclado, lector de pantalla)
@@ -825,29 +1055,21 @@ function estAfterRender(){
   if(view.page!=='estanteria' || view.productId || !estHas()) return;
   estBindStage();
   estDraw();
-  if(EST.sel) requestAnimationFrame(()=>estCenterOnSel(EST.zoom > 1.15));
+  if(EST.view==='balda' && EST.sel) requestAnimationFrame(()=>estScrollToSel(false));
 }
-function estShowSala(){ EST.view = 'sala'; EST.sel = null; EST.zoom = 1; EST.panX = EST.panY = 0; render(); }
-function estShowMueble(mid){ EST.view = 'mueble'; EST.mid = mid; EST.sel = null; EST.zoom = 1; EST.panX = EST.panY = 0; render(); }
+function estShowSala(){ EST.view = 'sala'; EST.sel = null; EST.covers = false; EST.delAsk = false; render(); }
+function estShowMueble(mid){ EST.view = 'mueble'; EST.mid = mid; EST.sel = null; EST.covers = false; EST.delAsk = false; EST.fromSala = false; render(); }
 
-/* Panel bajo el escenario: la pieza elegida y las baldas */
+/* Panel bajo el escenario */
 function estPanelHTML(){
   const E = estData();
   if(EST.view==='sala'){
     return `<p class="section-sub est-hint">${t('est.sala_hint')}</p>
-      <div class="quick-actions">${estStyleBtn()}</div>`;
+      <div class="quick-actions">${estStyleBtn()}</div>${estDeleteAllHTML()}`;
   }
   const m = estMueble(estMid()); if(!m) return '';
   let html = '';
-  const x = estSelItem();
-  if(x) html += estSelCardHTML(m, x);
-  html += `<div class="quick-actions est-actions">
-    ${estStyleBtn()}
-    <button type="button" class="btn btn-sm" onclick="openEstDesign('${m.id}')">${icon('ruler')} ${t('est.design')}</button>
-    <button type="button" class="btn btn-sm" onclick="openEstAddSheet()">${icon('plus')} ${t('est.add_pieces')}</button>
-  </div>`;
-  // baldas (también es la forma de llegar a cada pieza con el teclado o el lector de pantalla)
-  const surf = (sid, label, sf, H)=>{
+  const surf = (sid, label, sf, H, isOpen)=>{
     const L = estLayout(sf.items, m.ancho, H);
     const pct = Math.min(100, Math.round(L.used / m.ancho * 100));
     const warn = L.over.length ? ` · <span class="est-warn">${escapeHTML(t('est.over').replace('{n}', L.over.length))}</span>` : L.tall.length ? ` · <span class="est-warn">${escapeHTML(t('est.tall').replace('{n}', L.tall.length))}</span>` : '';
@@ -855,18 +1077,69 @@ function estPanelHTML(){
       return `<button type="button" class="est-item-chip ${p.possession!=='tengo' ? 'is-ghost' : ''} ${on ? 'active' : ''}" aria-pressed="${on}" data-fk="chip-${escapeHTML(p.id)}" style="--plat:${platVisual(p.platformId).color}" onclick="estSelect({ mid:'${m.id}', sid:'${sid}', idx:${i}, pid:'${escapeHTML(p.id)}' })">${escapeHTML(p.name)}</button>`; }).join('');
     const n = estKnownCount(sf.items);
     const used = n ? Math.round(L.used) : 0;
-    return `<details class="disclosure est-surf" data-sid="${sid}"><summary>${icon('chevronRight','chev')}<span>${escapeHTML(label)}</span><span class="sum-meta">${escapeHTML(t('est.surf_meta').replace('{n}', n).replace('{u}', used).replace('{w}', fmtCm(m.ancho)))}${warn}</span></summary>
+    const enter = EST.view!=='balda' ? `<button type="button" class="btn btn-sm" onclick="estEnterBalda('${sid}', null)">${icon('expand')} ${t('est.enter')}</button>` : '';
+    return `<details class="disclosure est-surf" data-sid="${sid}" ${isOpen ? 'open' : ''}><summary>${icon('chevronRight','chev')}<span>${escapeHTML(label)}</span><span class="sum-meta">${escapeHTML(t('est.surf_meta').replace('{n}', n).replace('{u}', used).replace('{w}', fmtCm(m.ancho)))}${warn}</span></summary>
       <div class="disclosure-body"><div class="est-cap" aria-hidden="true"><span style="width:${pct}%"></span></div>
         ${n ? `<div class="est-item-chips">${names}</div>` : `<p class="section-sub">${t('est.surf_empty')}</p>`}
-        <div class="quick-actions"><button type="button" class="btn btn-sm" onclick="openEstAddSheet('${sid}')">${icon('plus')} ${t('est.add_here')}</button>
+        <div class="quick-actions">${enter}<button type="button" class="btn btn-sm" onclick="openEstAddSheet('${sid}')">${icon('plus')} ${t('est.add_here')}</button>
           ${n ? `<button type="button" class="btn btn-sm btn-ghost" onclick="estSortSurface('${m.id}','${sid}')">${icon('sortIcon')} ${t('est.sort')}</button><button type="button" class="btn btn-sm btn-ghost" onclick="estClearSurface('${m.id}','${sid}')">${icon('trash')} ${t('est.clear')}</button>` : ''}</div>
       </div></details>`;
   };
-  html += `<div class="est-surfaces">${surf('top', t('est.top'), m.encima, EST_TOP_H)}${m.baldas.map((b, i)=>surf(b.id, t('est.balda_n').replace('{n}', i + 1) + (estPlateText(b) ? ' · ' + estPlateText(b) : ''), b, b.alto)).join('')}</div>`;
+  const label = (sid)=> sid==='top' ? t('est.top') : (()=>{ const i = m.baldas.findIndex(b=>b.id===sid); const b = m.baldas[i]; return t('est.balda_n').replace('{n}', i + 1) + (estPlateText(b) ? ' · ' + estPlateText(b) : ''); })();
+  if(EST.view==='balda'){
+    // dentro de una balda: la pieza elegida (o una pista) y esa balda
+    const x = estSelItem();
+    if(x) html += estSelCardHTML(m, x);
+    else html += `<p class="section-sub est-hint">${t('est.balda_hint')}</p>`;
+    const sid = estBsid(m);
+    html += `<div class="est-surfaces">${surf(sid, label(sid), estSurface(m, sid), estSurfaceH(m, sid), !x)}</div>`;
+    html += `<div class="quick-actions est-actions"><button type="button" class="btn btn-sm" onclick="estExitBalda()">${icon('chevronLeft')} ${t('est.to_mueble')}</button>${estStyleBtn()}</div>`;
+    return html;
+  }
+  html += `<div class="quick-actions est-actions">
+    ${estStyleBtn()}
+    <button type="button" class="btn btn-sm" onclick="openEstDesign('${m.id}')">${icon('ruler')} ${t('est.design')}</button>
+    <button type="button" class="btn btn-sm" onclick="openEstAddSheet()">${icon('plus')} ${t('est.add_pieces')}</button>
+  </div>`;
+  // baldas (también es la forma de llegar a cada pieza con el teclado o el lector de pantalla)
+  html += `<div class="est-surfaces">${surf('top', t('est.top'), m.encima, EST_TOP_H)}${m.baldas.map(b=>surf(b.id, label(b.id), b, b.alto)).join('')}</div>`;
   const unplaced = PRODUCTS.length - estCountPlaced();
   html += `<p class="section-sub est-foot">${escapeHTML(t('est.placed').replace('{n}', estCountPlaced()).replace('{t}', PRODUCTS.length))}${unplaced ? ` <button type="button" class="link-btn" onclick="estAutoAddUnplaced()">${escapeHTML(t('est.add_unplaced').replace('{n}', unplaced))}</button>` : ''}</p>
     <div class="quick-actions est-more"><button type="button" class="btn btn-sm btn-ghost" onclick="estRebuild()">${icon('refresh')} ${t('est.rebuild')}</button></div>`;
+  html += estDeleteAllHTML();
   return html;
+}
+/* Eliminar la estantería: un botón y, para estar seguro, un segundo botón */
+function estDeleteAllHTML(){
+  if(!EST.delAsk){
+    return `<div class="est-del"><button type="button" class="btn btn-sm btn-ghost est-danger" data-fk="del-all" onclick="estAskDeleteAll(true)">${icon('trash')} ${t('est.del_all')}</button></div>`;
+  }
+  return `<div class="est-del is-ask" role="group" aria-label="${escapeHTML(t('est.del_all'))}">
+    <p>${t('est.del_all_q')}</p>
+    <div class="quick-actions is-flush">
+      <button type="button" class="btn btn-sm" data-fk="del-no" onclick="estAskDeleteAll(false)">${t('modal.cancel')}</button>
+      <button type="button" class="btn btn-sm btn-danger" data-fk="del-yes" onclick="estDeleteAll()">${icon('trash')} ${t('est.del_all_yes')}</button>
+    </div></div>`;
+}
+function estAskDeleteAll(on){
+  EST.delAsk = !!on;
+  estRefreshPanel();
+  const b = document.querySelector(on ? '#estPanel [data-fk="del-no"]' : '#estPanel [data-fk="del-all"]'); if(b) b.focus({ preventScroll:true });
+}
+async function estDeleteAll(){
+  const E = estEnsure();
+  const before = JSON.stringify(E.muebles);
+  E.muebles = [];
+  EST.sel = null; EST.view = 'mueble'; EST.mid = null; EST.delAsk = false;
+  await estSave(true);
+  render();
+  // y aún se puede deshacer unos segundos
+  showToast(t('est.deleted'), { replace:true, duration:7000, action:{ label:t('common.undo'), fn: async ()=>{
+    const E2 = estEnsure(); if(E2.muebles.length) return;
+    E2.muebles = JSON.parse(before);
+    await estSave(true);
+    if(view.page==='estanteria') render();
+  } } });
 }
 function estStyleBtn(){ return `<button type="button" class="btn btn-sm" onclick="openEstStyle()">${icon('palette')} ${t('est.style')}</button>`; }
 function estSelCardHTML(m, x){
@@ -877,9 +1150,11 @@ function estSelCardHTML(m, x){
   const c = shownCopy(p);
   const sub = p.possession==='tengo' ? [n > 1 ? t('est.have_n').replace('{n}', n) : t('est.have'), copyLine(p, c)].join(' · ') : t('cover.missing');
   const b = estItemBox(x.it, p);
+  const ph = shownPhotoId(p);
+  const thumb = hasPhoto(ph, 'front') ? photoImgHTML(p, 'front', 'thumb', 'data-eager="1"', ph) : `<span class="code-chip" aria-hidden="true">${escapeHTML(pv.code)}</span>`;
   return `<section class="est-sel" id="estSelCard" aria-label="${escapeHTML(p.name)}" style="--plat:${pv.color}">
-    <div class="est-sel-head"><span class="code-chip" aria-hidden="true">${escapeHTML(pv.code)}</span>
-      <div class="est-sel-titles"><span class="est-sel-name">${escapeHTML(p.name)}</span><span class="est-sel-sub">${escapeHTML(sub)}</span></div>
+    <div class="est-sel-head"><span class="est-sel-thumb" aria-hidden="true">${thumb}</span>
+      <div class="est-sel-titles"><span class="est-sel-name">${escapeHTML(p.name)}</span><span class="est-sel-sub">${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))}<br>${escapeHTML(sub)}</span></div>
       <button type="button" class="btn btn-ghost btn-icon" onclick="estSelect(null)" aria-label="${escapeHTML(t('common.close'))}">${icon('x')}</button></div>
     <div class="quick-actions is-flush">
       <button type="button" class="btn btn-sm primary" onclick="estInspect('${escapeHTML(p.id)}')">${icon('expand')} ${t('est.take_out')}</button>
@@ -907,7 +1182,7 @@ async function estAutoBuild(){
   const ms = estAutoPlan({});
   if(!ms.length){ showToast(t('est.nothing')); return; }
   E.muebles = ms;
-  EST.view = 'mueble'; EST.mid = ms[0].id; EST.sel = null; EST.zoom = 1;
+  EST.view = 'mueble'; EST.mid = ms[0].id; EST.sel = null;
   await estSave(true);
   showToast(t('est.built').replace('{m}', ms.length).replace('{n}', estCountPlaced()), { ok:true, duration:4000 });
   render();
@@ -1053,7 +1328,8 @@ function estMoveTo(mid, sid){
   const it = Object.assign({}, x.it); delete it.apilado; delete it.dx;
   estUnplace(it.pid);
   sf.items.push(it);
-  EST.view = 'mueble'; EST.mid = mid; EST.sel = { mid, sid, idx:sf.items.length - 1, pid:it.pid };
+  // se ve ya en su sitio nuevo, de cerca
+  EST.view = 'balda'; EST.mid = mid; EST.bsid = sid; EST.sel = { mid, sid, idx:sf.items.length - 1, pid:it.pid };
   closeSheet();
   estSave(); render();
 }
@@ -1172,13 +1448,13 @@ function estInspect(pid){
   const ph = shownPhotoId(p);
   const n = copyCount(p), c = shownCopy(p);
   const root = document.createElement('div');
-  root.id = 'estInspect'; root.className = 'est-inspect' + (reducedMotion() ? '' : ' is-spin');
+  root.id = 'estInspect'; root.className = 'est-inspect';
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-labelledby', 'estInsT');
   const maxS = Math.min(innerWidth * 0.62, innerHeight * 0.42);
   const s = maxS / Math.max(d0.w, d0.h);
   const w = d0.w * s, h = d0.h * s, d = Math.max(4, d0.d * s);
   const face = (cls, fw, fh, tf, side, inner)=> `<div class="est-f est-pc ${cls}"${side && hasPhoto(ph, side) ? ` data-ph="${escapeHTML(ph)}|${side}|full"` : ''} style="width:${fw}px;height:${fh}px;margin:${-fh / 2}px 0 0 ${-fw / 2}px;transform:${tf}">${inner || ''}</div>`;
-  const spine = `<span class="est-spine-txt" style="font-size:${Math.max(8, Math.min(16, d * 0.5))}px">${escapeHTML(p.name)}</span>`;
+  const spine = estSpineLabel(p, d, h, false);
   const sub = p.possession==='tengo' ? [n > 1 ? t('est.have_n').replace('{n}', n) : t('est.have'), copyLine(p, c)].join(' · ') : t('cover.missing');
   root.innerHTML = `<div class="est-ins-bg" onclick="estCloseInspect()"></div>
     <div class="est-ins-stage" id="estInsStage"><div class="est-ins-rot" id="estInsRot" style="--plat:${pv.color}">
@@ -1196,7 +1472,7 @@ function estInspect(pid){
         <button type="button" class="seg-btn" data-deg="0" aria-pressed="false" onclick="estInsView(0)">${t('est.side.front')}</button>
         <button type="button" class="seg-btn" data-deg="90" aria-pressed="false" onclick="estInsView(90)">${t('est.side.spine')}</button>
         <button type="button" class="seg-btn" data-deg="180" aria-pressed="false" onclick="estInsView(180)">${t('est.side.back')}</button>
-        <button type="button" class="seg-btn" id="estInsSpin" aria-pressed="${!reducedMotion()}" onclick="estInsSpin()">${icon('rotate')} ${t('est.side.spin')}</button>
+        <button type="button" class="seg-btn" id="estInsSpin" aria-pressed="false" onclick="estInsSpin()">${icon('rotate')} ${t('est.side.spin')}</button>
       </div>
       <div class="quick-actions">
         <button type="button" class="btn" onclick="estCloseInspect()">${icon('chevronLeft')} ${t('est.put_back')}</button>
@@ -1204,17 +1480,17 @@ function estInspect(pid){
       </div>
     </div>`;
   document.body.appendChild(root);
-  estInspectState = { ry:-24, rx:-10, ret: document.activeElement };
+  estInspectState = { ry:-14, rx:-5, ret: document.activeElement };
   estHydratePhotos(root);
   estInsApply();
-  // girar con el dedo o el ratón
+  estInsMark(null);
+  // deslizar a un lado = el lado siguiente (frente → lomo → trasera → otro lado)
   const stg = root.querySelector('#estInsStage');
   let g = null;
-  stg.addEventListener('pointerdown', (e)=>{ g = { x:e.clientX, y:e.clientY, ry:estInspectState.ry, rx:estInspectState.rx }; estInsStopSpin(); estInsMark(null); try{ stg.setPointerCapture(e.pointerId); }catch(_){} });
-  stg.addEventListener('pointermove', (e)=>{ if(!g || !estInspectState) return; estInspectState.ry = g.ry + (e.clientX - g.x) * 0.5; estInspectState.rx = Math.max(-60, Math.min(60, g.rx - (e.clientY - g.y) * 0.4)); estInsApply(); });
-  const up = ()=>{ g = null; };
-  stg.addEventListener('pointerup', up); stg.addEventListener('pointercancel', up);
-  setTimeout(()=>{ const b = root.querySelector('.est-ins-card button'); if(b) b.focus(); }, 40);
+  stg.addEventListener('pointerdown', (e)=>{ g = { x:e.clientX }; });
+  stg.addEventListener('pointerup', (e)=>{ if(!g) return; const dx = e.clientX - g.x; g = null; if(Math.abs(dx) > 36) estInsStep(dx < 0 ? 1 : -1); });
+  stg.addEventListener('pointercancel', ()=>{ g = null; });
+  setTimeout(()=>{ const b = root.querySelector('.est-ins-card .quick-actions .btn'); if(b) b.focus(); }, 40);
 }
 /* Marca el lado que se está viendo (o ninguno si se gira a mano) */
 function estInsMark(deg){
@@ -1230,6 +1506,13 @@ function estInsStopSpin(){
   const b = document.getElementById('estInsSpin'); if(b) b.setAttribute('aria-pressed', 'false');
   if(m && m.startsWith('matrix3d')){ const v = m.slice(9, -1).split(',').map(Number); estInspectState.ry = Math.atan2(-v[2], v[0]) * 180 / Math.PI; }
   estInsApply();
+}
+function estInsStep(d){
+  if(!estInspectState) return;
+  const sides = [0, 90, 180, 270];
+  const cur = ((Math.round(estInspectState.ry / 90) * 90) % 360 + 360) % 360;
+  const i = sides.indexOf(cur), j = ((i < 0 ? 0 : i) + d + 4) % 4;
+  estInsView(sides[j]);
 }
 function estInsView(deg){ estInsStopSpin(); if(!estInspectState) return; estInsMark(deg); estInspectState.ry = deg; estInspectState.rx = -6; const r = document.getElementById('estInsRot'); if(r){ r.classList.add('is-anim'); estInsApply(); setTimeout(()=>r.classList.remove('is-anim'), 600); } }
 function estInsSpin(){

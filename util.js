@@ -2,7 +2,7 @@
    Utilidades sin estado: escapado de HTML, normalización para búsquedas, orden natural, iconos SVG, slug, fechas y descargas. */
 
 /* Versión visible de la app (esquina y Ajustes). Mantener igual que CACHE_NAME de sw.js. */
-const APP_VERSION = '11.11.0';
+const APP_VERSION = '11.11.1';
 
 /* Iconos propios en línea (nada de emoji) — heredan el color del texto
    que los rodea, así encajan igual en modo claro y oscuro. v11: un único

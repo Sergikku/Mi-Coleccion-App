@@ -1,4 +1,4 @@
-/* Service worker de La Colección App — v11.11.0
+/* Service worker de La Colección App — v11.11.1
  *
  * Qué hace:
  *  - Al instalarse guarda TODO lo necesario para funcionar sin conexión
@@ -22,13 +22,13 @@
  *    otro dominio: no pasan por aquí ni se guardan en caché.
  *  - v11.11: copias.js, plano.js y estanteria.js (archivos nuevos).
  */
-const CACHE_NAME = 'coleccion-app-v11.11.0';
+const CACHE_NAME = 'coleccion-app-v11.11.1';
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = './index.html';
 // Todos los archivos de la app (si se añade uno, añadirlo también a index.html)
 // CSS y JS se piden con ?v=<versión> (igual que en index.html), así una versión
 // nueva nunca reutiliza archivos de la anterior. Todo va en la raíz, sin carpetas.
-const V = '?v=11.11.0';
+const V = '?v=11.11.1';
 const PRECACHE = [
   APP_SHELL, './app.css' + V,
   ...['util', 'i18n', 'storage', 'model', 'ui', 'screens', 'actions', 'copias', 'plano', 'estanteria', 'backup', 'scanner', 'sync', 'app'].map((n) => './' + n + '.js' + V),

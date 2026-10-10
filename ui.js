@@ -80,6 +80,8 @@ window.addEventListener('popstate', ()=>{
     return;
   }
   if(isViewerOpen()){ closePhotoViewer(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
+  // v11.11.1: dentro de una balda, «atrás» vuelve al mueble entero
+  if(typeof estBackLevel==='function' && estBackLevel()){ try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
   if(viewHistory.length){ goBack(); return; }
   // historial interno agotado (p. ej. más de 60 pasos): vuelve al inicio;
   // el siguiente "atrás" ya sale de la app, como en cualquier app Android
@@ -1834,6 +1836,7 @@ document.addEventListener('keydown', (e)=>{
     if(isViewerOpen() && isSheetOpen()){ e.preventDefault(); closePhotoViewer(); return; }   // v11.11
     if(isSheetOpen()){ e.preventDefault(); closeSheet(); return; }
     if(isViewerOpen()){ e.preventDefault(); closePhotoViewer(); return; }
+    if(!isModalOpen() && typeof estBackLevel==='function' && estBackLevel()){ e.preventDefault(); return; }   // v11.11.1
   }
   if(e.key==='Enter' && isModalOpen() && e.target && e.target.tagName==='INPUT'){ e.preventDefault(); modalConfirmAction(); return; }
   // visor de fotos: + − 0 para el zoom y flechas para moverse por la foto ampliada
