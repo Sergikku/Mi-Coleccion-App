@@ -42,6 +42,10 @@ function piezaDims(p){
   // las que pusiste para todas las de su plataforma (estantería)
   const E = OVERRIDES.estanterias, pd = E && E.medidasPlataforma && p.platformId ? E.medidasPlataforma[p.platformId] : null;
   if(medidasValidas(pd)) return { w:pd.ancho, h:pd.alto, d:pd.fondo, exact:true, src:'platform' };
+  return piezaStdDims(p);
+}
+/* Las aproximadas (según su plataforma y su formato), sin contar las tuyas (v11.12) */
+function piezaStdDims(p){
   const f = formatoDe(p);
   const code = platVisual(p.platformId).code;
   const v = (f==='caja' && (DIMS_BY_CODE[code] || DIMS_BY_CODE[code.slice(0, 4)])) || DIMS_BY_FORMATO[f];

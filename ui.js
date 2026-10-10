@@ -1850,7 +1850,7 @@ document.addEventListener('keydown', (e)=>{
     if((k==='ArrowRight' || k==='ArrowLeft') && viewerStep(k==='ArrowRight' ? 1 : -1)){ e.preventDefault(); return; }
   }
   if(e.key==='Tab'){
-    const box = isModalOpen() ? document.querySelector('#modalOverlay .modal-card') : isPhotoEditorOpen() ? photoEditor.root : (typeof estInspectOpen==='function' && estInspectOpen()) ? document.getElementById('estInspect') : (typeof isScannerOpen==='function' && isScannerOpen()) ? scanner.root : (isViewerOpen() && isSheetOpen()) ? document.getElementById('pinchOverlay') : isSheetOpen() ? document.querySelector('#sheetOverlay .sheet') : isViewerOpen() ? document.getElementById('pinchOverlay') : null;
+    const box = isModalOpen() ? document.querySelector('#modalOverlay .modal-card') : isPhotoEditorOpen() ? photoEditor.root : (typeof estInspectOpen==='function' && estInspectOpen()) ? (typeof estDialogEl==='function' ? estDialogEl() : document.getElementById('estInspect')) : (typeof isScannerOpen==='function' && isScannerOpen()) ? scanner.root : (isViewerOpen() && isSheetOpen()) ? document.getElementById('pinchOverlay') : isSheetOpen() ? document.querySelector('#sheetOverlay .sheet') : isViewerOpen() ? document.getElementById('pinchOverlay') : null;
     if(!box) return;
     const f = [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled && el.offsetParent!==null);
     if(!f.length) return;
