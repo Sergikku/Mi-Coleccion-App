@@ -14,8 +14,9 @@ const NAV = [
   { id:'inventario',    labelKey:'nav.inventario',    icon:'list' },
   { id:'estadisticas',  labelKey:'nav.estadisticas',  icon:'chart' },
   { id:'investigacion', labelKey:'nav.investigacion', icon:'research' },
+  { id:'estanteria',    labelKey:'nav.estanteria',    icon:'cabinet' },   // v11.13: la estantería, en la barra
 ];
-const SECONDARY_PAGES = { ayuda:'nav.ayuda', backup:'backup.kicker', gallery:'gallery.kicker', cuenta:'sync.title', estanteria:'est.title' };
+const SECONDARY_PAGES = { ayuda:'nav.ayuda', backup:'backup.kicker', gallery:'gallery.kicker', cuenta:'sync.title' };
 
 let view = { page:'dashboard' };
 /* Estado del Inventario: búsqueda, filtro rápido (los chips de siempre),
@@ -90,6 +91,7 @@ window.addEventListener('popstate', ()=>{
 
 /* Navegación entre pantallas */
 function goPage(id){
+  if(id==='estanteria' && typeof goEstanteria==='function'){ goEstanteria(); return; }   // v11.13: entra a pantalla completa
   pushHistory(); view = { page:id };
   if(id==='backup'){
     // al entrar, mensajes limpios y estado del almacenamiento al día
@@ -242,16 +244,17 @@ function updateDocumentTitle(){
 
 /* Barra de navegación (abajo en móvil, pestañas arriba en escritorio) */
 function renderNav(){
-  const items = NAV.map(n=>{
+  const items = (bottom)=> NAV.map(n=>{
     const active = view.page===n.id;
-    // etiqueta corta opcional para la barra inferior (p. ej. japonés), con el nombre completo accesible
+    // etiqueta corta opcional para la barra de abajo (en el móvil caben 6), con el nombre completo accesible;
+    // arriba (escritorio) va siempre el nombre completo
     const lang = OVERRIDES.lang || 'es';
-    const short = I18N[lang] && I18N[lang]['nav.short.'+n.id];
+    const short = bottom && I18N[lang] && I18N[lang]['nav.short.'+n.id];
     const full = t(n.labelKey);
     return `<button class="navitem ${active?'active':''}" ${active?'aria-current="page"':''} ${short?`aria-label="${escapeHTML(full)}" title="${escapeHTML(full)}"`:''} onclick="goPage('${n.id}')">${icon(n.icon,'navicon')}<span class="navlabel">${short || full}</span></button>`;
   }).join('');
-  document.getElementById('bottomnav').innerHTML = items;
-  document.getElementById('topnav').innerHTML = items;
+  document.getElementById('bottomnav').innerHTML = items(true);
+  document.getElementById('topnav').innerHTML = items(false);
 }
 
 /* Barra de contexto: "Volver" + ruta (migas). Solo aparece cuando estás

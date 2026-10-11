@@ -1289,6 +1289,7 @@ function syncCanRender(){
   if(isModalOpen() || isSheetOpen() || isPhotoEditorOpen() || isViewerOpen()) return false;
   if(typeof isScannerOpen==='function' && isScannerOpen()) return false;
   if(typeof tourActive!=='undefined' && tourActive) return false;
+  if(typeof estInspectOpen==='function' && estInspectOpen()) return false;   // una pieza sacada o el libro de una carpeta
   return true;
 }
 /* Repinta lo que depende de la sincronización: el punto de Ajustes, la fila de

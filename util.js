@@ -2,7 +2,7 @@
    Utilidades sin estado: escapado de HTML, normalización para búsquedas, orden natural, iconos SVG, slug, fechas y descargas. */
 
 /* Versión visible de la app (esquina y Ajustes). Mantener igual que CACHE_NAME de sw.js. */
-const APP_VERSION = '11.12.0';
+const APP_VERSION = '11.13.0';
 
 /* Iconos propios en línea (nada de emoji) — heredan el color del texto
    que los rodea, así encajan igual en modo claro y oscuro. v11: un único
@@ -95,6 +95,7 @@ const ICON_PATHS = {
   rotateLeft: '<path d="M4 12a8 8 0 1 0 2.35-5.65L4 8.7"/><path d="M4 3.5v5.2h5.2"/>',
   stack: '<rect x="5" y="14" width="14" height="5" rx="1"/><rect x="6.5" y="9" width="11" height="5" rx="1"/><rect x="8" y="4" width="8" height="5" rx="1"/>',
   doors: '<rect x="4" y="3.5" width="16" height="17" rx="1"/><path d="M12 3.5v17M10 12h.01M14 12h.01"/>',
+  multi: '<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M4 15.5V5.5A1.5 1.5 0 0 1 5.5 4h10"/><path d="m11.5 14.5 2 2 4-4"/>',
   pipette: '<path d="M14.5 4.5l5 5L10 19H5v-5l9.5-9.5z"/><path d="M12.5 6.5l5 5"/><path d="M17 2.5l4.5 4.5"/>',
 };
 function icon(name, extraClass){
