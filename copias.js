@@ -88,10 +88,10 @@ async function addCopy(id){
 /* ¿Tiene algo apuntado esta copia? (para preguntar antes de quitarla) */
 function copyHasData(c){
   return !!(c.sealed || c.paraCambio || copyCond(c) || (c.conservation && String(c.conservation.notas || '').trim())
-    || Object.values(c.components || {}).some(Boolean) || hasPhoto(c.photoId, 'front') || hasPhoto(c.photoId, 'back'));
+    || Object.values(c.components || {}).some(Boolean) || hasPhoto(c.photoId, 'front') || hasPhoto(c.photoId, 'back') || SIDE_SLOTS.some(s=> hasPhoto(c.photoId, s)));
 }
 async function removeCopyPhotos(c){
-  for(const side of ['front', 'back']){ const k = photoKeyFor(c.photoId, side); if(k) await removePhoto(k); }
+  for(const side of ['front', 'back'].concat(SIDE_SLOTS)){ const k = photoKeyFor(c.photoId, side); if(k) await removePhoto(k); }   // v11.14: y las de sus lados
 }
 async function removeLastCopy(id){
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
@@ -128,13 +128,18 @@ async function promoteCopy(id, c){
   const tengo = checklistHasTengoKey(p.categoryId);
   const comps = Object.assign({}, c.components || {});
   if(tengo) comps.tengo = true;
-  o.sealed = !!c.sealed; o.components = comps; o.paraCambio = !!c.paraCambio;
-  o.conservation = Object.assign({ caja:null, manual:null, cartucho:null, general:null, notas:'' }, p.conservation || {}, { general: copyCond(c), notas: (c.conservation && c.conservation.notas) || '' });
+  // v11.14: los datos de la copia se ponen en la pieza solo cuando sus fotos ya se han copiado (si falla, nada cambia)
+  const take = ()=>{
+    o.sealed = !!c.sealed; o.components = comps; o.paraCambio = !!c.paraCambio;
+    o.conservation = Object.assign({ caja:null, manual:null, cartucho:null, general:null, notas:'' }, p.conservation || {}, { general: copyCond(c), notas: (c.conservation && c.conservation.notas) || '' });
+  };
   // fotos: las de la copia pasan a la pieza; las de la copia 1 se quitan.
-  // (las «Fotos extra» son de la pieza, no de una copia: se quedan como están)
+  // (las «Fotos extra» son de la pieza, no de una copia: se quedan como están;
+  // v11.14: las de los lados sí son de la copia, como la portada: pasan también)
   // Primero se copian; si alguna no se puede guardar, no se cambia nada.
   const moved = {};
-  for(const side of ['front', 'back']){
+  const COPY_SIDES = ['front', 'back'].concat(SIDE_SLOTS);
+  for(const side of COPY_SIDES){
     const src = photoKeyFor(c.photoId, side);
     if(!src) continue;
     const data = await loadPhoto(src);
@@ -147,7 +152,8 @@ async function promoteCopy(id, c){
     }
     moved[side] = { src, backup };
   }
-  for(const side of ['front', 'back']){
+  take();
+  for(const side of COPY_SIDES){
     const own = photoKeyFor(id, side);
     if(moved[side]){
       if(own && own!=='photo_' + id + '_' + side) await removePhoto(own);
@@ -238,7 +244,7 @@ function copySheetBodyHTML(p, c){
       }
       return `<div class="copy-photo-wrap"><button type="button" class="copy-photo" onclick="openPhotoViewer('${escapeHTML(c.photoId)}','${side}')" aria-label="${escapeHTML(t('photo.enlarge') + ' — ' + label)}">${photoImgHTML(p, side, 'thumb', 'data-eager="1"', c.photoId)}</button>
         <button type="button" class="slot-btn slot-remove copy-photo-rm" onclick="removeCopyPhoto('${photoKeyFor(c.photoId, side)}')" title="${escapeHTML(t('photo.remove'))}">${icon('trash')}<span class="sr-only">${escapeHTML(t('photo.remove') + ' — ' + label)}</span></button></div>`;
-    }).join('')}</div>`;
+    }).join('')}</div>${p.possession==='tengo' ? sidePhotosHTML(p, c.photoId, 'copy') : ''}`;
   }
   // qué trae
   const chip = (field, label, on, ic, sealedCls)=> `<button type="button" class="chip copy-chip${sealedCls ? ' is-seal' : ''} ${on ? 'active' : ''}" aria-pressed="${on}" data-focus="${field}" onclick="copySheetSet('${field}', ${!on})">${ic ? icon(ic) : ''}${escapeHTML(label)}</button>`;
@@ -274,6 +280,17 @@ async function onCopyPhotoChange(input, key){
   else if(label) label.classList.remove('is-busy');
   refreshCopySheet();
   render();
+  copySheetFocusAfter(key, !!dataUrl);
+}
+/* v11.14: tras cambiar una foto en la hoja de una copia, el foco no se va fuera de la hoja */
+function copySheetFocusAfter(key, added){
+  if(!isSheetKind('copy')) return;
+  const a = document.activeElement;
+  if(a && a!==document.body && a.closest && a.closest('#sheetOverlay')) return;
+  const side = String(key).slice(String(key).lastIndexOf('_') + 1);
+  const sel = SIDE_SLOTS.includes(side) ? (added ? `[data-fk="sd-${side}"]` : `[data-fk="sd-add-${side}"] input`) : null;
+  const el = (sel && document.querySelector('#sheetBody ' + sel)) || document.querySelector('#sheetOverlay .sheet-head button');
+  if(el) el.focus({ preventScroll:true });
 }
 async function removeCopyPhoto(key){
   if(!key) return;
@@ -282,6 +299,7 @@ async function removeCopyPhoto(key){
   showToast(t('photo.removed'));
   refreshCopySheet();
   render();
+  copySheetFocusAfter(key, false);
 }
 
 /* ---------- Repetidas (Inventario) ---------- */

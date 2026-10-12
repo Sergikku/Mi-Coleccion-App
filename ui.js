@@ -1657,6 +1657,8 @@ async function editViewerPhoto(){
   showToast(t('photo.saved'), { ok:true, replace:true });
   if(viewerState && viewerState.pid===v.pid) openPhotoViewer(v.pid, v.side);
   render();
+  if(typeof estSidesRefresh==='function') estSidesRefresh();          // v11.14: la hoja «Fotos de los lados», si está abierta
+  if(typeof refreshCopySheet==='function') refreshCopySheet();
 }
 
 /* Gestos: solo se escuchan con el visor abierto (así el scroll normal de las

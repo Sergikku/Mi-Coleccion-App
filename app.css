@@ -654,19 +654,19 @@ details.disclosure > summary:hover{color:var(--accent-text);}
 .slot-btn:hover{background:var(--fill-2);}
 .slot-remove{color:var(--accent-text);}
 /* Fotos extra (v11.3): hasta 4, en una fila bajo la delantera y la trasera */
-.photo-extras{max-width:420px;margin:var(--sp-4) auto 0;}
+.photo-extras, .photo-sides{max-width:420px;margin:var(--sp-4) auto 0;}
 .photo-extras-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--sp-2);margin-bottom:var(--sp-2);}
 .photo-extras-count{font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums;}
-.extra-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-2);}
-.extra-tile{position:relative;aspect-ratio:1/1;min-width:0;}
-.extra-thumb{position:relative;display:block;width:100%;height:100%;padding:0;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:color-mix(in srgb, var(--plat) 16%, var(--surface-raised));cursor:zoom-in;}
-.extra-thumb img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity var(--t-med);}
-.extra-thumb img.is-loaded{opacity:1;}
-.extra-remove{position:absolute;top:4px;right:4px;width:32px;height:32px;background:color-mix(in srgb, var(--surface-raised) 92%, transparent);box-shadow:0 1px 3px rgba(0,0,0,0.25);}
-.extra-remove .ico{width:16px;height:16px;}
-.extra-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:1/1;min-width:0;border:1.5px dashed color-mix(in srgb, var(--plat) 55%, var(--line-strong));border-radius:var(--r-sm);color:color-mix(in srgb, var(--plat) 68%, var(--text-strong));font-size:var(--fs-xs);font-weight:600;text-align:center;transition:background var(--t-fast);}
-.extra-add:hover{background:var(--fill-1);}
-.extra-add .ico{width:22px;height:22px;}
+.extra-grid, .side-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-2);}
+.extra-tile, .side-photo{position:relative;aspect-ratio:1/1;min-width:0;}
+.extra-thumb, .side-thumb{position:relative;display:block;width:100%;height:100%;padding:0;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:color-mix(in srgb, var(--plat) 16%, var(--surface-raised));cursor:zoom-in;}
+.extra-thumb img, .side-thumb img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity var(--t-med);}
+.extra-thumb img.is-loaded, .side-thumb img.is-loaded{opacity:1;}
+.extra-remove, .side-remove{position:absolute;top:4px;right:4px;width:32px;height:32px;background:color-mix(in srgb, var(--surface-raised) 92%, transparent);box-shadow:0 1px 3px rgba(0,0,0,0.25);}
+.extra-remove .ico, .side-remove .ico{width:16px;height:16px;}
+.extra-add, .side-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:1/1;min-width:0;border:1.5px dashed color-mix(in srgb, var(--plat) 55%, var(--line-strong));border-radius:var(--r-sm);color:color-mix(in srgb, var(--plat) 68%, var(--text-strong));font-size:var(--fs-xs);font-weight:600;text-align:center;transition:background var(--t-fast);}
+.extra-add:hover, .side-add:hover{background:var(--fill-1);}
+.extra-add .ico, .side-add .ico{width:22px;height:22px;}
 .photo-pick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3);}
 .photo-note{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45;margin:var(--sp-3) 0 0;}
 /* selectores de foto (etiqueta que abre cámara o galería) */
@@ -1338,6 +1338,7 @@ html[data-theme="dark"] .toast .toast-action{color:#2f6b5f;}
 .mini-photo:has(> img[data-loaded]:not(.is-loaded):not(.is-broken))::after,
 .slot-thumb:has(> img[data-loaded]:not(.is-loaded):not(.is-broken))::after,
 .extra-thumb:has(> img[data-loaded]:not(.is-loaded):not(.is-broken))::after,
+.side-thumb:has(> img[data-loaded]:not(.is-loaded):not(.is-broken))::after,
 .wall-tile:has(> img[data-loaded]:not(.is-loaded):not(.is-broken))::after,
 .gallery-cell:has(> img[data-loaded]:not(.is-loaded):not(.is-broken))::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg, transparent 25%, rgba(255,255,255,0.22) 50%, transparent 75%);background-size:250% 100%;animation:shimmer 1.3s linear infinite;}
 @media (prefers-reduced-motion: reduce){
@@ -2209,3 +2210,42 @@ html.est-imm-on #panel{animation:none !important;transform:none !important;}
   .est-pull-foot .btn{min-height:44px;}
 }
 @media (prefers-reduced-motion: reduce){ .est-pull.is-anim .est-pull-obj, .est-pull.is-anim .est-pull-rot{transition:none;} .est-imm{animation:none;} }
+
+/* ---------- v11.14 · Fotos de los lados de la caja ---------- */
+/* en la ficha y en la hoja de una copia: 4 huecos con su nombre y un dibujito del lado */
+.side-grid{align-items:start;}
+.side-tile{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.side-tile .side-photo{width:100%;}
+.side-add{width:100%;}
+.side-cap{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;font-size:var(--fs-2xs);font-weight:600;color:var(--text-muted);text-align:center;line-height:1.2;}
+.side-glyph{flex-shrink:0;width:11px;height:14px;box-sizing:border-box;border:1.5px solid currentColor;border-radius:2px;opacity:0.85;}
+.side-glyph.is-lomo{border-left-width:4px;}
+.side-glyph.is-canto{border-right-width:4px;}
+.side-glyph.is-arriba{border-top-width:4px;}
+.side-glyph.is-abajo{border-bottom-width:4px;}
+/* en la estantería: cada cara con su foto (la tira ya viene recortada a su forma) */
+.est-pc.has-sideph, .est-sp.has-sideph{background-color:#fff;background-size:100% 100% !important;background-position:center;background-repeat:no-repeat;}
+.est-pc.is-spine.has-sideph::before, .est-sp.has-sideph::before{background:linear-gradient(90deg, rgba(255,255,255,0.16), transparent 26%, transparent 72%, rgba(0,0,0,0.24));}
+.est-sp.has-sideph.is-h::before{background:linear-gradient(180deg, rgba(255,255,255,0.16), transparent 26%, transparent 72%, rgba(0,0,0,0.24));}
+.est-pc.has-sideph::after, .est-sp.has-sideph::after{display:none;}
+.est-pc.is-edge.has-sideph{background-image:none;}
+/* la tarjeta de la pieza: el lomo con su foto y «Fotos de los lados» */
+.est-lomo-sw.has-photo{background-color:#fff;background-size:100% 100%;background-position:center;background-repeat:no-repeat;}
+.est-sides-sw{display:flex;align-items:center;justify-content:center;width:22px;height:22px;box-shadow:none;color:var(--text-muted);}
+.est-sides-sw .ico{width:18px;height:18px;}
+.est-sel-sides{margin-top:var(--sp-2);}
+.est-photo-note{display:flex;align-items:flex-start;gap:6px;}
+.est-photo-note .ico{flex-shrink:0;width:16px;height:16px;margin-top:2px;}
+/* hoja «Fotos de los lados»: la caja vista por delante y por detrás */
+.est-sides-prev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3);margin:0 0 var(--sp-3);}
+.est-sides-box{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;}
+.est-sides-stage{position:relative;width:100%;height:178px;perspective:700px;border-radius:var(--r-md);background:radial-gradient(70% 70% at 50% 45%, color-mix(in srgb, var(--surface-raised) 70%, #8a7a66), color-mix(in srgb, var(--surface) 80%, #3a3128));overflow:hidden;}
+.est-sides-obj{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d;}
+.est-sides-obj .est-pc{box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15);}
+.est-sides-obj .est-pc.is-front .est-cover-txt{font-size:10px;}
+.est-sides-box figcaption{font-size:var(--fs-xs);color:var(--text-muted);}
+.photo-note.is-warn{display:flex;align-items:flex-start;gap:6px;color:var(--text);}
+.photo-note.is-warn .ico{flex-shrink:0;width:15px;height:15px;margin-top:1px;}
+/* un lomo con foto que no se ha podido abrir: vuelve a verse su nombre */
+.est-pc.is-sidephoto:not(.ph-failed) > .est-sl, .est-pc.is-sidephoto:not(.ph-failed) > .est-band,
+.est-sp.is-sidephoto:not(.ph-failed) > .est-sl, .est-sp.is-sidephoto:not(.ph-failed) > .est-band{visibility:hidden;}

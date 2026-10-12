@@ -688,7 +688,33 @@ function productPhotosHTML(p, anyPhoto){
         `${icon('camera')} ${t(side==='back' ? 'photo.add_back' : 'photo.add_front')}`, t(side==='back' ? 'photo.add_back' : 'photo.add_front') + ' — ' + p.name)).join('')}</div>` + extraPhotosHTML(p);
   }
   const multi = copyCount(p) > 1;
-  return (multi ? `<p class="photo-copy-label">${icon('camera')} ${escapeHTML(t('copy.photos_of').replace('{n}', 1))}</p>` : '') + productMainPhotosHTML(p, anyPhoto) + extraPhotosHTML(p);
+  return (multi ? `<p class="photo-copy-label">${icon('camera')} ${escapeHTML(t('copy.photos_of').replace('{n}', 1))}</p>` : '') + productMainPhotosHTML(p, anyPhoto)
+    + (p.possession==='tengo' ? sidePhotosHTML(p, p.id, 'ficha') : '') + extraPhotosHTML(p);
+}
+/* v11.14: los otros 4 lados de la caja (lomo, lado contrario, arriba y abajo), para que
+   en la estantería 3D se vea como la tuya. Son de una copia concreta (photoId), igual
+   que su portada. ctx: 'ficha' (la copia 1), 'copy' (hoja de una copia) o 'est'
+   (estantería): cambia solo qué se refresca al guardar o quitar. */
+function sidePhotosHTML(p, photoId, ctx){
+  const onAdd = ctx==='copy' ? 'onCopyPhotoChange' : ctx==='est' ? 'estSidePhotoChange' : 'onPhotoSlotChange';
+  const onRm = ctx==='copy' ? 'removeCopyPhoto' : ctx==='est' ? 'estSidePhotoRemove' : 'removePhotoSlot';
+  const pid = escapeHTML(photoId), used = sideSlotsFor(photoId).length;
+  const tiles = SIDE_SLOTS.map(side=>{
+    const label = photoSideLabel(side), glyph = `<span class="side-glyph is-${side}" aria-hidden="true"></span>`;
+    if(hasPhoto(photoId, side)){
+      return `<div class="side-tile"><div class="side-photo">
+        <button type="button" class="side-thumb" data-fk="sd-${side}" onclick="openPhotoViewer('${pid}','${side}')" aria-label="${escapeHTML(t('photo.enlarge') + ' — ' + label)}">${photoImgHTML(p, side, 'thumb', 'data-eager="1"', photoId)}</button>
+        <button type="button" class="slot-btn slot-remove side-remove" data-fk="sd-rm-${side}" onclick="${onRm}('${escapeHTML(photoKeyFor(photoId, side))}')" title="${escapeHTML(t('photo.remove'))}">${icon('trash')}<span class="sr-only">${escapeHTML(t('photo.remove') + ' — ' + label)}</span></button>
+      </div><span class="side-cap">${glyph}${escapeHTML(label)}</span></div>`;
+    }
+    return `<div class="side-tile"><label class="side-add photo-picker" data-fk="sd-add-${side}">${icon('camera')}<span class="side-add-txt">${t('photo.add_extra_short')}</span><input type="file" accept="image/*" class="sr-only" aria-label="${escapeHTML(t('photo.side_add').replace('{s}', label) + ' — ' + p.name)}" onchange="${onAdd}(this,'photo_${pid}_${side}')"></label><span class="side-cap">${glyph}${escapeHTML(label)}</span></div>`;
+  }).join('');
+  const hid = 'photo-sides-t-' + ctx;
+  return `<section class="photo-sides" aria-labelledby="${hid}">
+    <div class="photo-extras-head"><span class="slot-label" id="${hid}">${t('photo.sides')}</span><span class="photo-extras-count">${used} / ${SIDE_SLOTS.length}</span></div>
+    <div class="side-grid">${tiles}</div>
+    <p class="photo-note">${t(used ? 'photo.sides_note_short' : 'photo.sides_note')}</p>${ctx==='ficha' && shownPhotoId(p)!==photoId ? (()=>{ const sc = copyForPhotoId(shownPhotoId(p)); return sc ? `<p class="photo-note is-warn">${icon('camera')} ${escapeHTML(t('photo.sides_other_copy').replace(/\{n\}/g, sc.n))}</p>` : ''; })() : ''}
+  </section>`;
 }
 /* v11.3: hasta 4 fotos extra para documentar lo que no se ve en la portada
    (manual, insertos, cartucho, precinto, ticket…). Tocar una la abre en el

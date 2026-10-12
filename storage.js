@@ -1007,13 +1007,17 @@ async function loadPhoto(key){ return idbGet(PHOTOS_STORE, key); }
    cartucho, precinto… Son claves NUEVAS en el mismo almacén: las de siempre
    no cambian, y una versión anterior de la app simplemente no las ve. */
 const EXTRA_SLOTS = ['extra1','extra2','extra3','extra4'];
-const PHOTO_SIDES = ['front','back'].concat(EXTRA_SLOTS);
+/* v11.14: y los otros 4 lados de la caja, para la estantería 3D (photo_<id>_lomo,
+   _canto, _arriba, _abajo). Igual que las extra: claves NUEVAS en el mismo
+   almacén; lo de siempre no cambia y una versión anterior simplemente no las ve. */
+const SIDE_SLOTS = ['lomo','canto','arriba','abajo'];
+const PHOTO_SIDES = ['front','back'].concat(EXTRA_SLOTS, SIDE_SLOTS);
 const PHOTO_INDEX = { ready:false };
 PHOTO_SIDES.forEach(s=>{ PHOTO_INDEX[s] = new Map(); });
 function parsePhotoKey(key){
   let m = /^photo_product_(.+)_(front|back|main)$/.exec(key);
   if(m) return { id:m[1], side: m[2]==='back' ? 'back' : 'front', legacy:true, main: m[2]==='main' };
-  m = /^photo_(.+)_(front|back|extra[1-4])$/.exec(key);
+  m = /^photo_(.+)_(front|back|extra[1-4]|lomo|canto|arriba|abajo)$/.exec(key);
   if(m) return { id:m[1], side:m[2], legacy:false };
   return null;
 }
@@ -1039,7 +1043,7 @@ async function loadPhotoIndex(){
   return true;
 }
 async function probePhotoIndex(ids){
-  const cand = (id)=>['photo_'+id+'_front','photo_product_'+id+'_front','photo_product_'+id+'_main','photo_'+id+'_back','photo_product_'+id+'_back'].concat(EXTRA_SLOTS.map(s=>'photo_'+id+'_'+s));
+  const cand = (id)=>['photo_'+id+'_front','photo_product_'+id+'_front','photo_product_'+id+'_main','photo_'+id+'_back','photo_product_'+id+'_back'].concat(EXTRA_SLOTS.concat(SIDE_SLOTS).map(s=>'photo_'+id+'_'+s));
   for(const id of ids){
     for(const key of cand(id)){
       try{
@@ -1054,13 +1058,15 @@ async function probePhotoIndex(ids){
 function hasPhoto(id, side){ return PHOTO_INDEX.ready ? PHOTO_INDEX[side||'front'].has(id) : false; }
 function photoKeyFor(id, side){ return PHOTO_INDEX[side||'front'].get(id) || null; }
 function productIdsWithPhoto(){ return new Set(PHOTO_INDEX.front.keys()); }
-/* Todas las fotos de una pieza, en orden (delantera, trasera, extra 1…4) */
+/* Todas las fotos de una pieza, en orden (delantera, trasera, extra 1…4, lomo, canto, arriba, abajo) */
 function photoSidesFor(id){ return PHOTO_SIDES.filter(s=>hasPhoto(id, s)); }
 function extraSidesFor(id){ return EXTRA_SLOTS.filter(s=>hasPhoto(id, s)); }
 function freeExtraSlot(id){ return EXTRA_SLOTS.find(s=>!hasPhoto(id, s)) || null; }
+function sideSlotsFor(id){ return SIDE_SLOTS.filter(s=>hasPhoto(id, s)); }
 function photoSideLabel(side){
   if(side==='back') return t('photo.back');
   if(side==='front') return t('photo.front');
+  if(SIDE_SLOTS.includes(side)) return t('photo.side.' + side);
   return t('photo.extra_n').replace('{n}', String(side).replace('extra',''));
 }
 

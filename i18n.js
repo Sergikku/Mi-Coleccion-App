@@ -2480,6 +2480,59 @@ Object.assign(I18N.ja, {
   'ayuda.shelf':'3D 棚',
   'ayuda.shelf.body':'ダッシュボードの<b>あなたの棚</b>で、コレクションを本物のような棚に並べます。<b>コレクションで組み立てる</b>を押すと、プラットフォームごとに年順・背表紙向きで並び、持っていないものの場所も空けておきます。<br><br>棚はいつも正面から、段の高さで見えます。<b>部屋</b>ではすべての棚が並び、棚をタップすると全体が、段をタップするとその段に入って近くで見られます（横にスライドして見て回り、▲ ▼ で段を移り、表紙ボタンで写真を正面から見られます）。中央にあるアイテムの名前は下に表示されます。アイテムをタップして選ぶと、背表紙・正面・斜め・寝かせるの置き方、回転、移動（ドラッグまたはボタン）、ほかのアイテムへの積み重ね、サイズ変更、<b>取り出して</b>大きく見ることができます。棚の上にも物を置けます。<br><br><b>棚を設計</b>で幅・奥行き・段を、<b>カスタマイズ</b>で木材・扉・照明・プレート・壁を変えられます。<b>棚を削除</b>（2つ目のボタンで確認し、元に戻せます）すると棚だけが消え、アイテムは残ります。写真は白い余白なしで表示されます（保存された写真は変わりません）。各アイテムのサイズはプラットフォームの標準で、アイテムページの「サイズ」で個別に、またはプラットフォームごとに設定できます。<br><br><b>アイテムは置いた場所にとどまります</b>。動かしても（ドラッグでもボタンでも）ほかのアイテムはずれず、重なることもありません。隣のアイテムを越えると、その間に入ります。奥行きがあれば<b>手前か奥</b>に置けます。<b>詰める</b>で段のすき間をなくせます。<br><br><b>サイズと色</b>では、1つまたは複数のプラットフォームのサイズと背表紙の色をまとめて変えられます（たとえば高さと厚さだけ）。アイテムごとにもカードから設定できます。色は写真から取れ、上に帯も付けられます。<br><br>厚みがほとんどないもの（コード、ポストカードなど）は、サイズを決めた<b>フォルダー</b>を作りましょう。棚に場所を取り、タップすると中身が本のように開きます。<br><br>開くと棚は<b>全画面</b>で表示され、見るだけのモードです。棚、段をタップし、段の中のアイテムをタップすると<b>取り出し</b>ます。手前に出てきたアイテムは指で3D回転でき（2本指かホイールで拡大）、<b>戻す</b>で元の場所に戻ります。変更するときは<b>編集</b>をタップし、終わったら<b>完了</b>。編集中は<b>複数選択</b>で、タップしたアイテムの置き方・回転・列・位置・サイズ・背表紙の色をまとめて変えられます。',
 });
+/* ---------- v11.14 · Fotos de los lados de la caja (lomo, lado contrario, arriba, abajo) ---------- */
+Object.assign(I18N.es, {
+  'photo.sides_other_copy':'En tu estantería se ve la copia {n}, que es la que se enseña: sus lados se cambian en su hoja (Cuántas tienes › Copia {n}).',
+  'photo.side.lomo':'Lomo', 'photo.side.canto':'Lado contrario', 'photo.side.arriba':'Arriba', 'photo.side.abajo':'Abajo',
+  'photo.sides':'Lados de la caja', 'photo.side_add':'Añadir foto del lado: {s}',
+  'photo.sides_note':'Para que en tu estantería se vea como la tuya. Haz la foto de cada lado de frente, que ocupe toda la foto a lo largo (si sale tumbada, se pone de pie sola). El lomo con foto se ve tal cual, sin el nombre encima.',
+  'photo.sides_note_short':'Se ven en tu estantería, cada una en su cara de la caja.',
+  'est.side_photos':'Fotos de los lados', 'est.lomo_photo':'su foto',
+  'est.lomo_photo_note':'Esta pieza tiene foto del lomo: en la estantería se ve la foto. El color que elijas aquí solo se usa si la quitas.',
+  'est.sides_copy':'Son las fotos de la copia {n}, la que se ve en la estantería.',
+  'est.sides_front':'Por delante', 'est.sides_back':'Por detrás',
+});
+Object.assign(I18N.en, {
+  'photo.sides_other_copy':'Your shelf shows copy {n}, the one that is displayed: change its sides on its sheet (How many you have › Copy {n}).',
+  'photo.side.lomo':'Spine', 'photo.side.canto':'Other side', 'photo.side.arriba':'Top', 'photo.side.abajo':'Bottom',
+  'photo.sides':'Sides of the box', 'photo.side_add':'Add photo of side: {s}',
+  'photo.sides_note':'So your shelf looks just like yours. Photograph each side straight on, filling the photo lengthwise (if it comes out lying down, it is stood up automatically). A spine with a photo is shown as it is, without the name on top.',
+  'photo.sides_note_short':'They appear on your shelf, each on its side of the box.',
+  'est.side_photos':'Photos of the sides', 'est.lomo_photo':'its photo',
+  'est.lomo_photo_note':'This item has a photo of its spine, so the shelf shows the photo. The colour you choose here is only used if you remove it.',
+  'est.sides_copy':'These are the photos of copy {n}, the one shown on the shelf.',
+  'est.sides_front':'From the front', 'est.sides_back':'From the back',
+});
+Object.assign(I18N.de, {
+  'photo.sides_other_copy':'Dein Regal zeigt Exemplar {n}, das angezeigte: Seine Seiten änderst du in seinem Blatt (Wie viele du hast › Exemplar {n}).',
+  'photo.side.lomo':'Rücken', 'photo.side.canto':'Andere Seite', 'photo.side.arriba':'Oben', 'photo.side.abajo':'Unten',
+  'photo.sides':'Seiten der Hülle', 'photo.side_add':'Foto der Seite hinzufügen: {s}',
+  'photo.sides_note':'Damit dein Regal genau wie deines aussieht. Fotografiere jede Seite gerade von vorn, so dass sie das Foto der Länge nach ausfüllt (liegt sie auf dem Foto, wird sie automatisch aufgestellt). Ein Rücken mit Foto wird so gezeigt, wie er ist, ohne Namen darauf.',
+  'photo.sides_note_short':'Sie erscheinen in deinem Regal, jede auf ihrer Seite der Hülle.',
+  'est.side_photos':'Fotos der Seiten', 'est.lomo_photo':'sein Foto',
+  'est.lomo_photo_note':'Dieses Objekt hat ein Foto vom Rücken, daher zeigt das Regal das Foto. Die Farbe, die du hier wählst, wird nur verwendet, wenn du es entfernst.',
+  'est.sides_copy':'Das sind die Fotos von Exemplar {n}, das im Regal gezeigt wird.',
+  'est.sides_front':'Von vorn', 'est.sides_back':'Von hinten',
+});
+Object.assign(I18N.ja, {
+  'photo.sides_other_copy':'棚には表示中の{n}つ目が表示されます。その側面の写真は、そのシート（持っている数 › {n}つ目）で変更してください。',
+  'photo.side.lomo':'背表紙', 'photo.side.canto':'反対側', 'photo.side.arriba':'上面', 'photo.side.abajo':'底面',
+  'photo.sides':'箱の側面', 'photo.side_add':'側面の写真を追加：{s}',
+  'photo.sides_note':'棚を実物そっくりにするための写真です。各面を正面から、長い方向に写真いっぱいに撮ってください（横向きに写っていても自動で立てます）。背表紙に写真があると、名前を重ねずにそのまま表示します。',
+  'photo.sides_note_short':'棚で、箱のそれぞれの面に表示されます。',
+  'est.side_photos':'側面の写真', 'est.lomo_photo':'写真',
+  'est.lomo_photo_note':'このアイテムには背表紙の写真があるので、棚では写真が表示されます。ここで選ぶ色は、写真を削除したときだけ使われます。',
+  'est.sides_copy':'これは{n}つ目（棚に表示されているもの）の写真です。',
+  'est.sides_front':'前から', 'est.sides_back':'後ろから',
+});
+I18N.es['ayuda.shelf.body'] += '<br><br>Para que se parezca del todo a la tuya, cada pieza puede tener <b>fotos de sus lados</b>: lomo, lado contrario, arriba y abajo. Se añaden en su ficha (junto a las fotos) o, editando la estantería, en la tarjeta de la pieza › <b>Fotos de los lados</b>. Cada foto se ve en su cara de la caja: en la balda, en la pieza sacada y en el mueble entero. El lomo con foto se ve tal cual, sin el nombre encima.';
+I18N.en['ayuda.shelf.body'] += '<br><br>To make it look exactly like yours, each item can have <b>photos of its sides</b>: spine, other side, top and bottom. Add them on its page (next to the photos) or, while editing the shelf, on the item card › <b>Photos of the sides</b>. Each photo appears on its side of the box: on the shelf, on the item you take out and on the whole cabinet. A spine with a photo is shown as it is, without the name on top.';
+I18N.de['ayuda.shelf.body'] += '<br><br>Damit es genau wie deines aussieht, kann jedes Objekt <b>Fotos seiner Seiten</b> haben: Rücken, andere Seite, oben und unten. Du fügst sie auf seiner Seite hinzu (bei den Fotos) oder beim Bearbeiten des Regals auf der Karte des Objekts › <b>Fotos der Seiten</b>. Jedes Foto erscheint auf seiner Seite der Hülle: im Fach, beim herausgenommenen Objekt und im ganzen Schrank. Ein Rücken mit Foto wird so gezeigt, wie er ist, ohne Namen darauf.';
+I18N.ja['ayuda.shelf.body'] += '<br><br>実物そっくりにするために、各アイテムに<b>側面の写真</b>（背表紙、反対側、上面、底面）を追加できます。アイテムのページ（写真の横）か、棚の編集中にアイテムのカード › <b>側面の写真</b>から追加します。各写真は箱のそれぞれの面に表示されます（段の中、取り出したアイテム、棚全体）。背表紙に写真があると、名前を重ねずにそのまま表示します。';
+I18N.es['ayuda.photos.body'] += '<br><br><b>Lados de la caja</b>: hasta 4 fotos más (lomo, lado contrario, arriba y abajo) para que la pieza se vea como la tuya en la estantería.';
+I18N.en['ayuda.photos.body'] += '<br><br><b>Sides of the box</b>: up to 4 more photos (spine, other side, top and bottom) so the item looks like yours on the shelf.';
+I18N.de['ayuda.photos.body'] += '<br><br><b>Seiten der Hülle</b>: bis zu 4 weitere Fotos (Rücken, andere Seite, oben und unten), damit das Objekt im Regal wie deines aussieht.';
+I18N.ja['ayuda.photos.body'] += '<br><br><b>箱の側面</b>：棚でアイテムを実物どおりに見せるための写真を、さらに4枚（背表紙、反対側、上面、底面）追加できます。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;

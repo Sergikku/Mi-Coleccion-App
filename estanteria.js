@@ -522,12 +522,101 @@ async function estTrimmedPhoto(photoId, side, size){
   }
   return out;
 }
+/* v11.14: la foto de un lado (lomo, canto, arriba, abajo) para su cara.
+   Las fotos se guardan cuadradas, con la pieza en el centro (con o sin margen
+   blanco); de ahí se saca la tira de la cara (ar = ancho / alto de la cara).
+   Si la pieza se distingue del blanco y tiene más o menos la forma de la cara,
+   se usa su borde (si está tumbada en la foto, se pone de pie: girada a la
+   derecha, como se lee un lomo); si no (p. ej. un lomo blanco), la tira
+   centrada con las proporciones de la cara.
+   rot = 1: girada 90° a la izquierda (el lomo de una tumbada, en el mueble entero).
+   Se hacen de dos en dos y se guardan (son pequeñas). */
+const _stripCache = new Map(), _stripPending = new Map(), _stripWait = [];
+let _stripBusy = 0;
+function estStripSlot(){ return new Promise(res=>{ if(_stripBusy < 2){ _stripBusy++; res(); } else _stripWait.push(res); }); }
+function estStripDone(){ const n = _stripWait.shift(); if(n) n(); else _stripBusy--; }
+function estSideStrip(photoId, side, ar, rot){
+  const key = photoKeyFor(photoId, side); if(!key || !(ar > 0)) return Promise.resolve(null);
+  const ck = key + '|' + ar.toFixed(3) + '|' + (rot ? 1 : 0) + '|' + (typeof thumbGen==='function' ? thumbGen(key) : 0);
+  if(_stripCache.has(ck)){ const hit = _stripCache.get(ck); _stripCache.delete(ck); _stripCache.set(ck, hit); return Promise.resolve(hit); }
+  if(_stripPending.has(ck)) return _stripPending.get(ck);
+  const job = (async ()=>{
+    await estStripSlot();
+    try{
+      const src = await getPhotoURL(photoId, side, 'full'); if(!src) return null;
+      const img = await new Promise(res=>{ const i = new Image(); i.onload = ()=>res(i); i.onerror = ()=>res(null); i.src = src; });
+      if(!img) return null;
+      const W = img.naturalWidth, H = img.naturalHeight; if(!W || !H) return null;
+      // lo que debería ocupar (la cara, a lo largo de todo el lado largo de la foto)
+      const tall = ar <= W / H;
+      let box = tall ? { x:(W - Math.min(W, H * ar)) / 2, y:0, w:Math.min(W, H * ar), h:H } : { x:0, y:(H - Math.min(H, W / ar)) / 2, w:W, h:Math.min(H, W / ar) };
+      let turn = 0;   // 1: girarla a la derecha (un lado alto que salió tumbado); -1: a la izquierda (arriba o abajo hechas en vertical)
+      // y lo que de verdad ocupa la pieza (lo que no es blanco), medido en pequeño
+      const k = Math.min(1, 360 / Math.max(W, H)), sw = Math.max(1, Math.round(W * k)), sh = Math.max(1, Math.round(H * k));
+      const c = document.createElement('canvas'); c.width = sw; c.height = sh;
+      const x = c.getContext('2d', { willReadFrequently:true }); x.drawImage(img, 0, 0, sw, sh);
+      let d = null; try{ d = x.getImageData(0, 0, sw, sh).data; }catch(e){ d = null; }
+      if(d){
+        const white = (i)=> d[i] > 236 && d[i + 1] > 236 && d[i + 2] > 236;
+        const rowInk = (yy)=>{ let n = 0; for(let xx = 0; xx < sw; xx++) if(!white((yy * sw + xx) * 4)) n++; return n; };
+        const colInk = (xx)=>{ let n = 0; for(let yy = 0; yy < sh; yy++) if(!white((yy * sw + xx) * 4)) n++; return n; };
+        let t0 = 0, b0 = sh - 1, l0 = 0, r0 = sw - 1;
+        while(t0 < sh - 1 && rowInk(t0) < 2) t0++;
+        while(b0 > t0 && rowInk(b0) < 2) b0--;
+        while(l0 < sw - 1 && colInk(l0) < 2) l0++;
+        while(r0 > l0 && colInk(r0) < 2) r0--;
+        // (medido en pequeño: se entra un punto por cada lado para no dejar un filo blanco)
+        const m = { x:(l0 + 1) / k, y:(t0 + 1) / k, w:Math.max(1, r0 - l0 - 1) / k, h:Math.max(1, b0 - t0 - 1) / k };
+        // ocupa al menos media foto a lo largo y tiene la forma de la cara (de pie o tumbada)
+        const big = Math.max(m.w / W, m.h / H) >= 0.5, q = (m.w / Math.max(1, m.h)) / ar, q2 = (m.h / Math.max(1, m.w)) / ar;
+        if(big && q >= 0.55 && q <= 1.8) box = m;
+        else if(big && q2 >= 0.55 && q2 <= 1.8 && (ar < 0.8 || ar > 1.25)){ box = m; turn = ar < 1 ? 1 : -1; }
+      }
+      // la tira, de pie (si estaba tumbada en la foto, girada a la derecha)
+      const bw = Math.max(1, Math.round(box.w)), bh = Math.max(1, Math.round(box.h));
+      const up = document.createElement('canvas');
+      if(turn){ up.width = bh; up.height = bw; const g = up.getContext('2d'); if(turn > 0){ g.translate(bh, 0); g.rotate(Math.PI / 2); } else { g.translate(0, bw); g.rotate(-Math.PI / 2); } g.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, bw, bh); }
+      else { up.width = bw; up.height = bh; up.getContext('2d').drawImage(img, box.x, box.y, box.w, box.h, 0, 0, bw, bh); }
+      // y, para una cara tumbada, girada a la izquierda
+      let o = up;
+      if(rot){ o = document.createElement('canvas'); o.width = up.height; o.height = up.width; const g = o.getContext('2d'); g.translate(0, up.width); g.rotate(-Math.PI / 2); g.drawImage(up, 0, 0); }
+      const blob = await new Promise(res=> o.toBlob(b=>res(b), 'image/jpeg', 0.88));
+      return blob ? { url: URL.createObjectURL(blob) } : null;
+    } finally { estStripDone(); }
+  })();
+  _stripPending.set(ck, job);
+  return job.then(out=>{
+    _stripPending.delete(ck);
+    if(out){
+      _stripCache.set(ck, out);
+      if(_stripCache.size > 600){ const k0 = _stripCache.keys().next().value, o0 = _stripCache.get(k0); _stripCache.delete(k0); if(o0) try{ URL.revokeObjectURL(o0.url); }catch(e){} }
+    }
+    return out;
+  }, ()=>{ _stripPending.delete(ck); return null; });
+}
+/* La foto de un lado para una cara (si la tiene): atributos para hidratar.
+   ar = ancho / alto de la cara, rot = 1 si la cara va girada (tumbada, en plano) */
+function estSidePh(p, side, ar, rot){
+  if(!p || p.isFolder || p.possession!=='tengo') return '';
+  const ph = shownPhotoId(p);
+  return hasPhoto(ph, side) && ar > 0 ? ` data-ph="${escapeHTML(ph)}|${side}|full" data-ph-strip="${ar.toFixed(4)}|${rot ? 1 : 0}"` : '';
+}
 /* Pone las fotos recortadas en las caras que las piden (data-ph="id|lado|tamaño").
-   Los lomos (data-ph-avg) llevan el color de su portada, no un trozo de ella. */
+   Los lomos (data-ph-avg) llevan el color de su portada, no un trozo de ella.
+   v11.14: las de los lados (data-ph-strip), su tira. */
 function estHydratePhotos(root){
   root.querySelectorAll('[data-ph]:not([data-ph-done])').forEach(el=>{
     el.dataset.phDone = '1';
     const [pid, side, size] = el.dataset.ph.split('|');
+    if(el.hasAttribute('data-ph-strip')){
+      const [ar, rot] = el.getAttribute('data-ph-strip').split('|');
+      estSideStrip(pid, side, Number(ar), rot==='1').then(r=>{
+        if(!r){ el.classList.add('ph-failed'); return; }   // no se ha podido abrir: se queda como sin foto (con su nombre)
+        if(!document.contains(el)) return;
+        el.style.backgroundImage = `url("${r.url}")`; el.classList.add('has-sideph');
+      });
+      return;
+    }
     estTrimmedPhoto(pid, side, size).then(r=>{
       if(!r || !document.contains(el)) return;
       if(el.hasAttribute('data-ph-avg')){ if(r.avg){ el.style.backgroundColor = r.avg; el.classList.add('has-avg'); if(r.light) el.classList.add('is-light'); } return; }
@@ -620,8 +709,10 @@ function estPh(p, side, avg){
 }
 /* El color de un lomo: el que hayas elegido (pieza o plataforma) o, si no, el
    medio de su foto (al hidratar). Devuelve atributos, estilo, clases y banda. */
-function estSpineFill(p){
+function estSpineFill(p, o){
   if(p.possession!=='tengo') return { attrs:'', style:'', cls:'', band:'' };
+  // v11.14: con foto del lomo, la foto (sin nombre ni banda encima)
+  if(o && o.ar > 0){ const a = estSidePh(p, 'lomo', o.ar, o.rot); if(a) return { attrs:a, style:'', cls:' is-sidephoto', band:'', photo:true }; }
   const L = estLomo(p);
   if(L.color) return { attrs:'', style:`background-color:${L.color};`, cls:` has-avg is-custom${estLum(L.color) > 0.62 ? ' is-light' : ''}`, band:L.banda };
   return { attrs: estPh(p, 'front', true), style:'', cls:'', band:L.banda };
@@ -647,11 +738,11 @@ function estFlatHTML(r, s, selPid){
   const spine = face.startsWith('spine'), horiz = b.pose==='tumbado';
   let attrs = '', style = '', cls = '', inner = '';
   if(spine){
-    const f = estSpineFill(p);
-    attrs = f.attrs; style = f.style; cls = f.cls;
     const len = horiz ? w : h, th = horiz ? h : w;
+    const f = estSpineFill(p, { ar: th / Math.max(1, len), rot: horiz ? 1 : 0 });
+    attrs = f.attrs; style = f.style; cls = f.cls;
     const bh = f.band ? estBandPx(len, s) : 0;
-    inner = miss ? '<span class="est-ghost-q">?</span>' : p.isFolder ? estFolderSpineLabel(p, th, len, horiz) : estBandHTML(f.band, bh, horiz) + estSpineLabel(p, th, len - bh, horiz, bh / 2);
+    inner = miss ? '<span class="est-ghost-q">?</span>' : p.isFolder ? estFolderSpineLabel(p, th, len, horiz) : estBandHTML(f.band, bh, horiz) + estSpineLabel(p, th, len - bh, horiz, bh / 2);   // (con foto, el nombre no se ve: solo si la foto no se puede abrir)
   } else if(p.isFolder){
     style = `background-color:${p.folder.color};`; cls = estLum(p.folder.color) > 0.62 ? ' is-light' : '';
     inner = estFolderCoverHTML(p.folder);
@@ -668,7 +759,7 @@ function estFlatHTML(r, s, selPid){
 function estZ(x, eyeX, back){ return Math.max(1, 3000 - Math.round(Math.abs(x - eyeX)) - (back ? 1500 : 0)); }
 function estBoxHTML(r, X, Y, Z, s, sel, eyeX){
   const p = r.p, b = r.b, d0 = b.dims, pv = platVisual(p.platformId);
-  const fill = estSpineFill(p);
+  const fill = estSpineFill(p, { ar: d0.d / Math.max(0.1, d0.h) });
   const bh = fill.band ? estBandPx(d0.h * s, s) : 0;
   const folder = p.isFolder ? p.folder : null;
   const miss = p.possession!=='tengo';
@@ -691,8 +782,10 @@ function estBoxHTML(r, X, Y, Z, s, sel, eyeX){
     + estFace(w, h, `${pose} translateZ(${(d / 2).toFixed(1)}px)`, 'est-pc is-front' + fcl, fst, front, estPh(p, 'front'))
     + estFace(w, h, `${pose} rotateY(180deg) translateZ(${(d / 2).toFixed(1)}px)`, 'est-pc is-back', fst, '', estPh(p, 'back'))
     + estFace(d, h, `${pose} rotateY(-90deg) translateZ(${(w / 2).toFixed(1)}px)`, 'est-pc is-spine' + fill.cls, fill.style, miss ? q : estBandHTML(fill.band, bh, false) + (folder ? estFolderSpineLabel(p, d, h) : estSpineLabel(p, d, h - bh, false, bh / 2) || q), fill.attrs)
-    + estFace(d, h, `${pose} rotateY(90deg) translateZ(${(w / 2).toFixed(1)}px)`, 'est-pc is-edge', fst, '')
-    + estFace(w, d, `${pose} rotateX(90deg) translateZ(${(h / 2).toFixed(1)}px)`, 'est-pc is-top', fst, '')
+    + estFace(d, h, `${pose} rotateY(90deg) translateZ(${(w / 2).toFixed(1)}px)`, 'est-pc is-edge', fst, '', estSidePh(p, 'canto', d0.d / Math.max(0.1, d0.h)))
+    + estFace(w, d, `${pose} rotateX(90deg) translateZ(${(h / 2).toFixed(1)}px)`, 'est-pc is-top', fst, '', estSidePh(p, 'arriba', d0.w / Math.max(0.1, d0.d)))
+    // v11.14: la base solo si tiene foto (sin ella no se ve: está apoyada)
+    + (folder || miss || !hasPhoto(shownPhotoId(p), 'abajo') ? '' : estFace(w, d, `${pose} rotateX(-90deg) translateZ(${(h / 2).toFixed(1)}px)`, 'est-pc is-top is-bottom', '', '', estSidePh(p, 'abajo', d0.w / Math.max(0.1, d0.d))))
     + mark + `</div>`;
 }
 /* Una balda (o «encima»): la caja con su luz y las piezas.
@@ -1560,6 +1653,7 @@ function estRefreshPanel(){
     if(b) b.focus({ preventScroll:true });
   }
   hydratePhotos(el);
+  estHydratePhotos(el);   // v11.14: el lomo con foto en la tarjeta
 }
 /* Después de pintar la pantalla: el escenario necesita su tamaño real */
 function estAfterRender(){
@@ -1572,6 +1666,7 @@ function estAfterRender(){
   if(view.page!=='estanteria' || view.productId || !estHas()) return;
   estBindStage();
   estDraw();
+  { const pn = document.getElementById('estPanel'); if(pn) estHydratePhotos(pn); }   // v11.14: el lomo con foto en la tarjeta
   if(imm && !estInspectOpen() && !(typeof isSheetOpen==='function' && isSheetOpen())){ const b = document.querySelector('#estCtl [data-fk="imm-back"]'); if(b && !document.activeElement.closest('#estImm')) b.focus({ preventScroll:true }); }
   if(EST.view==='balda' && EST.sel) requestAnimationFrame(()=>estScrollToSel(false));
   else if(EST.view==='balda' && EST.focusPid) requestAnimationFrame(estShowFocus);
@@ -1737,7 +1832,12 @@ function estSelCardHTML(m, x){
   // medidas rápidas: grosor (fondo) y alto, de 1 en 1 mm
   const dimq = (k, label, v, hint)=> `<span class="est-dimq-item"><span class="est-dimq-l" title="${escapeHTML(hint)}">${label}</span>
       <span class="est-step"><button type="button" class="btn btn-sm" data-fk="dq-${k}-m" onclick="estPieceDim('${k}', -0.1)" aria-label="${escapeHTML(label + ': ' + t('est.less'))}">${icon('minus')}</button><output aria-live="polite">${escapeHTML(fmtCm(v))} cm</output><button type="button" class="btn btn-sm" data-fk="dq-${k}-p" onclick="estPieceDim('${k}', 0.1)" aria-label="${escapeHTML(label + ': ' + t('est.more'))}">${icon('plus')}</button></span></span>`;
-  const lomo = !folder && p.possession==='tengo' ? `<div class="est-sel-lomo"><span class="est-lomo-sw" style="${estLomoSwatchStyle(p)}" aria-hidden="true"></span><span class="est-lomo-txt">${escapeHTML(t('est.lomo') + ': ' + estLomoDesc(p))}</span><button type="button" class="btn btn-sm" data-fk="lomo" onclick="openEstPieceColor('${id}')">${icon('palette')} ${t('est.change')}</button></div>` : '';
+  const sph = !folder && p.possession==='tengo' ? shownPhotoId(p) : null;
+  const lomoPh = !!(sph && hasPhoto(sph, 'lomo'));
+  const lomo = sph ? `<div class="est-sel-lomo"><span class="est-lomo-sw${lomoPh ? ' has-photo' : ''}"${lomoPh ? estSidePh(p, 'lomo', (()=>{ const d = piezaDims(p); return d.d / Math.max(0.1, d.h); })()) : ` style="${estLomoSwatchStyle(p)}"`} aria-hidden="true"></span><span class="est-lomo-txt">${escapeHTML(t('est.lomo') + ': ' + estLomoDesc(p))}</span><button type="button" class="btn btn-sm" data-fk="lomo" onclick="openEstPieceColor('${id}')" aria-label="${escapeHTML(t('est.change') + ' — ' + t('est.lomo'))}">${icon('palette')} ${t('est.change')}</button></div>` : '';
+  // v11.14: las fotos de sus lados (para que la caja sea como la tuya)
+  const nSides = sph ? sideSlotsFor(sph).length : 0;
+  const sides = sph ? `<div class="est-sel-lomo est-sel-sides"><span class="est-lomo-sw est-sides-sw" aria-hidden="true">${icon('camera')}</span><span class="est-lomo-txt">${escapeHTML(t('est.side_photos') + ' · ' + nSides + ' / ' + SIDE_SLOTS.length)}</span><button type="button" class="btn btn-sm" data-fk="sides" onclick="openEstSidePhotos('${id}')" aria-label="${escapeHTML(t(nSides ? 'est.change' : 'photo.add_extra_short') + ' — ' + t('est.side_photos'))}">${icon('camera')} ${t(nSides ? 'est.change' : 'photo.add_extra_short')}</button></div>` : '';
   return `<section class="est-sel${folder ? ' is-folder' : ''}" id="estSelCard" aria-label="${escapeHTML(p.name)}" style="--plat:${folder ? folder.color : pv.color}">
     <div class="est-sel-head">${head}
       <button type="button" class="btn btn-ghost btn-icon" onclick="estSelect(null)" aria-label="${escapeHTML(t('common.close'))}">${icon('x')}</button></div>
@@ -1760,7 +1860,7 @@ function estSelCardHTML(m, x){
     </div>
     <div class="field-label est-sel-lbl">${t(folder ? 'est.dims_folder' : 'est.dims_piece')}</div>
     <div class="est-dimq">${dimq('d', t('est.thick'), b.dims.d, t('est.thick_hint'))}${dimq('h', t('est.height'), b.dims.h, t('est.height'))}</div>
-    ${lomo}
+    ${lomo}${sides}
     <p class="est-sel-dims">${escapeHTML((b.dims.exact ? '' : '≈ ') + [b.dims.w, b.dims.h, b.dims.d].map(fmtCm).join(' × ') + ' cm')} · ${x.it.rot ? escapeHTML(t('est.rot_deg').replace('{n}', x.it.rot)) + ' · ' : ''}${folder ? '' : `<button type="button" class="link-btn" onclick="openMedidasSheet('${id}')">${t('est.size')}</button> · `}<button type="button" class="link-btn" onclick="openEstMoveTo()">${t('est.move_to')}</button>${folder ? '' : ` · <button type="button" class="link-btn" onclick="openEstToFolder('${id}')">${t('est.to_folder')}</button>`} · <button type="button" class="link-btn est-danger" onclick="estRemoveSel()">${t('est.remove')}</button></p>
     <p class="settings-note">${t('est.drag_hint')}</p>
   </section>`;
@@ -2140,6 +2240,7 @@ function estLomoText(lomo, banda){
   return s;
 }
 function estLomoDesc(p){
+  if(p.possession==='tengo' && !p.isFolder && hasPhoto(shownPhotoId(p), 'lomo')) return t('est.lomo_photo');   // v11.14
   const C = estColors();
   const pc = C.piezas[p.id] || {}, pl = (p.platformId && C.plataformas[p.platformId]) || {};
   const lomo = pc.lomo!==undefined ? pc.lomo : (pl.lomo || 'portada');
@@ -2503,7 +2604,8 @@ async function estCatApply(){
 function openEstPieceColor(pid){
   const p = PRODUCTS_BY_ID[pid]; if(!p) return;
   estPCid = pid;
-  openSheet({ kind:'est-pcolor', title:t('est.lomo') + ' · ' + p.name, body:`<div class="est-pc-prev" id="estPcPrev">${estPieceColorPrevHTML()}</div><div id="estPcEd">${estColorEditorHTML('piece')}</div>`,
+  const photoNote = p.possession==='tengo' && hasPhoto(shownPhotoId(p), 'lomo') ? `<p class="settings-note est-photo-note">${icon('camera')} ${t('est.lomo_photo_note')}</p>` : '';
+  openSheet({ kind:'est-pcolor', title:t('est.lomo') + ' · ' + p.name, body:`${photoNote}<div class="est-pc-prev" id="estPcPrev">${estPieceColorPrevHTML()}</div><div id="estPcEd">${estColorEditorHTML('piece')}</div>`,
     foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>` });
   estHydratePhotos(document.getElementById('sheetBody'));
 }
@@ -2520,6 +2622,72 @@ function estPieceColorRefresh(){
   estSheetPart('estPcPrev', estPieceColorPrevHTML());
   estSheetPart('estPcEd', estColorEditorHTML('piece'));
   estHydratePhotos(document.getElementById('sheetBody'));
+}
+
+/* ---------- Hoja: las fotos de los lados (v11.14) ----------
+   Arriba, la caja con sus fotos vista desde dos lados; debajo, los 4 huecos
+   (lomo, lado contrario, arriba, abajo). Lo que añades o quitas se ve al
+   momento en la caja y en la estantería. Son de la copia que se ve. */
+let estSPid = null;
+function openEstSidePhotos(pid){
+  const p = PRODUCTS_BY_ID[pid]; if(!p) return;
+  estSPid = pid;
+  openSheet({ kind:'est-sides', title:t('est.side_photos') + ' · ' + p.name, body:estSidesBodyHTML(),
+    foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>`,
+    onClose: ()=>{ const a = document.activeElement; if(a && a!==document.body && document.contains(a)) return; const b = document.querySelector('#estPanel [data-fk="sides"]'); if(b) b.focus({ preventScroll:true }); } });
+  estSidesHydrate();
+}
+function estSidesBodyHTML(){
+  const p = PRODUCTS_BY_ID[estSPid]; if(!p) return '';
+  const ph = shownPhotoId(p), c = ph!==p.id ? copyForPhotoId(ph) : null;
+  return `${estSidesPreviewHTML(p)}${c ? `<p class="settings-note">${escapeHTML(t('est.sides_copy').replace('{n}', c.n))}</p>` : ''}${sidePhotosHTML(p, ph, 'est')}`;
+}
+/* La caja con sus fotos, por delante (portada, lomo y arriba) y por detrás (contraportada, lado contrario y abajo) */
+function estSidesPreviewHTML(p){
+  const d0 = piezaDims(p), S = 118 / Math.max(d0.w, d0.h, 0.1);
+  const w = d0.w * S, h = d0.h * S, d = Math.max(3, d0.d * S), pv = platVisual(p.platformId);
+  const arT = d0.d / Math.max(0.1, d0.h), arW = d0.w / Math.max(0.1, d0.d);
+  const fill = estSpineFill(p, { ar: arT }), bh = fill.band ? estBandPx(h, S) : 0;
+  const faces = estFace(w, h, `translateZ(${(d / 2).toFixed(1)}px)`, 'est-pc is-front', '', `<span class="est-cover-txt"><b>${escapeHTML(pv.code)}</b>${escapeHTML(p.name)}</span>`, estPh(p, 'front'))
+    + estFace(w, h, `rotateY(180deg) translateZ(${(d / 2).toFixed(1)}px)`, 'est-pc is-back', '', '', estPh(p, 'back'))
+    + estFace(d, h, `rotateY(-90deg) translateZ(${(w / 2).toFixed(1)}px)`, 'est-pc is-spine' + fill.cls, fill.style, estBandHTML(fill.band, bh, false) + estSpineLabel(p, d, h - bh, false, bh / 2), fill.attrs)
+    + estFace(d, h, `rotateY(90deg) translateZ(${(w / 2).toFixed(1)}px)`, 'est-pc is-edge', '', '', estSidePh(p, 'canto', arT))
+    + estFace(w, d, `rotateX(90deg) translateZ(${(h / 2).toFixed(1)}px)`, 'est-pc is-top', '', '', estSidePh(p, 'arriba', arW))
+    + estFace(w, d, `rotateX(-90deg) translateZ(${(h / 2).toFixed(1)}px)`, 'est-pc is-top is-bottom', '', '', estSidePh(p, 'abajo', arW));
+  const box = (tf, cap)=> `<figure class="est-sides-box"><div class="est-sides-stage"><div class="est-sides-obj" style="--plat:${pv.color};transform:${tf}">${faces}</div></div><figcaption>${escapeHTML(cap)}</figcaption></figure>`;
+  return `<div class="est-sides-prev" aria-hidden="true">${box('rotateX(-16deg) rotateY(36deg)', t('est.sides_front'))}${box('rotateX(16deg) rotateY(216deg)', t('est.sides_back'))}</div>`;
+}
+function estSidesHydrate(){
+  const b = document.getElementById('sheetBody'); if(!b) return;
+  estHydratePhotos(b);
+  if(typeof hydratePhotos==='function') hydratePhotos(b);
+}
+function estSidesRefresh(){
+  if(!isSheetKind('est-sides')) return;
+  updateSheetBody(estSidesBodyHTML());
+  estSidesHydrate();
+}
+async function estSidePhotoChange(input, key){
+  const file = input.files[0]; input.value = '';
+  if(!file) return;
+  const label = input.closest('label'); if(label) label.classList.add('is-busy');
+  const ok = await savePhotoFile(key, file);
+  if(!ok){ if(label) label.classList.remove('is-busy'); return; }
+  showToast(t('photo.saved'), { ok:true, replace:true });
+  estSidesRefresh(); estRefresh();
+  const side = key.slice(key.lastIndexOf('_') + 1);
+  const b = document.querySelector(`#sheetBody [data-fk="sd-${CSS.escape(side)}"]`); if(b) b.focus({ preventScroll:true });
+  const info = parsePhotoKey(key);
+  if(info && typeof autoBarcodeFromFile==='function') autoBarcodeFromFile(info.id, file);   // como en la ficha: ¿se ve un código?
+}
+async function estSidePhotoRemove(key){
+  if(!key) return;
+  if(!await showConfirmModal(t('photo.remove_confirm'), { danger:true, okLabel:t('photo.remove') })) return;
+  await removePhoto(key);
+  showToast(t('photo.removed'));
+  estSidesRefresh(); estRefresh();
+  const side = key.slice(key.lastIndexOf('_') + 1);
+  const b = document.querySelector(`#sheetBody [data-fk="sd-add-${CSS.escape(side)}"] input`); if(b) b.focus({ preventScroll:true });
 }
 
 /* ---------- Hoja: tomar el color de una foto (cuentagotas) ---------- */
@@ -3323,14 +3491,15 @@ function estPullOut(pid, srcEl){
   // su tamaño: el del sitio que queda para ella (en horizontal y en pantallas bajas, también cabe)
   const S = estPullScaleFor(d0);
   const w = d0.w * S, h = d0.h * S, d = Math.max(4, d0.d * S);
-  const fill = estSpineFill(p), bh = fill.band ? estBandPx(h, S) : 0;
+  const arT = d0.d / Math.max(0.1, d0.h), arW = d0.w / Math.max(0.1, d0.d);
+  const fill = estSpineFill(p, { ar: arT }), bh = fill.band ? estBandPx(h, S) : 0;
   const obj = root.querySelector('#estPullObj'), rot = root.querySelector('#estPullRot');
   rot.innerHTML = `${face('is-front' + (miss ? ' is-miss' : ''), w, h, `translateZ(${(d / 2).toFixed(1)}px)`, phA('front'), front)}
       ${face('is-back', w, h, `rotateY(180deg) translateZ(${(d / 2).toFixed(1)}px)`, phA('back'), '')}
       ${face('is-spine' + fill.cls, d, h, `rotateY(-90deg) translateZ(${(w / 2).toFixed(1)}px)`, fill.attrs, miss ? '' : estBandHTML(fill.band, bh, false) + estSpineLabel(p, d, h - bh, false, bh / 2), fill.style)}
-      ${face('is-edge', d, h, `rotateY(90deg) translateZ(${(w / 2).toFixed(1)}px)`, '', '')}
-      ${face('is-top', w, d, `rotateX(90deg) translateZ(${(h / 2).toFixed(1)}px)`, '', '')}
-      ${face('is-top is-bottom', w, d, `rotateX(-90deg) translateZ(${(h / 2).toFixed(1)}px)`, '', '')}`;
+      ${face('is-edge', d, h, `rotateY(90deg) translateZ(${(w / 2).toFixed(1)}px)`, estSidePh(p, 'canto', arT), '')}
+      ${face('is-top', w, d, `rotateX(90deg) translateZ(${(h / 2).toFixed(1)}px)`, estSidePh(p, 'arriba', arW), '')}
+      ${face('is-top is-bottom', w, d, `rotateX(-90deg) translateZ(${(h / 2).toFixed(1)}px)`, estSidePh(p, 'abajo', arW), '')}`;
   // de dónde sale: su sitio en la balda (se queda vacío mientras está fuera)
   const src = srcEl && srcEl.closest ? (srcEl.closest('.est-pz, .est-cv, .est-sp') || null) : null;
   const pose = estPullPoseRot(it, b, !!(src && src.classList.contains('est-cv')));

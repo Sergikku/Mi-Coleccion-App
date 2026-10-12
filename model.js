@@ -428,7 +428,7 @@ function nextCopyId(p){
   (Array.isArray(p.copias) ? p.copias : []).forEach(c=>{ const m = c && /^c(\d+)$/.exec(c.id || ''); if(m) max = Math.max(max, Number(m[1])); });
   // un número que no tenga fotos sueltas de una copia anterior (p. ej. tras importar una copia de seguridad antigua)
   let n = max + 1;
-  while(n < max + 200 && (hasPhoto(p.id + '__c' + n, 'front') || hasPhoto(p.id + '__c' + n, 'back'))) n++;
+  while(n < max + 200 && ['front', 'back'].concat(typeof SIDE_SLOTS!=='undefined' ? SIDE_SLOTS : []).some(sd=> hasPhoto(p.id + '__c' + n, sd))) n++;   // v11.14: también las de sus lados
   return 'c' + n;
 }
 
