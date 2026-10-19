@@ -2533,6 +2533,144 @@ I18N.es['ayuda.photos.body'] += '<br><br><b>Lados de la caja</b>: hasta 4 fotos 
 I18N.en['ayuda.photos.body'] += '<br><br><b>Sides of the box</b>: up to 4 more photos (spine, other side, top and bottom) so the item looks like yours on the shelf.';
 I18N.de['ayuda.photos.body'] += '<br><br><b>Seiten der Hülle</b>: bis zu 4 weitere Fotos (Rücken, andere Seite, oben und unten), damit das Objekt im Regal wie deines aussieht.';
 I18N.ja['ayuda.photos.body'] += '<br><br><b>箱の側面</b>：棚でアイテムを実物どおりに見せるための写真を、さらに4枚（背表紙、反対側、上面、底面）追加できます。';
+/* ---------- v11.15 · Fotos de los lados para varias a la vez ---------- */
+Object.assign(I18N.es, {
+  'est.ms_wait':'Las fotos aún se están leyendo. Prueba en un momento.', 'est.ms_busy':'Espera a que termine lo que está en marcha.', 'est.ms_rollback':'No se ha podido guardar: dejándolo todo como estaba…', 'est.ms_undoing':'Deshaciendo…', 'est.ms_undo_failed':'No se ha podido deshacer en {n} (¿sin espacio?). Las demás sí.', 'est.ms_removing':'Quitando la foto… {i} de {n}', 'est.ms_none_src':'No hay otra a la que ponérsela: elige más piezas.', 'est.ms_have1':'1 de {t} la tiene', 'est.ms_missing1':'1 de las elegidas te falta: los lados solo se ponen a las que tienes.',
+  'est.ms_remove1':'Quitársela a la que la tiene', 'est.ms_remove_q1':'¿Quitar la foto de «{s}» a la que la tiene?',
+  'est.ms_apply_q1':'¿Poner esta foto de «{s}» a 1 pieza? Unos {mb} MB.', 'est.ms_apply_kept1':'La que ya tiene la suya se queda con ella.',
+  'est.ms_apply_q':'¿Poner esta foto de «{s}» a {n} piezas? Cada una guarda su copia: unos {mb} MB en total.', 'est.ms_apply_kept':'Las {n} que ya tienen la suya se quedan con ella.', 'est.ms_apply_ok':'Poner',
+  'est.ms_open':'Poner', 'est.ms_pick':'Hacer o elegir una foto',
+  'est.ms_note':'La misma foto se pone a todas las elegidas. Cada una guarda la suya, así que luego puedes cambiar solo una.',
+  'est.ms_have':'{n} de {t} la tienen', 'est.ms_from_label':'O usar la de una de ellas:', 'est.ms_from_aria':'Usar la foto de «{s}» de «{name}» en las demás',
+  'est.ms_more':'y {n} más', 'est.ms_remove':'Quitarla a las {n}', 'est.ms_remove_q':'¿Quitar la foto de «{s}» a las {n} que la tienen?',
+  'est.ms_keep_label':'Las que ya tienen foto de ese lado', 'est.ms_keep':'Se quedan con la suya', 'est.ms_replace':'Se cambian',
+  'est.ms_done':'Foto de «{s}» puesta a {n}', 'est.ms_removed':'Foto de «{s}» quitada a {n}', 'est.ms_undone':'Deshecho',
+  'est.ms_none':'No hay ninguna a la que ponérsela: las demás ya tienen la suya.', 'est.ms_saving':'Poniendo la foto… {i} de {n}',
+  'est.ms_missing':'{n} de las elegidas te faltan: los lados solo se ponen a las que tienes.',
+});
+Object.assign(I18N.en, {
+  'est.ms_wait':'Photos are still being read. Try again in a moment.', 'est.ms_busy':'Wait until the current change finishes.', 'est.ms_rollback':'Could not save: putting everything back…', 'est.ms_undoing':'Undoing…', 'est.ms_undo_failed':'Could not undo {n} (out of space?). The rest were undone.', 'est.ms_removing':'Removing the photo… {i} of {n}', 'est.ms_none_src':'There is no other item to add it to: select more.', 'est.ms_have1':'1 of {t} has it', 'est.ms_missing1':'1 of the selected is missing: sides only go on the ones you have.',
+  'est.ms_remove1':'Remove it from the one that has it', 'est.ms_remove_q1':'Remove the «{s}» photo from the one that has it?',
+  'est.ms_apply_q1':'Add this «{s}» photo to 1 item? About {mb} MB.', 'est.ms_apply_kept1':'The one that already has its own keeps it.',
+  'est.ms_apply_q':'Add this «{s}» photo to {n} items? Each one keeps its own copy: about {mb} MB in total.', 'est.ms_apply_kept':'The {n} that already have their own keep it.', 'est.ms_apply_ok':'Add',
+  'est.ms_open':'Add', 'est.ms_pick':'Take or choose a photo',
+  'est.ms_note':'The same photo goes on every selected item. Each one keeps its own copy, so you can later change just one.',
+  'est.ms_have':'{n} of {t} have it', 'est.ms_from_label':'Or use the one from one of them:', 'est.ms_from_aria':'Use the «{s}» photo of «{name}» on the others',
+  'est.ms_more':'and {n} more', 'est.ms_remove':'Remove it from the {n}', 'est.ms_remove_q':'Remove the «{s}» photo from the {n} that have it?',
+  'est.ms_keep_label':'Those that already have a photo of that side', 'est.ms_keep':'Keep their own', 'est.ms_replace':'Get replaced',
+  'est.ms_done':'«{s}» photo added to {n}', 'est.ms_removed':'«{s}» photo removed from {n}', 'est.ms_undone':'Undone',
+  'est.ms_none':'There is none to add it to: the others already have their own.', 'est.ms_saving':'Adding the photo… {i} of {n}',
+  'est.ms_missing':'{n} of the selected are missing: sides only go on the ones you have.',
+});
+Object.assign(I18N.de, {
+  'est.ms_wait':'Die Fotos werden noch gelesen. Versuch es gleich noch einmal.', 'est.ms_busy':'Warte, bis die laufende Änderung fertig ist.', 'est.ms_rollback':'Konnte nicht speichern: alles wird zurückgesetzt…', 'est.ms_undoing':'Wird rückgängig gemacht…', 'est.ms_undo_failed':'Bei {n} konnte es nicht rückgängig gemacht werden (kein Speicherplatz?). Bei den anderen schon.', 'est.ms_removing':'Foto wird entfernt… {i} von {n}', 'est.ms_none_src':'Es gibt kein anderes, bei dem es hinzugefügt werden kann: Wähle mehr aus.', 'est.ms_have1':'1 von {t} hat es', 'est.ms_missing1':'1 der ausgewählten fehlt dir: Seiten gibt es nur für die, die du hast.',
+  'est.ms_remove1':'Bei dem einen entfernen, das es hat', 'est.ms_remove_q1':'Das Foto «{s}» bei dem einen entfernen, das es hat?',
+  'est.ms_apply_q1':'Dieses Foto «{s}» bei 1 Objekt hinzufügen? Etwa {mb} MB.', 'est.ms_apply_kept1':'Das eine, das schon seines hat, behält es.',
+  'est.ms_apply_q':'Dieses Foto «{s}» bei {n} Objekten hinzufügen? Jedes behält seine eigene Kopie: insgesamt etwa {mb} MB.', 'est.ms_apply_kept':'Die {n}, die schon ihres haben, behalten es.', 'est.ms_apply_ok':'Hinzufügen',
+  'est.ms_open':'Hinzufügen', 'est.ms_pick':'Foto aufnehmen oder wählen',
+  'est.ms_note':'Dasselbe Foto kommt auf alle ausgewählten Objekte. Jedes behält seine eigene Kopie, so kannst du später nur eines ändern.',
+  'est.ms_have':'{n} von {t} haben es', 'est.ms_from_label':'Oder das von einem davon verwenden:', 'est.ms_from_aria':'Das Foto «{s}» von «{name}» für die anderen verwenden',
+  'est.ms_more':'und {n} weitere', 'est.ms_remove':'Bei den {n} entfernen', 'est.ms_remove_q':'Das Foto «{s}» bei den {n} entfernen, die es haben?',
+  'est.ms_keep_label':'Die schon ein Foto dieser Seite haben', 'est.ms_keep':'Behalten ihres', 'est.ms_replace':'Werden ersetzt',
+  'est.ms_done':'Foto «{s}» bei {n} hinzugefügt', 'est.ms_removed':'Foto «{s}» bei {n} entfernt', 'est.ms_undone':'Rückgängig gemacht',
+  'est.ms_none':'Es gibt keines, bei dem es hinzugefügt werden kann: Die anderen haben schon ihres.', 'est.ms_saving':'Foto wird hinzugefügt… {i} von {n}',
+  'est.ms_missing':'{n} der ausgewählten fehlen dir: Seiten gibt es nur für die, die du hast.',
+});
+Object.assign(I18N.ja, {
+  'est.ms_wait':'写真を読み込み中です。少ししてからもう一度お試しください。', 'est.ms_busy':'実行中の処理が終わるまでお待ちください。', 'est.ms_rollback':'保存できませんでした。すべて元に戻しています…', 'est.ms_undoing':'元に戻しています…', 'est.ms_undo_failed':'{n}個は元に戻せませんでした（空き容量不足？）。ほかは元に戻しました。', 'est.ms_removing':'写真を削除しています… {n}個中{i}個', 'est.ms_none_src':'ほかに付けられるアイテムがありません。もっと選んでください。', 'est.ms_have1':'{t}個中1個にあり', 'est.ms_missing1':'選んだうち1個は未所持です。側面の写真は持っているものにだけ付きます。',
+  'est.ms_remove1':'1個から削除', 'est.ms_remove_q1':'「{s}」の写真を、持っている1個から削除しますか？',
+  'est.ms_apply_q1':'この「{s}」の写真を1個に付けますか？ 約{mb} MBです。', 'est.ms_apply_kept1':'すでに自分の写真がある1個はそのままです。',
+  'est.ms_apply_q':'この「{s}」の写真を{n}個に付けますか？ それぞれにコピーが保存されます（合計 約{mb} MB）。', 'est.ms_apply_kept':'すでに自分の写真がある{n}個はそのままです。', 'est.ms_apply_ok':'付ける',
+  'est.ms_open':'追加', 'est.ms_pick':'写真を撮る・選ぶ',
+  'est.ms_note':'選んだすべてのアイテムに同じ写真を付けます。それぞれが自分のコピーを持つので、あとから1つだけ変えることもできます。',
+  'est.ms_have':'{t}個中{n}個にあり', 'est.ms_from_label':'または、その中の写真を使う：', 'est.ms_from_aria':'「{name}」の「{s}」の写真をほかにも使う',
+  'est.ms_more':'ほか{n}個', 'est.ms_remove':'{n}個から削除', 'est.ms_remove_q':'「{s}」の写真を、持っている{n}個から削除しますか？',
+  'est.ms_keep_label':'その面の写真がすでにあるもの', 'est.ms_keep':'そのまま残す', 'est.ms_replace':'置き換える',
+  'est.ms_done':'「{s}」の写真を{n}個に付けました', 'est.ms_removed':'「{s}」の写真を{n}個から削除しました', 'est.ms_undone':'元に戻しました',
+  'est.ms_none':'付けられるアイテムがありません（ほかはすでに自分の写真があります）。', 'est.ms_saving':'写真を付けています… {n}個中{i}個',
+  'est.ms_missing':'選んだうち{n}個は未所持です。側面の写真は持っているものにだけ付きます。',
+});
+I18N.es['ayuda.shelf.body'] += ' Para poner las mismas fotos de los lados a muchas a la vez (por ejemplo, el lado contrario, arriba y abajo de todas las cajas de una consola), elígelas con <b>Elegir varias</b> y, en su tarjeta, <b>Fotos de los lados › Poner</b>: haces la foto una vez o usas la de una de ellas.';
+I18N.en['ayuda.shelf.body'] += ' To put the same side photos on many at once (for example, the other side, top and bottom of every box of a console), select them with <b>Select several</b> and, on their card, <b>Photos of the sides › Add</b>: take the photo once or use the one from one of them.';
+I18N.de['ayuda.shelf.body'] += ' Um vielen auf einmal dieselben Seitenfotos zu geben (zum Beispiel andere Seite, oben und unten aller Hüllen einer Konsole), wähle sie mit <b>Mehrere wählen</b> aus und tippe auf ihrer Karte auf <b>Fotos der Seiten › Hinzufügen</b>: Du machst das Foto einmal oder verwendest das von einem davon.';
+I18N.ja['ayuda.shelf.body'] += ' 多くのアイテムに同じ側面の写真をまとめて付けるには（たとえば、あるゲーム機の箱すべての反対側・上面・底面）、<b>複数選択</b>で選び、カードの<b>側面の写真 › 追加</b>をタップします。写真は一度撮るだけ、またはその中の1つの写真を使えます。';
+/* ---------- v11.16 · Sala, suelo, apoyos, fondo y carpetas que se abren ---------- */
+Object.assign(I18N.es, {
+  'est.apoyo':'Sobre qué cara', 'est.apoyo.abajo':'De pie', 'est.apoyo.arriba':'Al revés', 'est.apoyo.trasera':'Boca arriba', 'est.apoyo.portada':'Boca abajo', 'est.apoyo.lomo':'Sobre el lomo', 'est.apoyo.canto':'Sobre el otro lado',
+  'est.depth':'Fondo', 'est.depth_v':'a {n} cm del borde', 'est.depth_closer':'Hacia delante (1 cm)', 'est.depth_deeper':'Hacia el fondo (1 cm)',
+  'est.no_room_deeper':'Más al fondo no hay sitio.', 'est.no_room_closer':'Más adelante no hay sitio.',
+  'est.on_top_of':'Encima de lo que tiene debajo', 'est.stack_hint':'Ponerla encima de lo de al lado; luego la mueves por encima de las demás',
+  'est.floor':'El suelo de la sala', 'est.floor_s':'el suelo', 'est.on_floor':'En el suelo de la sala',
+  'est.floor_cap':'Fuera de los muebles: en el suelo, junto a ellos o delante.',
+  'est.floor_n':'Hay {n} en el suelo. Tócalas en la sala para verlas de cerca y moverlas.', 'est.floor_note':'Puedes poner piezas en el suelo, fuera de los muebles: junto a ellos o delante.',
+  'est.floor_enter':'Ver el suelo de cerca', 'est.floor_add':'Poner en el suelo',
+  'est.sala_place':'Dónde está cada mueble', 'est.sala_place_note':'Júntalos o sepáralos (también arrastrándolos en la sala) y cambia su orden.',
+  'est.gap_left':'A la izquierda de «{b}»', 'est.gap_between':'Entre «{a}» y «{b}»', 'est.gap_right':'Suelo libre a la derecha',
+  'est.gap_less':'Más juntos (5 cm)', 'est.gap_more':'Más separados (5 cm)', 'est.gap_join':'Juntarlos todos', 'est.gap_joined':'Muebles juntos', 'est.gap_reset':'Separación de siempre',
+  'est.order_left':'Pasar «{name}» a la izquierda', 'est.order_right':'Pasar «{name}» a la derecha',
+  'est.style.piso':'Suelo', 'est.piso.tarima':'Tarima', 'est.piso.tarima-oscura':'Tarima oscura', 'est.piso.baldosa':'Baldosa', 'est.piso.moqueta':'Moqueta',
+});
+Object.assign(I18N.en, {
+  'est.apoyo':'Which side down', 'est.apoyo.abajo':'Upright', 'est.apoyo.arriba':'Upside down', 'est.apoyo.trasera':'Face up', 'est.apoyo.portada':'Face down', 'est.apoyo.lomo':'On its spine', 'est.apoyo.canto':'On its other side',
+  'est.depth':'Depth', 'est.depth_v':'{n} cm from the edge', 'est.depth_closer':'Towards the front (1 cm)', 'est.depth_deeper':'Towards the back (1 cm)',
+  'est.no_room_deeper':'There’s no room further back.', 'est.no_room_closer':'There’s no room further forward.',
+  'est.on_top_of':'On top of what’s underneath', 'est.stack_hint':'Put it on top of the one next to it; then move it over the others',
+  'est.floor':'The room floor', 'est.floor_s':'the floor', 'est.on_floor':'On the room floor',
+  'est.floor_cap':'Outside the cabinets: on the floor, next to them or in front.',
+  'est.floor_n':'There are {n} on the floor. Tap them in the room to see them up close and move them.', 'est.floor_note':'You can put items on the floor, outside the cabinets: next to them or in front.',
+  'est.floor_enter':'See the floor up close', 'est.floor_add':'Put on the floor',
+  'est.sala_place':'Where each cabinet is', 'est.sala_place_note':'Move them closer or further apart (also by dragging them in the room) and change their order.',
+  'est.gap_left':'To the left of “{b}”', 'est.gap_between':'Between “{a}” and “{b}”', 'est.gap_right':'Free floor on the right',
+  'est.gap_less':'Closer (5 cm)', 'est.gap_more':'Further apart (5 cm)', 'est.gap_join':'Put them all together', 'est.gap_joined':'Cabinets together', 'est.gap_reset':'Usual spacing',
+  'est.order_left':'Move “{name}” to the left', 'est.order_right':'Move “{name}” to the right',
+  'est.style.piso':'Floor', 'est.piso.tarima':'Wood', 'est.piso.tarima-oscura':'Dark wood', 'est.piso.baldosa':'Tiles', 'est.piso.moqueta':'Carpet',
+});
+Object.assign(I18N.de, {
+  'est.apoyo':'Auf welcher Seite', 'est.apoyo.abajo':'Stehend', 'est.apoyo.arriba':'Kopfüber', 'est.apoyo.trasera':'Vorderseite oben', 'est.apoyo.portada':'Vorderseite unten', 'est.apoyo.lomo':'Auf dem Rücken', 'est.apoyo.canto':'Auf der anderen Seite',
+  'est.depth':'Tiefe', 'est.depth_v':'{n} cm vom Rand', 'est.depth_closer':'Nach vorn (1 cm)', 'est.depth_deeper':'Nach hinten (1 cm)',
+  'est.no_room_deeper':'Weiter hinten ist kein Platz.', 'est.no_room_closer':'Weiter vorn ist kein Platz.',
+  'est.on_top_of':'Auf dem, was darunter liegt', 'est.stack_hint':'Auf das daneben legen; dann über die anderen verschieben',
+  'est.floor':'Der Boden des Raums', 'est.floor_s':'der Boden', 'est.on_floor':'Auf dem Boden des Raums',
+  'est.floor_cap':'Außerhalb der Schränke: auf dem Boden, daneben oder davor.',
+  'est.floor_n':'Auf dem Boden liegen {n}. Tippe sie im Raum an, um sie aus der Nähe zu sehen und zu verschieben.', 'est.floor_note':'Du kannst Stücke auf den Boden stellen, außerhalb der Schränke: daneben oder davor.',
+  'est.floor_enter':'Den Boden aus der Nähe sehen', 'est.floor_add':'Auf den Boden stellen',
+  'est.sala_place':'Wo jeder Schrank steht', 'est.sala_place_note':'Rück sie zusammen oder auseinander (auch durch Ziehen im Raum) und ändere ihre Reihenfolge.',
+  'est.gap_left':'Links von „{b}“', 'est.gap_between':'Zwischen „{a}“ und „{b}“', 'est.gap_right':'Freier Boden rechts',
+  'est.gap_less':'Näher zusammen (5 cm)', 'est.gap_more':'Weiter auseinander (5 cm)', 'est.gap_join':'Alle zusammenrücken', 'est.gap_joined':'Schränke zusammengerückt', 'est.gap_reset':'Üblicher Abstand',
+  'est.order_left':'„{name}“ nach links', 'est.order_right':'„{name}“ nach rechts',
+  'est.style.piso':'Boden', 'est.piso.tarima':'Holz', 'est.piso.tarima-oscura':'Dunkles Holz', 'est.piso.baldosa':'Fliesen', 'est.piso.moqueta':'Teppich',
+});
+Object.assign(I18N.ja, {
+  'est.apoyo':'下にする面', 'est.apoyo.abajo':'立てる', 'est.apoyo.arriba':'逆さま', 'est.apoyo.trasera':'表を上', 'est.apoyo.portada':'表を下', 'est.apoyo.lomo':'背表紙を下', 'est.apoyo.canto':'反対側を下',
+  'est.depth':'奥行き', 'est.depth_v':'手前から{n} cm', 'est.depth_closer':'手前へ（1 cm）', 'est.depth_deeper':'奥へ（1 cm）',
+  'est.no_room_deeper':'これ以上奥には置けません。', 'est.no_room_closer':'これ以上手前には置けません。',
+  'est.on_top_of':'下にあるものの上', 'est.stack_hint':'隣のものの上に載せます。そのあと他のものの上を動かせます',
+  'est.floor':'部屋の床', 'est.floor_s':'床', 'est.on_floor':'部屋の床',
+  'est.floor_cap':'棚の外：床の上、棚の横や前に置けます。',
+  'est.floor_n':'床に{n}点あります。部屋でタップすると近くで見て動かせます。', 'est.floor_note':'棚の外の床（棚の横や前）にもアイテムを置けます。',
+  'est.floor_enter':'床を近くで見る', 'est.floor_add':'床に置く',
+  'est.sala_place':'各棚の位置', 'est.sala_place_note':'間隔を詰めたり広げたり（部屋でドラッグしても）、並び順を変えたりできます。',
+  'est.gap_left':'「{b}」の左', 'est.gap_between':'「{a}」と「{b}」の間', 'est.gap_right':'右側の空いた床',
+  'est.gap_less':'詰める（5 cm）', 'est.gap_more':'広げる（5 cm）', 'est.gap_join':'すべて詰める', 'est.gap_joined':'棚を詰めました', 'est.gap_reset':'いつもの間隔',
+  'est.order_left':'「{name}」を左へ', 'est.order_right':'「{name}」を右へ',
+  'est.style.piso':'床', 'est.piso.tarima':'フローリング', 'est.piso.tarima-oscura':'濃いフローリング', 'est.piso.baldosa':'タイル', 'est.piso.moqueta':'カーペット',
+});
+I18N.es['est.sala_hint'] = 'Todos tus muebles juntos. Toca uno para verlo de frente, o toca el suelo para ver lo que hay en él.';
+I18N.en['est.sala_hint'] = 'All your cabinets together. Tap one to see it from the front, or tap the floor to see what’s on it.';
+I18N.de['est.sala_hint'] = 'Alle deine Schränke zusammen. Tippe auf einen, um ihn von vorn zu sehen, oder auf den Boden, um zu sehen, was darauf steht.';
+I18N.ja['est.sala_hint'] = 'すべての棚をまとめて表示。棚をタップすると正面から、床をタップすると床に置いたものが見られます。';
+I18N.es['est.stack_first'] = 'Para apilarla tiene que haber otra pieza a su lado.';
+I18N.en['est.stack_first'] = 'To stack it there must be another item next to it.';
+I18N.de['est.stack_first'] = 'Zum Stapeln muss daneben ein anderes Stück stehen.';
+I18N.ja['est.stack_first'] = '重ねるには、隣に別のアイテムが必要です。';
+I18N.es['est.drag_hint'] = 'Desliza la balda a los lados para recorrerla. Para mover la pieza elegida, arrástrala con el dedo: a los lados, o hacia arriba para llevarla al fondo y hacia abajo para traerla delante.';
+I18N.en['est.drag_hint'] = 'Slide the shelf sideways to look along it. To move the selected item, drag it with your finger: sideways, or up to push it back and down to bring it forward.';
+I18N.de['est.drag_hint'] = 'Wische das Fach zur Seite, um es abzugehen. Um das gewählte Stück zu verschieben, zieh es mit dem Finger: zur Seite, oder nach oben, um es nach hinten zu schieben, und nach unten, um es nach vorn zu holen.';
+I18N.ja['est.drag_hint'] = '段を左右にスライドして見ていきます。選んだアイテムは指でドラッグして動かせます。左右に動かすほか、上へドラッグすると奥へ、下へドラッグすると手前へ移動します。';
+I18N.es['ayuda.shelf.body'] += '<br><br><b>Cómo está y dónde</b>: en la tarjeta de una pieza, <b>Sobre qué cara</b> la deja de pie, al revés o tumbada sobre cualquiera de sus caras (boca arriba, boca abajo, sobre el lomo o sobre el otro lado). <b>Fondo</b> la lleva hacia delante o hacia el fondo, hasta donde haya sitio; también arrastrándola hacia arriba o hacia abajo. <b>Apilar</b> la pone encima de la de al lado y después la puedes mover por encima de las demás: se apoya en todo lo que tenga debajo, aunque sean varias. <b>La sala</b>: junta o separa los muebles, cambia su orden y pon piezas en el suelo, fuera de ellos. En <b>Personalizar</b> eliges el suelo. Las carpetas salen de la balda y se abren como un libro.';
+I18N.en['ayuda.shelf.body'] += '<br><br><b>How and where</b>: on an item’s card, <b>Which side down</b> stands it upright, upside down or lying on any of its sides (face up, face down, on its spine or on its other side). <b>Depth</b> moves it towards the front or the back, as far as there is room; you can also drag it up or down. <b>Stack</b> puts it on top of the one next to it and then you can move it over the others: it rests on everything underneath, even several items. <b>The room</b>: move the cabinets closer or further apart, change their order and put items on the floor, outside them. Choose the floor in <b>Customise</b>. Folders come out of the shelf and open like a book.';
+I18N.de['ayuda.shelf.body'] += '<br><br><b>Wie und wo</b>: Auf der Karte eines Stücks stellt <b>Auf welcher Seite</b> es aufrecht, kopfüber oder liegend auf eine beliebige Seite (Vorderseite oben oder unten, auf dem Rücken oder auf der anderen Seite). <b>Tiefe</b> schiebt es nach vorn oder nach hinten, so weit Platz ist; du kannst es auch nach oben oder unten ziehen. <b>Stapeln</b> legt es auf das daneben, und danach kannst du es über die anderen verschieben: Es liegt auf allem, was darunter ist, auch auf mehreren. <b>Der Raum</b>: Rück die Schränke zusammen oder auseinander, ändere ihre Reihenfolge und stell Stücke auf den Boden, außerhalb der Schränke. Den Boden wählst du unter <b>Anpassen</b>. Ordner kommen aus dem Fach und öffnen sich wie ein Buch.';
+I18N.ja['ayuda.shelf.body'] += '<br><br><b>置き方と位置</b>：アイテムのカードの<b>下にする面</b>で、立てる・逆さま・どの面を下にして寝かせるか（表を上、表を下、背表紙を下、反対側を下）を選べます。<b>奥行き</b>で、空いているところまで手前や奥へ動かせます（上下にドラッグしても動きます）。<b>重ねる</b>で隣のものの上に載せ、そのあと他のものの上を動かせます。下にあるもの（複数でも）の上に載ります。<b>部屋</b>では、棚の間隔を詰めたり広げたり、並び順を変えたり、棚の外の床にアイテムを置いたりできます。床は<b>カスタマイズ</b>で選べます。フォルダーは棚から出てきて本のように開きます。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;

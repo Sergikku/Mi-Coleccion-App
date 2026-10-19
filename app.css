@@ -2249,3 +2249,113 @@ html.est-imm-on #panel{animation:none !important;transform:none !important;}
 /* un lomo con foto que no se ha podido abrir: vuelve a verse su nombre */
 .est-pc.is-sidephoto:not(.ph-failed) > .est-sl, .est-pc.is-sidephoto:not(.ph-failed) > .est-band,
 .est-sp.is-sidephoto:not(.ph-failed) > .est-sl, .est-sp.is-sidephoto:not(.ph-failed) > .est-band{visibility:hidden;}
+
+/* ---------- v11.15 · Fotos de los lados para varias a la vez ---------- */
+.est-ms-list{display:flex;flex-direction:column;}
+.est-ms-side{padding:var(--sp-3) 0;border-top:1px solid var(--line);}
+.est-ms-side:first-child{border-top:none;}
+.est-ms-head{display:flex;align-items:center;gap:8px;min-width:0;color:var(--text-strong);}
+.est-ms-head b{font-weight:600;}
+.est-ms-head .side-glyph{color:var(--text-muted);}
+.est-ms-count{margin-left:auto;font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.est-ms-acts{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-2);}
+.est-ms-from{margin-top:var(--sp-2);}
+.est-ms-from-l{display:block;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:6px;}
+.est-ms-srcs{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center;}
+.est-ms-src{display:flex;align-items:center;gap:8px;max-width:100%;min-height:44px;padding:4px 10px 4px 4px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-raised);color:var(--text);font:inherit;font-size:var(--fs-xs);text-align:left;cursor:pointer;}
+.est-ms-src:hover{background:var(--fill-1);}
+.est-ms-src-ph{flex-shrink:0;width:36px;height:36px;border-radius:4px;overflow:hidden;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08);}
+.est-ms-src-ph img{width:100%;height:100%;object-fit:cover;display:block;}
+.est-ms-src-name{min-width:0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.est-ms-more{font-size:var(--fs-xs);color:var(--text-muted);}
+.est-ms-status{min-height:1.2em;margin:var(--sp-2) 0 0;font-size:var(--fs-xs);color:var(--text-muted);}
+.est-ms-undo{background:color-mix(in srgb, var(--accent) 9%, var(--surface-raised));border:1px solid var(--line);color:var(--text);margin:var(--sp-2) 0;}
+.est-ms-undo .btn{background:var(--surface-raised);color:var(--text-strong);border-color:var(--line-strong);}
+.est-ms-acts [aria-disabled="true"], .est-ms-srcs [aria-disabled="true"], .est-ms-acts .photo-picker.is-disabled{opacity:0.55;cursor:progress;}
+
+/* ---------- v11.16 · Sala, suelo, apoyos, fondo y carpetas que se abren ---------- */
+/* Plana (mueble entero), apoyada sobre otra cara: la cara que se ve, girada como esté */
+.est-sp.is-any{background:none;overflow:visible;box-shadow:none;border-radius:0;}
+.est-sp.is-any::before, .est-sp.is-any::after{display:none;}
+.est-sp-in{position:absolute;left:50%;top:50%;box-sizing:border-box;overflow:hidden;background-color:var(--plat);background-size:cover;background-position:center;background-repeat:no-repeat;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.3);}
+.est-sp-in.is-spine-in{background-size:auto 100%;}
+.est-sp-in.is-spine-in::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg, rgba(255,255,255,0.18), transparent 28%, transparent 70%, rgba(0,0,0,0.26));}
+.est-sp-in.has-sideph{background-color:#fff;background-size:100% 100% !important;}
+.est-sp-in.has-avg{background-image:none;}
+.est-sp-in.is-sidephoto:not(.ph-failed) > .est-sl, .est-sp-in.is-sidephoto:not(.ph-failed) > .est-band{visibility:hidden;}
+.est-sp.is-any.is-sel .est-sp-in{outline:2px solid #fff;box-shadow:0 0 0 4px var(--accent);}
+.est-sp.is-any.is-msel .est-sp-in{outline:2px solid #fff;outline-offset:-2px;box-shadow:0 0 0 2px var(--ok);}
+.est-sp.is-any.is-sel, .est-sp.is-any.is-msel{outline:none;box-shadow:none;}
+/* De cerca, boca abajo: el nombre del lomo, al derecho */
+.est-pz.is-flat.is-ap-portada .est-sl{transform:translate(-50%,-50%) rotate(-90deg);}
+
+/* Tarjeta: sobre qué cara se apoya y el fondo */
+.est-apoyos{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));width:100%;}
+.est-apoyos .seg-btn{justify-content:center;text-align:center;padding:4px 4px;min-height:36px;line-height:1.15;white-space:normal;}
+.est-depthq{margin-top:var(--sp-3);align-items:center;}
+.est-depth-on{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-muted);}
+.est-depth-on .ico{width:15px;height:15px;}
+
+/* La sala: luz en la pared, rodapié y suelo con perspectiva */
+.est-wall-light{position:absolute;left:0;right:0;top:0;pointer-events:none;background:radial-gradient(55% 75% at 50% 0%, rgba(255,246,226,0.32), transparent 72%), linear-gradient(0deg, rgba(0,0,0,0.16), transparent 22px);}
+html[data-theme="dark"] .est-wall-light{background:radial-gradient(55% 75% at 50% 0%, rgba(255,236,200,0.1), transparent 72%), linear-gradient(0deg, rgba(0,0,0,0.3), transparent 22px);}
+.est-stage.is-night .est-wall-light{background:radial-gradient(45% 60% at 50% 0%, rgba(255,196,120,0.12), transparent 72%), linear-gradient(0deg, rgba(0,0,0,0.4), transparent 22px);}
+.est-skirt{position:absolute;left:0;right:0;pointer-events:none;background:linear-gradient(180deg, #fbf8f2, #e4ded3 60%, #cfc8bb);box-shadow:0 -1px 0 rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.25);}
+.est-stage[data-wall="madera"] .est-skirt, .est-stage[data-wall="oscura"] .est-skirt, html[data-theme="dark"] .est-skirt{background:linear-gradient(180deg, #4a4b51, #34353a);}
+.est-stage.is-night .est-skirt{filter:brightness(0.4);}
+.est-floor[data-piso], .est-fl[data-piso], .est-floor-sw[data-piso]{--est-floor:repeating-linear-gradient(90deg, rgba(60,36,16,0.28) 0 2px, transparent 2px 46px), repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 7px, transparent 7px 17px), linear-gradient(180deg, #b28659, #9c7148);}
+.est-floor[data-piso="tarima-oscura"], .est-fl[data-piso="tarima-oscura"], .est-floor-sw[data-piso="tarima-oscura"]{--est-floor:repeating-linear-gradient(90deg, rgba(0,0,0,0.34) 0 2px, transparent 2px 46px), repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 7px, transparent 7px 17px), linear-gradient(180deg, #5f412b, #4a311f);}
+.est-floor[data-piso="baldosa"], .est-fl[data-piso="baldosa"], .est-floor-sw[data-piso="baldosa"]{--est-floor:linear-gradient(90deg, rgba(90,80,70,0.3) 2px, transparent 2px) 0 0 / 64px 64px, linear-gradient(0deg, rgba(90,80,70,0.3) 2px, transparent 2px) 0 0 / 64px 64px, linear-gradient(180deg, #ddd6ca, #c9c0b2);}
+.est-floor[data-piso="moqueta"], .est-fl[data-piso="moqueta"], .est-floor-sw[data-piso="moqueta"]{--est-floor:radial-gradient(rgba(0,0,0,0.1) 1px, transparent 1.5px) 0 0 / 5px 5px, radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1.5px) 2px 3px / 6px 6px, linear-gradient(180deg, #6e727b, #5a5e66);}
+.est-floor.is-room{background:none;box-shadow:none;overflow:hidden;}
+.est-floor-tex{position:absolute;left:-80%;right:-80%;bottom:0;height:600%;transform-origin:50% 100%;transform:perspective(calc(var(--fh, 60px) * 4.6)) rotateX(70deg);background:var(--est-floor);pointer-events:none;}
+.est-floor.is-room::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg, rgba(0,0,0,0.38), rgba(0,0,0,0.08) 30%, rgba(255,255,255,0.06) 70%, rgba(0,0,0,0.1)), radial-gradient(70% 120% at 50% 0%, rgba(255,240,215,0.12), transparent 70%);}
+.est-floor-sw{background:var(--est-floor) !important;}
+.est-floor[data-floor]{cursor:pointer;}
+.est-place.is-drag{cursor:grab;touch-action:pan-y;}
+.est-place.is-drag:active{cursor:grabbing;}
+/* Lo que hay en el suelo de la sala */
+.est-floor-run{position:absolute;pointer-events:none;}
+.est-floor-run .est-sp{pointer-events:auto;cursor:pointer;}
+.est-sp.is-onfloor{filter:drop-shadow(0 3px 2px rgba(0,0,0,0.35));}
+.est-stage.is-night .est-floor-run{filter:brightness(0.55);}
+/* De cerca, en el suelo: la pared al fondo, el suelo y los muebles */
+.est-bk.is-wall{background:linear-gradient(0deg, #e8e2d7 0 14px, rgba(0,0,0,0.2) 14px, transparent 34px), var(--est-wall, #ddd5c8);}
+.est-fl.is-room{background:var(--est-floor);}
+.est-strip.is-floor .est-floor.is-near{z-index:0;}
+.est-obst{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;pointer-events:none;}
+.est-obst-f{background:none !important;overflow:visible;}
+.est-obst-f > .est-cab{position:absolute;left:0;top:0;}
+.est-obst-s{background-image:linear-gradient(90deg, rgba(0,0,0,0.12), rgba(0,0,0,0.28));}
+.est-stage.is-night .est-obst{filter:brightness(0.45);}
+
+/* Panel de la sala: los huecos y el orden de los muebles */
+.est-sala{margin:var(--sp-3) 0;}
+.est-sala .sub-title{margin:var(--sp-3) 0 var(--sp-1);}
+.est-gaps{display:flex;flex-direction:column;gap:6px;margin:var(--sp-2) 0;}
+.est-gap-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);flex-wrap:wrap;padding-left:var(--sp-4);border-left:2px dashed var(--line-strong);}
+.est-gap-l{min-width:0;font-size:var(--fs-sm);color:var(--text-muted);}
+.est-gap-cab{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);min-height:44px;padding:4px 6px 4px 10px;border-radius:var(--r-md);background:var(--fill-1);}
+.est-gap-name{display:inline-flex;align-items:center;gap:8px;min-width:0;font-weight:600;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.est-gap-name .ico{flex-shrink:0;width:17px;height:17px;color:var(--text-muted);}
+.est-gap-ord{display:inline-flex;gap:2px;flex-shrink:0;}
+
+/* Carpeta que sale de la balda y se abre como un libro */
+.est-fly{position:fixed;z-index:725;width:0;height:0;perspective:1400px;pointer-events:none;}
+.est-fly-obj, .est-fly-rot{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;}
+.est-fly-f{position:absolute;left:0;top:0;box-sizing:border-box;backface-visibility:hidden;-webkit-backface-visibility:hidden;background-color:var(--fc);background-image:linear-gradient(90deg, rgba(255,255,255,0.1), transparent 35%, rgba(0,0,0,0.2));}
+.est-fly-f.is-spine{background-image:linear-gradient(90deg, rgba(0,0,0,0.25), rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.25));}
+.est-fly-f.is-page{background:#f7f4ed;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08), inset 12px 0 18px -10px rgba(0,0,0,0.25);display:flex;flex-direction:column;justify-content:center;gap:9%;padding:0 14%;}
+.est-fly-f.is-page i{display:block;height:5%;border-radius:3px;background:rgba(0,0,0,0.07);}
+.est-fly-cover{position:absolute;left:0;top:0;transform-style:preserve-3d;transform-origin:0 50%;}
+.est-fly-cv, .est-fly-in{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:0 3px 3px 0;}
+.est-fly-cv{background-color:var(--fc);background-image:linear-gradient(90deg, rgba(0,0,0,0.18), rgba(255,255,255,0.12) 6%, transparent 40%, rgba(0,0,0,0.12));box-shadow:0 18px 40px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;color:#fff;text-align:center;}
+.est-fly.is-light .est-fly-cv{color:#1d1e22;}
+.est-fly-cv .est-folder-txt{font-size:clamp(14px, 3.2vw, 22px);}
+.est-fly-in{transform:rotateY(180deg);background-color:color-mix(in srgb, var(--fc) 72%, #000);background-image:linear-gradient(270deg, rgba(0,0,0,0.25), transparent 30%);}
+.est-book.is-closing{pointer-events:none;}
+.est-floor.is-room.is-near::after{background:linear-gradient(180deg, rgba(0,0,0,0.14), transparent 35%, rgba(0,0,0,0.12));}
+.est-floor.is-near{background:var(--est-floor);}
+.est-floor.is-near .est-floor-tex{display:none;}
+.est-book.is-opening .est-book-wrap{pointer-events:none;}
+.est-floor.is-room.is-kbd{box-shadow:inset 0 0 0 3px #8fd0c4;}
