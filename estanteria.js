@@ -974,7 +974,7 @@ function estFlatHTML(r, s, selPid){
    cada una tapa el lado de la de al lado, como en una estantería de verdad */
 /* (las de la fila de detrás, siempre antes que las de delante) */
 /* v11.18: las precintadas llevan su film: una capa encima de cada cara, con un brillo de
-   plástico y un reflejo holográfico que cambia de sitio según dónde la mires (--h, de −1
+   plástico y un reflejo de luz (v11.18.1: blanco) que cambia de sitio según dónde la mires (--h, de −1
    a 1: en la balda, lo lejos que está de ti; sacada, cómo la giras; en el mueble entero,
    quieto, en un sitio distinto en cada una). No cambia ningún dato. */
 const EST_FILM = '<i class="est-film" aria-hidden="true"></i>';
