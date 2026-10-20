@@ -2359,3 +2359,36 @@ html[data-theme="dark"] .est-wall-light{background:radial-gradient(55% 75% at 50
 .est-floor.is-near .est-floor-tex{display:none;}
 .est-book.is-opening .est-book-wrap{pointer-events:none;}
 .est-floor.is-room.is-kbd{box-shadow:inset 0 0 0 3px #8fd0c4;}
+
+/* ---------- v11.17 · Apilar varias y nada fuera de la balda ---------- */
+.est-over-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-2);margin:var(--sp-2) 0;padding:8px 10px;border-radius:var(--r-md);background:color-mix(in srgb, #c8312b 9%, var(--surface-raised));border:1px solid color-mix(in srgb, #c8312b 30%, var(--line));color:var(--text-strong);font-size:var(--fs-sm);}
+.est-over-row span{min-width:0;}
+
+/* ---------- v11.18 · Las precintadas, con su film ---------- */
+/* Una capa en cada cara: el plástico (velo levísimo, borde tenso y brillo en diagonal) y un
+   reflejo holográfico de franjas finas que se mueve según dónde la mires (--h: −1 … 1) */
+.est-film{position:absolute;inset:0;z-index:3;display:block;overflow:hidden;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(118deg, rgba(255,255,255,0) 18%, rgba(255,255,255,0.34) 30%, rgba(255,255,255,0.08) 36%, rgba(255,255,255,0) 44%, rgba(255,255,255,0) 70%, rgba(255,255,255,0.16) 78%, rgba(255,255,255,0) 84%),
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03) 40%, rgba(255,255,255,0.07));
+  box-shadow:inset 0 0 0 0.6px rgba(255,255,255,0.55), inset 0 0 5px rgba(255,255,255,0.22);}
+.est-film::before{content:'';position:absolute;left:50%;top:50%;width:640px;height:640px;margin:-320px 0 0 -320px;
+  background:repeating-linear-gradient(118deg, rgba(255,95,190,0.9) 0px, rgba(255,214,96,0.85) 9px, rgba(110,255,175,0.85) 18px, rgba(90,190,255,0.9) 27px, rgba(186,128,255,0.85) 36px, rgba(255,95,190,0.9) 45px);
+  -webkit-mask-image:linear-gradient(118deg, transparent 41%, rgba(0,0,0,0.9) 48%, rgba(0,0,0,0.9) 52%, transparent 59%);
+  mask-image:linear-gradient(118deg, transparent 41%, rgba(0,0,0,0.9) 48%, rgba(0,0,0,0.9) 52%, transparent 59%);
+  mix-blend-mode:color-dodge;opacity:0.42;transform:translateX(calc(var(--h, 0) * 150px));}
+/* en la balda, el reflejo solo en las caras que miras (de lomo o de frente) y, al parar de deslizarla, va despacio a su sitio */
+.est-pz .est-pc:not(.is-front):not(.is-spine) .est-film::before{display:none;}
+.est-pz .est-film::before{transition:transform 450ms cubic-bezier(.2,.7,.2,1);}
+/* en el mueble entero y en «Portadas» (piezas pequeñas, quietas): más suave */
+.est-sp .est-film, .est-cv .est-film{background:linear-gradient(118deg, rgba(255,255,255,0) 22%, rgba(255,255,255,0.22) 32%, rgba(255,255,255,0) 42%);box-shadow:inset 0 0 0 0.5px rgba(255,255,255,0.4);}
+.est-sp .est-film::before, .est-cv .est-film::before{opacity:0.3;}
+/* sacada, en grande: el film se nota más (bordes y una textura leve) y el reflejo es más fino */
+.est-pull-rot .est-film{box-shadow:inset 0 0 0 1px rgba(255,255,255,0.6), inset 0 0 14px rgba(255,255,255,0.25);}
+.est-pull-rot .est-film::before{opacity:0.3;transition:transform 120ms linear;
+  -webkit-mask-image:linear-gradient(118deg, transparent 44%, rgba(0,0,0,0.85) 48.5%, rgba(0,0,0,0.85) 51.5%, transparent 56%);
+  mask-image:linear-gradient(118deg, transparent 44%, rgba(0,0,0,0.85) 48.5%, rgba(0,0,0,0.85) 51.5%, transparent 56%);}
+.est-pull-rot .est-film::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(120% 60% at 0% 0%, rgba(255,255,255,0.22), transparent 22%), radial-gradient(120% 60% at 100% 100%, rgba(255,255,255,0.16), transparent 20%),
+    repeating-linear-gradient(28deg, rgba(255,255,255,0) 0 9px, rgba(255,255,255,0.05) 9px 10px);}
+@media (prefers-reduced-motion: reduce){ .est-pull-rot .est-film::before, .est-pz .est-film::before{transition:none;} }
+@media (forced-colors: active){ .est-film{display:none;} }
