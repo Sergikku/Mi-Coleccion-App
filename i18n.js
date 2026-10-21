@@ -3074,6 +3074,15 @@ I18N.es['ayuda.backup.body'] += '<br><br><b>Añadir investigación</b> (v11.21):
 I18N.en['ayuda.backup.body'] += '<br><br><b>Add research</b> (v11.21): a research file fills in missing dates, years and descriptions and can also <b>correct dates</b>. Before changing anything it opens <b>Review the research</b>: new dates and more exact ones (from year to month or day) come ticked; ones <b>different</b> from yours come unticked so you can choose. It never puts a less exact date than yours. It only touches date, year and description, and it can be undone.';
 I18N.de['ayuda.backup.body'] += '<br><br><b>Recherche hinzufügen</b> (v11.21): Eine Recherche-Datei ergänzt fehlende Daten, Jahre und Beschreibungen und kann auch <b>Daten korrigieren</b>. Vor jeder Änderung öffnet sich <b>Recherche prüfen</b>: neue und genauere Daten (vom Jahr zum Monat oder Tag) sind angehakt; von deinem <b>abweichende</b> sind nicht angehakt, damit du wählst. Ein ungenaueres Datum als deins wird nie eingetragen. Nur Datum, Jahr und Beschreibung werden geändert, und es lässt sich rückgängig machen.';
 I18N.ja['ayuda.backup.body'] += '<br><br><b>調査を追加</b>（v11.21）：調査ファイルで、足りない発売日・年・説明を埋め、<b>日付の修正</b>もできます。変更する前に<b>調査を確認</b>が開きます。新しい日付とより正確な日付（年→月・日）はチェック済み、今の日付と<b>異なる</b>ものはチェックなしで、自分で選べます。今より不正確な日付になることはありません。変わるのは発売日・年・説明だけで、元に戻せます。';
+/* ---------- v11.21.1 · Valorar en serie: «Sin pagado» ---------- */
+Object.assign(I18N.es, { 'vb.no_paid':'Sin pagado', 'vb.none_left_paid':'Todas tienen ya lo que pagaste.' });
+Object.assign(I18N.en, { 'vb.no_paid':'No price paid', 'vb.none_left_paid':'They all already have what you paid.' });
+Object.assign(I18N.de, { 'vb.no_paid':'Ohne Kaufpreis', 'vb.none_left_paid':'Bei allen steht schon, was du bezahlt hast.' });
+Object.assign(I18N.ja, { 'vb.no_paid':'購入価格なし', 'vb.none_left_paid':'すべてのアイテムに購入価格が入っています。' });
+I18N.es['ayuda.search.body'] += ' Con <b>Sin pagado</b> ves solo las que aún no tienen lo que te costaron (v11.21.1).';
+I18N.en['ayuda.search.body'] += ' <b>No price paid</b> shows only the ones that don’t have what they cost you yet (v11.21.1).';
+I18N.de['ayuda.search.body'] += ' <b>Ohne Kaufpreis</b> zeigt nur die, bei denen noch fehlt, was sie dich gekostet haben (v11.21.1).';
+I18N.ja['ayuda.search.body'] += ' <b>購入価格なし</b>で、まだ購入価格を入れていないものだけを表示します（v11.21.1）。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;

@@ -1789,7 +1789,7 @@ function valueSectionHTML(){
     ${btn}</section>`;
 }
 /* Valorar en serie: una lista de tus piezas con su valor, para rellenarlo seguido.
-   v11.20: buscador, «Dónde lo compré» en cada fila y el filtro «Sin sitio». */
+   v11.20: buscador, «Dónde lo compré» en cada fila y el filtro «Sin sitio». v11.21.1: «Sin pagado». */
 let vbState = { show:'novalue', plat:'', q:'', limit:40 };
 function openValueBulk(keep){
   if(keep!==true) vbState = { show:'novalue', plat:'', q:'', limit:40 };
@@ -1800,14 +1800,14 @@ function hasStore(p){ return !!(p && p.compra && typeof p.compra==='object' && S
 function valueBulkList(){
   const tk = searchTokens(vbState.q || '');
   return sortGames(PRODUCTS.filter(p=> p.possession==='tengo' && (!vbState.plat || p.platformId===vbState.plat)
-    && (vbState.show!=='novalue' || valueNow(p)===null) && (vbState.show!=='nostore' || !hasStore(p)) && productMatchesSearch(p, tk)));
+    && (vbState.show!=='novalue' || valueNow(p)===null) && (vbState.show!=='nopaid' || valuePaid(p)===null) && (vbState.show!=='nostore' || !hasStore(p)) && productMatchesSearch(p, tk)));
 }
 function valueBulkBodyHTML(){
   const list = valueBulkList();
   const plats = getAllPlatforms().filter(pl=> PRODUCTS.some(p=> p.platformId===pl.id && p.possession==='tengo'));
   const chip = (k, label)=> `<button type="button" class="chip ${vbState.show===k ? 'active' : ''}" aria-pressed="${vbState.show===k}" data-fk="vb-${k}" onclick="vbState.show='${k}'; vbState.limit=40; vbRefresh()">${label}</button>`;
   return `${searchbarHTML({ id:'vbQ', placeholder:t('vb.search_ph'), value:vbState.q, oninput:'vbQuery(this.value)' })}
-    <div class="chip-row vb-chips" role="group" aria-label="${escapeHTML(t('val.bulk_title'))}">${chip('novalue', t('val.only_missing'))}${chip('nostore', t('vb.no_store'))}${chip('all', t('val.all'))}</div>
+    <div class="chip-row vb-chips" role="group" aria-label="${escapeHTML(t('val.bulk_title'))}">${chip('novalue', t('val.only_missing'))}${chip('nopaid', t('vb.no_paid'))}${chip('nostore', t('vb.no_store'))}${chip('all', t('val.all'))}</div>
     <div class="vb-tools"><div class="field" data-nosave><label for="vbPlat">${t('filter.platform')}</label><select id="vbPlat" onchange="vbState.plat=this.value; vbState.limit=40; vbRefresh()"><option value="">${t('val.platform_all')}</option>${plats.map(pl=>`<option value="${pl.id}" ${vbState.plat===pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}</select></div>
       <button type="button" class="btn btn-sm" data-fk="vb-stores" onclick="openStoresSheet(true)">${icon('pencil')} ${t('stores.title')}</button></div>
     <p class="section-sub vb-count" id="vbCount" role="status">${escapeHTML(vbCountText(list.length))}</p>
@@ -1818,7 +1818,7 @@ function valueBulkResultsHTML(list){
   const shown = list.slice(0, vbState.limit);
   const cs = currencySymbol();
   const empty = vbState.q.trim() ? t('vb.no_match') + (vbState.show!=='all' ? ' ' + t('vb.try_all') : '')
-    : t(vbState.show==='novalue' ? 'val.none_left' : vbState.show==='nostore' ? 'vb.none_left_store' : 'val.empty_sel');
+    : t(vbState.show==='novalue' ? 'val.none_left' : vbState.show==='nopaid' ? 'vb.none_left_paid' : vbState.show==='nostore' ? 'vb.none_left_store' : 'val.empty_sel');
   return `${shown.length ? `<div class="vb-list" data-nosave>${shown.map(p=>{ const id = escapeHTML(p.id), now = valueNow(p), paid = valuePaid(p), st = hasStore(p) ? p.compra.tienda : '';
       return `<div class="vb-row" data-id="${id}" onfocusout="vbRowLeft(this, event)"><div class="vb-name"><b>${escapeHTML(p.name)}</b><small>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))}</small></div>
         <label class="vb-in"><span>${t('val.now')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${now===null ? '' : now}" aria-label="${escapeHTML(t('val.now') + ' — ' + p.name)}" onchange="vbSet('${id}','valorActual',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label>
@@ -1875,7 +1875,7 @@ async function vbSetStore(id, input){
    en cuanto pasas a otra fila (mientras sigues en la suya, se queda: puedes rellenar el resto) */
 function vbRowDone(row){
   const p = row && PRODUCTS_BY_ID[row.dataset.id]; if(!p) return false;
-  return (vbState.show==='novalue' && valueNow(p)!==null) || (vbState.show==='nostore' && hasStore(p));
+  return (vbState.show==='novalue' && valueNow(p)!==null) || (vbState.show==='nopaid' && valuePaid(p)!==null) || (vbState.show==='nostore' && hasStore(p));
 }
 function vbRowSaved(row){
   if(!row) return;
