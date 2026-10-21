@@ -282,7 +282,8 @@ async function undoLastImport(){
 /* ---------- Investigación (v11.3) ----------
    Un archivo «la-coleccion-investigacion» trae, por id de pieza, fecha de
    publicación (releaseDateExact), descripción (summary) y año. Se FUSIONA con
-   tu colección: solo rellena esos campos donde están vacíos y no cambia nada
+   tu colección (v11.21: también corrige fechas, solo las que apruebes; ver
+   researchPlan) y no cambia nada
    más (ni lo que ya escribiste, ni posesión, fotos, checklist…). Antes se
    guarda la copia interna de siempre, así «Deshacer la última importación»
    lo devuelve todo a como estaba. */
@@ -304,28 +305,131 @@ function researchChanges(data){
   });
   return { list, n, unknown };
 }
+/* v11.21: además de rellenar lo vacío, la investigación puede CORREGIR fechas.
+   Antes de tocar nada se abre «Revisar la investigación», pieza a pieza:
+   · Se rellenan: no tenía fecha ni año → marcadas.
+   · Más exactas: la nueva completa la tuya (1998 → 1998-03, 1998-03 → 1998-03-21) → marcadas.
+   · Distintas: la nueva no cuadra con la tuya (1998-05-01 → 1999-02) → SIN marcar: decides tú.
+   · Descripciones: solo donde no hay → marcadas.
+   Nunca se aplica una fecha menos exacta que la tuya ni una fecha mal escrita.
+   Al cambiar la fecha, el año va con ella. Solo se tocan fecha, año y descripción,
+   con la copia interna de siempre y «Deshacer». */
+function rdNorm(v){   // «AAAA», «AAAA-MM» o «AAAA-MM-DD» válidas → la misma; si no, null
+  const s = typeof v==='string' || typeof v==='number' ? String(v).trim() : '';
+  const m = s.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/); if(!m) return null;
+  const y = +m[1], mo = m[2] ? +m[2] : 1, d = m[3] ? +m[3] : 1;
+  if(y < 1950 || y > 2100 || mo < 1 || mo > 12) return null;
+  if(m[3]){ const dt = new Date(Date.UTC(y, mo - 1, d)); if(dt.getUTCMonth()!==mo - 1 || d < 1) return null; }
+  return s;
+}
+function researchPlan(data){
+  const items = [], skip = { same:0, less:0, bad:0 }; let unknown = 0;
+  Object.keys(data.piezas).forEach(id=>{
+    const p = PRODUCTS_BY_ID[id], r = data.piezas[id];
+    if(!p){ unknown++; return; }
+    if(!r || typeof r!=='object') return;
+    // la fecha (o, si no trae fecha, el año)
+    const rawD = typeof r.releaseDateExact==='string' || typeof r.releaseDateExact==='number' ? String(r.releaseDateExact).trim() : '';
+    const rawY = typeof r.year==='string' || typeof r.year==='number' ? String(r.year).trim() : '';
+    const nd = rawD ? rdNorm(rawD) : null, ny = rawY ? rdNorm(rawY) : null;
+    if((rawD && !nd) || (rawY && (!ny || ny.length!==4))) skip.bad++;
+    const nw = nd || (ny && ny.length===4 ? ny : null);
+    if(nw){
+      const cur = String(p.releaseDateExact==null ? '' : p.releaseDateExact).trim(), curY = String(p.year==null ? '' : p.year).trim();
+      const old = cur ? (rdNorm(cur) || cur) : curY;   // (un año raro, como «1998?», cuenta como distinto: decides tú)
+      let kind;
+      if(!old) kind = 'fill';
+      else if(old===nw) kind = 'same';
+      else if(nw.startsWith(old + '-')) kind = 'precise';
+      else if(old.startsWith(nw + '-')) kind = 'less';
+      else kind = 'differs';
+      if(kind==='same' || kind==='less') skip[kind]++;
+      else {
+        const ch = {}; if(nd && nd!==cur) ch.releaseDateExact = nd;
+        const y = nw.slice(0, 4); if(y!==curY) ch.year = y;
+        if(Object.keys(ch).length) items.push({ key:kind + ':' + id, kind, id, ch, from: old || '', to: nw });
+      }
+    }
+    // la descripción: solo donde no hay
+    const sm = typeof r.summary==='string' ? r.summary.trim() : '';
+    if(sm && !String(p.summary==null ? '' : p.summary).trim()) items.push({ key:'desc:' + id, kind:'desc', id, ch:{ summary:sm }, from:'', to:sm });
+  });
+  return { items, skip, unknown };
+}
+let RIM = null;
+const RIM_KINDS = ['differs', 'precise', 'fill', 'desc'];
 async function importResearch(data){
-  const c = researchChanges(data);
-  if(!c.list.length){
-    setBackupStatus('photos', t('rimport.nothing'));
-    showToast(t('rimport.nothing'), { duration:6000 });
+  const plan = researchPlan(data);
+  if(!plan.items.length){
+    const msg = t('rimport.nothing') + (plan.unknown ? ' ' + t('rimport.unknown').replace('{n}', plan.unknown) : '');
+    setBackupStatus('photos', msg);
+    showToast(msg, { duration:6000 });
     return;
   }
-  const fill = (k)=> t(k).replace('{p}', c.list.length).replace('{d}', c.n.summary).replace('{f}', c.n.releaseDateExact).replace('{y}', c.n.year);
-  if(!await showConfirmModal(fill('rimport.confirm'), { okLabel:t('rimport.ok') })){ setBackupStatus('photos', t('import.cancelled')); return; }
-  // copia interna para poder deshacer (la misma que usa cualquier importación)
-  const savedAt = new Date().toISOString();
-  if(!await idbSet(KV_STORE, 'overrides_before_last_import', JSON.stringify({ savedAt, data: OVERRIDES }))) throw new Error(t('import.save_copy_failed'));
-  APP_META.undoImportAt = savedAt;
-  await saveAppMeta();
-  const before = JSON.stringify(OVERRIDES);
-  c.list.forEach(({ id, ch })=>{
-    if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {};
-    Object.assign(OVERRIDES.products[id], ch);
-  });
-  if(!await persistOverrides()){ OVERRIDES = JSON.parse(before); throw new Error(t('save.error')); }
-  buildProducts();
-  const msg = fill('rimport.done') + (c.unknown ? ' ' + t('rimport.unknown').replace('{n}', c.unknown) : '');
+  RIM = { plan, sel: new Set(plan.items.filter(x=> x.kind!=='differs').map(x=> x.key)), applied:false };
+  openSheet({ kind:'rimport', title:t('rimport.title'), body:rimportBodyHTML(), foot:rimportFootHTML(), focus:'#rimApply',
+    onClose: ()=>{ if(RIM && !RIM.applied) setBackupStatus('photos', t('import.cancelled')); RIM = null; } });
+}
+function rimportFootHTML(){
+  return `<button type="button" class="btn" onclick="closeSheet()">${t('modal.cancel')}</button>
+    <button type="button" class="btn primary" id="rimApply" onclick="rimportApply()" ${RIM && RIM.sel.size ? '' : 'disabled'}>${escapeHTML(t('rimport.apply').replace('{n}', RIM ? RIM.sel.size : 0))}</button>`;
+}
+function rimportBodyHTML(){
+  const { plan, sel } = RIM;
+  const by = {}; RIM_KINDS.forEach(k=> by[k] = plan.items.filter(x=> x.kind===k));
+  const ign = [];
+  if(plan.skip.same) ign.push(t('rimport.skip_same').replace('{n}', plan.skip.same));
+  if(plan.skip.less) ign.push(t('rimport.skip_less').replace('{n}', plan.skip.less));
+  if(plan.skip.bad) ign.push(t('rimport.skip_bad').replace('{n}', plan.skip.bad));
+  if(plan.unknown) ign.push(t('rimport.unknown').replace('{n}', plan.unknown));
+  const row = (x)=>{ const p = PRODUCTS_BY_ID[x.id], sub = [p.platformName, p.year].filter(Boolean).join(' · ');
+    const what = x.kind==='desc' ? `<span class="rim-desc">${escapeHTML(x.to.length > 140 ? x.to.slice(0, 140) + '…' : x.to)}</span>`
+      : `<span class="rim-dates">${x.from ? `<s>${escapeHTML(x.from)}</s> → ` : ''}<b>${escapeHTML(x.to)}</b></span>`;
+    return `<label class="rim-row"><input type="checkbox" data-key="${escapeHTML(x.key)}" ${sel.has(x.key) ? 'checked' : ''} onchange="rimportToggle(this)">
+      <span class="rim-txt"><span class="rim-name">${escapeHTML(p.name)}</span><small>${escapeHTML(sub)}</small>${what}</span></label>`; };
+  const group = (k)=>{ const L = by[k]; if(!L.length) return ''; const n = L.filter(x=> sel.has(x.key)).length;
+    return `<section class="rim-group" data-kind="${k}"><div class="rim-head"><h3>${t('rimport.g_' + k)} <span class="rim-n" id="rimN_${k}">${n}/${L.length}</span></h3>
+      <div class="rim-all"><button type="button" class="btn btn-sm btn-ghost" data-fk="rim-all-${k}" onclick="rimportAll('${k}', true)">${t('rimport.all')}</button><button type="button" class="btn btn-sm btn-ghost" data-fk="rim-none-${k}" onclick="rimportAll('${k}', false)">${t('rimport.none')}</button></div></div>
+      <p class="section-sub">${t('rimport.d_' + k)}</p><div class="rim-list">${L.map(row).join('')}</div></section>`; };
+  return `<p class="section-sub">${t('rimport.intro')}</p>${ign.length ? `<p class="section-sub rim-ign">${escapeHTML(t('rimport.skipped') + ' ' + ign.join(' · '))}</p>` : ''}${RIM_KINDS.map(group).join('')}`;
+}
+function rimportCounts(){
+  if(!RIM) return;
+  RIM_KINDS.forEach(k=>{ const el = document.getElementById('rimN_' + k); if(!el) return; const L = RIM.plan.items.filter(x=> x.kind===k); el.textContent = L.filter(x=> RIM.sel.has(x.key)).length + '/' + L.length; });
+  const b = document.getElementById('rimApply'); if(b){ b.textContent = t('rimport.apply').replace('{n}', RIM.sel.size); b.disabled = !RIM.sel.size; }
+}
+function rimportToggle(cb){ if(!RIM) return; if(cb.checked) RIM.sel.add(cb.dataset.key); else RIM.sel.delete(cb.dataset.key); rimportCounts(); }
+function rimportAll(kind, on){
+  if(!RIM) return;
+  RIM.plan.items.forEach(x=>{ if(x.kind===kind){ if(on) RIM.sel.add(x.key); else RIM.sel.delete(x.key); } });
+  document.querySelectorAll(`#sheetBody .rim-group[data-kind="${kind}"] input[type="checkbox"]`).forEach(c=>{ c.checked = on; });
+  rimportCounts();
+}
+async function rimportApply(){
+  if(!RIM || !RIM.sel.size) return;
+  const items = RIM.plan.items.filter(x=> RIM.sel.has(x.key)), unknown = RIM.plan.unknown;
+  const byId = {}; items.forEach(x=>{ byId[x.id] = Object.assign(byId[x.id] || {}, x.ch); });
+  const n = { dates: items.filter(x=> x.kind!=='desc').length, fixed: items.filter(x=> x.kind==='differs' || x.kind==='precise').length, desc: items.filter(x=> x.kind==='desc').length };
+  try{
+    // copia interna para poder deshacer (la misma que usa cualquier importación)
+    const savedAt = new Date().toISOString();
+    if(!await idbSet(KV_STORE, 'overrides_before_last_import', JSON.stringify({ savedAt, data: OVERRIDES }))) throw new Error(t('import.save_copy_failed'));
+    APP_META.undoImportAt = savedAt;
+    await saveAppMeta();
+    const before = JSON.stringify(OVERRIDES);
+    Object.keys(byId).forEach(id=>{
+      if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {};
+      Object.assign(OVERRIDES.products[id], byId[id]);
+    });
+    if(!await persistOverrides()){ OVERRIDES = JSON.parse(before); throw new Error(t('save.error')); }
+    buildProducts();
+  }catch(err){
+    showToast(t('bk.import_failed') + ' ' + err.message, { duration:6000 });
+    setBackupStatus('photos', t('bk.import_failed') + ' ' + err.message);
+    return;
+  }
+  RIM.applied = true; closeSheet();
+  const msg = t('rimport.done2').replace('{p}', Object.keys(byId).length).replace('{f}', n.dates).replace('{c}', n.fixed).replace('{d}', n.desc) + (unknown ? ' ' + t('rimport.unknown').replace('{n}', unknown) : '');
   setBackupStatus('photos', msg);
   showToast(msg, { ok:true, duration:8000, action:{ label:t('common.undo'), fn: undoLastImport } });
   render();

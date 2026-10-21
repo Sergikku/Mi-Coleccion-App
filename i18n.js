@@ -3024,6 +3024,56 @@ I18N.es['ayuda.search.body'] += '<br><br><b>Valorar en serie</b> (v11.20):<br>�
 I18N.en['ayuda.search.body'] += '<br><br><b>Value in a row</b> (v11.20):<br>• It has a <b>search box</b> that works like the Inventory one.<br>• Each row has <b>Where I bought it</b>: pick a place from the list or type a new one, and it’s added to your list. It’s the same as “Shop or seller” on the item page.<br>• The <b>No shop</b> filter shows only the ones that don’t have it yet.<br>• In <b>My shops</b> you add, rename or remove places. Renaming one also changes it on the items that have it (with “Undo”).';
 I18N.de['ayuda.search.body'] += '<br><br><b>Nacheinander bewerten</b> (v11.20):<br>• Es hat eine <b>Suche</b>, die wie die im Inventar funktioniert.<br>• Jede Zeile hat <b>Wo ich es gekauft habe</b>: einen Ort aus der Liste wählen oder einen neuen eintippen, der dann in deine Liste kommt. Es ist dasselbe wie „Laden oder Verkäufer“ auf der Stückseite.<br>• Der Filter <b>Ohne Laden</b> zeigt nur die, bei denen er noch fehlt.<br>• Unter <b>Meine Läden</b> fügst du Orte hinzu, benennst sie um oder entfernst sie. Beim Umbenennen ändert er sich auch bei den Stücken, bei denen er steht (mit „Rückgängig“).';
 I18N.ja['ayuda.search.body'] += '<br><br><b>まとめて評価</b>（v11.20）：<br>• 在庫一覧と同じように使える<b>検索</b>があります。<br>• 各行に<b>購入先</b>があります。リストから選ぶか新しく入力すると、リストに追加されます。アイテムページの「店・出品者」と同じ項目です。<br>• <b>購入先なし</b>で、まだ入力していないものだけを表示します。<br>• <b>購入先リスト</b>で追加・名前の変更・削除ができます。名前を変えると、それを使っているアイテムでも変わります（「元に戻す」付き）。';
+/* ---------- v11.21 · Investigación: revisar y corregir fechas ---------- */
+Object.assign(I18N.es, {
+  'backup.research_intro':'Si te paso un archivo de investigación (fechas y descripciones), añádelo aquí. Rellena lo que esté vacío y, antes de cambiar nada, te enseña qué fechas corrige para que elijas.',
+  'rimport.title':'Revisar la investigación', 'rimport.intro':'Marca lo que quieres aplicar. Solo se tocan la fecha, el año y la descripción, y se puede deshacer.',
+  'rimport.apply':'Aplicar ({n})', 'rimport.all':'Todas', 'rimport.none':'Ninguna',
+  'rimport.g_differs':'Fechas distintas', 'rimport.d_differs':'La nueva no cuadra con la que tienes. Están sin marcar: elige cuáles cambias.',
+  'rimport.g_precise':'Fechas más exactas', 'rimport.d_precise':'La nueva completa la tuya (por ejemplo, del año al mes o al día).',
+  'rimport.g_fill':'Fechas nuevas', 'rimport.d_fill':'Piezas que no tenían ni fecha ni año.',
+  'rimport.g_desc':'Descripciones nuevas', 'rimport.d_desc':'Solo en piezas sin descripción.',
+  'rimport.skipped':'No se tocan:', 'rimport.skip_same':'{n} con la misma fecha', 'rimport.skip_less':'{n} en las que la tuya es más exacta', 'rimport.skip_bad':'{n} con una fecha mal escrita',
+  'rimport.done2':'Investigación aplicada en {p} piezas: {f} fechas (de ellas {c} corregidas o más exactas) y {d} descripciones.',
+});
+Object.assign(I18N.en, {
+  'backup.research_intro':'If I send you a research file (dates and descriptions), add it here. It fills in what’s empty and, before changing anything, shows you which dates it corrects so you can choose.',
+  'rimport.title':'Review the research', 'rimport.intro':'Tick what you want to apply. Only the date, year and description are touched, and it can be undone.',
+  'rimport.apply':'Apply ({n})', 'rimport.all':'All', 'rimport.none':'None',
+  'rimport.g_differs':'Different dates', 'rimport.d_differs':'The new one doesn’t match yours. They’re unticked: choose which to change.',
+  'rimport.g_precise':'More exact dates', 'rimport.d_precise':'The new one completes yours (for example, from year to month or day).',
+  'rimport.g_fill':'New dates', 'rimport.d_fill':'Items that had no date or year.',
+  'rimport.g_desc':'New descriptions', 'rimport.d_desc':'Only on items without a description.',
+  'rimport.skipped':'Left as they are:', 'rimport.skip_same':'{n} with the same date', 'rimport.skip_less':'{n} where yours is more exact', 'rimport.skip_bad':'{n} with a badly written date',
+  'rimport.done2':'Research applied to {p} items: {f} dates ({c} of them corrected or more exact) and {d} descriptions.',
+});
+Object.assign(I18N.de, {
+  'backup.research_intro':'Wenn ich dir eine Recherche-Datei (Daten und Beschreibungen) schicke, füge sie hier hinzu. Sie füllt Leeres aus und zeigt dir vor jeder Änderung, welche Daten sie korrigiert, damit du wählen kannst.',
+  'rimport.title':'Recherche prüfen', 'rimport.intro':'Hake an, was übernommen werden soll. Nur Datum, Jahr und Beschreibung werden geändert, und es lässt sich rückgängig machen.',
+  'rimport.apply':'Übernehmen ({n})', 'rimport.all':'Alle', 'rimport.none':'Keine',
+  'rimport.g_differs':'Abweichende Daten', 'rimport.d_differs':'Das neue passt nicht zu deinem. Sie sind nicht angehakt: Wähle, welche du änderst.',
+  'rimport.g_precise':'Genauere Daten', 'rimport.d_precise':'Das neue ergänzt deins (zum Beispiel vom Jahr zum Monat oder Tag).',
+  'rimport.g_fill':'Neue Daten', 'rimport.d_fill':'Stücke ohne Datum und ohne Jahr.',
+  'rimport.g_desc':'Neue Beschreibungen', 'rimport.d_desc':'Nur bei Stücken ohne Beschreibung.',
+  'rimport.skipped':'Bleiben unverändert:', 'rimport.skip_same':'{n} mit demselben Datum', 'rimport.skip_less':'{n}, bei denen deins genauer ist', 'rimport.skip_bad':'{n} mit falsch geschriebenem Datum',
+  'rimport.done2':'Recherche bei {p} Stücken übernommen: {f} Daten (davon {c} korrigiert oder genauer) und {d} Beschreibungen.',
+});
+Object.assign(I18N.ja, {
+  'backup.research_intro':'調査ファイル（発売日と説明）を受け取ったら、ここで追加します。空欄を埋め、変更する前にどの日付を修正するかを表示するので、選べます。',
+  'rimport.title':'調査を確認', 'rimport.intro':'適用するものにチェックを入れてください。変わるのは発売日・年・説明だけで、元に戻せます。',
+  'rimport.apply':'適用（{n}）', 'rimport.all':'すべて', 'rimport.none':'なし',
+  'rimport.g_differs':'異なる日付', 'rimport.d_differs':'新しい日付が今の日付と合いません。チェックは外れています。変更するものを選んでください。',
+  'rimport.g_precise':'より正確な日付', 'rimport.d_precise':'新しい日付が今の日付を補います（例：年だけ→月や日まで）。',
+  'rimport.g_fill':'新しい日付', 'rimport.d_fill':'日付も年もなかったアイテム。',
+  'rimport.g_desc':'新しい説明', 'rimport.d_desc':'説明がないアイテムだけ。',
+  'rimport.skipped':'変更しないもの：', 'rimport.skip_same':'同じ日付 {n}点', 'rimport.skip_less':'今の日付のほうが正確 {n}点', 'rimport.skip_bad':'日付の書き方が正しくない {n}点',
+  'rimport.done2':'{p}点に調査を適用しました：日付 {f}件（うち修正・より正確 {c}件）、説明 {d}件。',
+});
+/* ---------- v11.21 · Ayuda ---------- */
+I18N.es['ayuda.backup.body'] += '<br><br><b>Añadir investigación</b> (v11.21): un archivo de investigación rellena fechas, años y descripciones que faltan y también puede <b>corregir fechas</b>. Antes de cambiar nada abre <b>Revisar la investigación</b>: las fechas nuevas y las más exactas (del año al mes o al día) salen marcadas; las <b>distintas</b> de la tuya salen sin marcar, para que elijas. Nunca pone una fecha menos exacta que la tuya. Solo toca fecha, año y descripción, y se puede deshacer.';
+I18N.en['ayuda.backup.body'] += '<br><br><b>Add research</b> (v11.21): a research file fills in missing dates, years and descriptions and can also <b>correct dates</b>. Before changing anything it opens <b>Review the research</b>: new dates and more exact ones (from year to month or day) come ticked; ones <b>different</b> from yours come unticked so you can choose. It never puts a less exact date than yours. It only touches date, year and description, and it can be undone.';
+I18N.de['ayuda.backup.body'] += '<br><br><b>Recherche hinzufügen</b> (v11.21): Eine Recherche-Datei ergänzt fehlende Daten, Jahre und Beschreibungen und kann auch <b>Daten korrigieren</b>. Vor jeder Änderung öffnet sich <b>Recherche prüfen</b>: neue und genauere Daten (vom Jahr zum Monat oder Tag) sind angehakt; von deinem <b>abweichende</b> sind nicht angehakt, damit du wählst. Ein ungenaueres Datum als deins wird nie eingetragen. Nur Datum, Jahr und Beschreibung werden geändert, und es lässt sich rückgängig machen.';
+I18N.ja['ayuda.backup.body'] += '<br><br><b>調査を追加</b>（v11.21）：調査ファイルで、足りない発売日・年・説明を埋め、<b>日付の修正</b>もできます。変更する前に<b>調査を確認</b>が開きます。新しい日付とより正確な日付（年→月・日）はチェック済み、今の日付と<b>異なる</b>ものはチェックなしで、自分で選べます。今より不正確な日付になることはありません。変わるのは発売日・年・説明だけで、元に戻せます。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;

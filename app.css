@@ -2628,3 +2628,20 @@ html.est-tour-on .est-ctl, html.est-tour-on .est-bar, html.est-tour-on .est-imm-
 @media (prefers-reduced-motion: reduce){ html.est-tour-on .est-ctl, html.est-tour-on .est-bar, html.est-tour-on .est-imm-lift{transition:none;} }
 @media (forced-colors: active){ .est-stage.is-hl .is-dim{forced-color-adjust:auto;} .est-preset.active{outline:2px solid Highlight;} }
 .est-ctl .est-btn{flex-shrink:0;}   /* v11.19: con la lupa al lado, los botones no se estrechan (el título se acorta) */
+
+/* v11.21 · Revisar la investigación */
+.rim-ign{margin-top:var(--sp-2);}
+.rim-group{margin-top:var(--sp-4);}
+.rim-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);flex-wrap:wrap;}
+.rim-head h3{margin:0;font-size:var(--fs-md);font-weight:600;}
+.rim-n{font-size:var(--fs-xs);color:var(--text-muted);font-weight:500;font-variant-numeric:tabular-nums;margin-left:4px;}
+.rim-all{display:flex;gap:4px;}
+.rim-list{display:flex;flex-direction:column;margin-top:var(--sp-2);border-top:1px solid var(--line);}
+.rim-row{display:flex;align-items:flex-start;gap:var(--sp-2);padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer;}
+.rim-row input{flex:0 0 auto;width:22px;height:22px;margin:1px 0 0;accent-color:var(--text);}
+.rim-txt{display:flex;flex-direction:column;min-width:0;gap:2px;}
+.rim-name{font-size:var(--fs-sm);font-weight:600;overflow-wrap:anywhere;}
+.rim-txt small{font-size:var(--fs-2xs);color:var(--text-muted);}
+.rim-dates{font-size:var(--fs-sm);font-variant-numeric:tabular-nums;}
+.rim-dates s{color:var(--text-muted);}
+.rim-desc{font-size:var(--fs-xs);color:var(--text-muted);}
