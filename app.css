@@ -2453,6 +2453,8 @@ body:has(.bulk-bar) .fab{display:none;}
 .vb-list{display:flex;flex-direction:column;gap:2px;margin-top:var(--sp-2);}
 .vb-row{display:grid;grid-template-columns:minmax(0,1fr) 92px 92px;gap:var(--sp-2);align-items:end;padding:8px 2px;border-bottom:1px solid var(--line);}
 .vb-row.is-saved .vb-box{box-shadow:0 0 0 1px var(--ok);}
+.vb-row{transition:opacity .2s ease;}
+.vb-row.is-leaving{opacity:0;pointer-events:none;}
 .vb-name{display:flex;flex-direction:column;min-width:0;}
 .vb-name b{font-size:var(--fs-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .vb-name small{font-size:var(--fs-2xs);color:var(--text-muted);}

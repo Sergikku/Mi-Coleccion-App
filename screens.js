@@ -1820,7 +1820,7 @@ function valueBulkResultsHTML(list){
   const empty = vbState.q.trim() ? t('vb.no_match') + (vbState.show!=='all' ? ' ' + t('vb.try_all') : '')
     : t(vbState.show==='novalue' ? 'val.none_left' : vbState.show==='nostore' ? 'vb.none_left_store' : 'val.empty_sel');
   return `${shown.length ? `<div class="vb-list" data-nosave>${shown.map(p=>{ const id = escapeHTML(p.id), now = valueNow(p), paid = valuePaid(p), st = hasStore(p) ? p.compra.tienda : '';
-      return `<div class="vb-row"><div class="vb-name"><b>${escapeHTML(p.name)}</b><small>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))}</small></div>
+      return `<div class="vb-row" data-id="${id}" onfocusout="vbRowLeft(this, event)"><div class="vb-name"><b>${escapeHTML(p.name)}</b><small>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))}</small></div>
         <label class="vb-in"><span>${t('val.now')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${now===null ? '' : now}" aria-label="${escapeHTML(t('val.now') + ' — ' + p.name)}" onchange="vbSet('${id}','valorActual',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label>
         <label class="vb-in"><span>${t('val.paid_short')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${paid===null ? '' : paid}" aria-label="${escapeHTML(t('p.value_bought') + ' — ' + p.name)}" onchange="vbSet('${id}','valorAdquisicion',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label>
         <label class="vb-in vb-store"><span>${t('vb.store')}</span><span class="vb-box is-text"><input type="text" list="vbStores" maxlength="80" autocomplete="off" enterkeyhint="done" value="${escapeHTML(st)}" placeholder="${escapeHTML(t('vb.store_ph'))}" aria-label="${escapeHTML(t('vb.store') + ' — ' + p.name)}" onchange="vbSetStore('${id}',this)"></span></label></div>`; }).join('')}</div>`
@@ -1862,14 +1862,46 @@ async function vbSet(id, field, input){
   await setEditionNested(id, 'valuation', field, p.valuation[field]);
   if(field==='valorActual'){ const hoy = new Date().toISOString().slice(0, 10); p.valuation.fechaActualizacion = hoy; await setEditionNested(id, 'valuation', 'fechaActualizacion', hoy); }
   recordValueHistory(); await persistOverrides();
-  input.closest('.vb-row') && input.closest('.vb-row').classList.add('is-saved');
+  vbRowSaved(input.closest('.vb-row'));
 }
 async function vbSetStore(id, input){
   if(!PRODUCTS_BY_ID[id]) return;
   const v = storeCanonical(input.value);
   input.value = v;
   await updatePurchase(id, 'tienda', v);
-  input.closest('.vb-row') && input.closest('.vb-row').classList.add('is-saved');
+  vbRowSaved(input.closest('.vb-row'));
+}
+/* v11.20.1: con «Sin valor» o «Sin sitio», la pieza que ya tiene ese dato se va de la lista
+   en cuanto pasas a otra fila (mientras sigues en la suya, se queda: puedes rellenar el resto) */
+function vbRowDone(row){
+  const p = row && PRODUCTS_BY_ID[row.dataset.id]; if(!p) return false;
+  return (vbState.show==='novalue' && valueNow(p)!==null) || (vbState.show==='nostore' && hasStore(p));
+}
+function vbRowSaved(row){
+  if(!row) return;
+  row.classList.add('is-saved');
+  if(vbRowDone(row) && !row.contains(document.activeElement)) vbRowRemove(row);   // (ya estás en otra fila)
+}
+function vbRowLeft(row, e){
+  if(e.relatedTarget && row.contains(e.relatedTarget)) return;   // (sigue dentro de la misma fila)
+  if(vbRowDone(row)) vbRowRemove(row);
+}
+function vbRowRemove(row){
+  if(!row || row.classList.contains('is-leaving') || !isSheetKind('val-bulk')) return;
+  const done = ()=>{
+    if(!row.isConnected) return;
+    // la fila en la que estás ahora no se mueve: si la que se va está por encima, se compensa el desplazamiento
+    const body = document.getElementById('sheetBody'), a = document.activeElement, r = a && a.closest ? a.closest('.vb-row') : null;
+    const y0 = r && r!==row ? r.getBoundingClientRect().top : null;
+    row.remove();
+    if(y0!==null && body){ const dy = r.getBoundingClientRect().top - y0; if(dy) body.scrollTop += dy; }
+    const list = valueBulkList(), c = document.getElementById('vbCount'); if(c) c.textContent = vbCountText(list.length);
+    const left = document.querySelectorAll('#vbRes .vb-row').length, more = document.querySelector('#vbRes [data-fk="vb-more"]');
+    if(more){ const n = list.length - left; if(n > 0) more.textContent = t('val.more').replace('{n}', n); else more.remove(); }
+    if(!left) vbRefreshList();   // (no queda ninguna: sale el aviso o las siguientes)
+  };
+  row.classList.add('is-leaving');
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) done(); else setTimeout(done, 220);
 }
 
 /* ---------- Mis sitios de compra (v11.20) ----------
