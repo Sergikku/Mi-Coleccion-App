@@ -71,6 +71,7 @@ window.addEventListener('popstate', ()=>{
     return;
   }
   if(isPhotoEditorOpen()){ closePhotoEditor(null); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
+  if(!isViewerOpen() && v1119Overlay()){ v1119OverlayClose(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }   // v11.19
   if(typeof estInspectOpen==='function' && estInspectOpen()){ estCloseInspect(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }   // v11.11
   // v11.6: «¿Lo tengo?» — primero se cierra el resultado y, después, la cámara
   if(typeof isScannerOpen==='function' && isScannerOpen()){ scannerBack(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
@@ -83,6 +84,7 @@ window.addEventListener('popstate', ()=>{
   if(isViewerOpen()){ closePhotoViewer(); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
   // v11.11.1: dentro de una balda, «atrás» vuelve al mueble entero
   if(typeof estBackLevel==='function' && estBackLevel()){ try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }
+  if(typeof invState!=='undefined' && invState.sel && view.page==='inventario' && !view.productId){ invPickMode(false); try{ history.pushState({ coleccionApp:true, depth:viewHistory.length }, ''); }catch(e){} return; }   // v11.19: «atrás» primero deja de elegir varias
   if(viewHistory.length){ goBack(); return; }
   // historial interno agotado (p. ej. más de 60 pasos): vuelve al inicio;
   // el siguiente "atrás" ya sale de la app, como en cualquier app Android
@@ -178,6 +180,7 @@ async function renderKeepFocus(fallback){
 }
 async function render(){
   commitPendingEdit();
+  if(typeof invState!=='undefined' && invState.sel && (view.page!=='inventario' || view.productId)) invState.sel = null;   // v11.19: «Elegir varias» se acaba al salir del Inventario
   _platVisual.clear();   // v11.1: colores/códigos de plataforma al día (p. ej. tras importar una copia)
   const mySeq = ++renderSeq;
   const scrollY = (pendingScrollY !== null) ? pendingScrollY : window.scrollY;
@@ -209,6 +212,7 @@ async function render(){
   delete document.body.dataset.rendering;
   updateFab();
   hydrate(panel);
+  if(typeof invPickPaint==='function') invPickPaint(panel);   // v11.19: las elegidas, marcadas
   if(typeof estAfterRender==='function') estAfterRender();   // v11.11: la estantería 3D necesita su tamaño real
   updateDocumentTitle();
   if(tourActive) advanceTourIfDone();
@@ -454,12 +458,14 @@ function attachFlipHandlers(){
     const card = e.target.closest('.flip-card');
     if(!card) return;
     if(card.dataset.justSwiped==='1'){ card.dataset.justSwiped=''; e.preventDefault(); e.stopPropagation(); return; }
+    if(typeof invState!=='undefined' && invState.sel && card.closest('#inv-results .inv-body')) return;   // v11.19: con «Elegir varias», tocar elige
     // voltear/abrir/ampliar nunca activa además la acción de la tarjeta o fila que la envuelve
     if(photoTapAction(card)){ e.preventDefault(); e.stopPropagation(); }
   }, true);
   panel.addEventListener('keydown', (e)=>{
     const card = e.target.closest && e.target.closest('.flip-card');
     if(!card || card!==e.target || (e.key!=='Enter' && e.key!==' ')) return;
+    if(typeof invState!=='undefined' && invState.sel && card.closest('#inv-results .inv-body')) return;   // v11.19
     if(photoTapAction(card)){ e.preventDefault(); e.stopPropagation(); }
   }, true);
   panel.addEventListener('touchstart', (e)=>{
@@ -488,6 +494,56 @@ function attachFlipHandlers(){
     touchStart = null;
   }, {passive:true});
   panel.addEventListener('touchcancel', ()=>{ touchStart = null; }, {passive:true});
+  attachListGestures(panel);   // v11.19
+}
+/* v11.19: en el Inventario, «Elegir varias» (tocar elige) y deslizar una fila
+   (← «Lo tengo» / «Me falta», → «En camino»), solo con el dedo y solo en horizontal */
+let _swClickBlock = 0;
+function attachListGestures(panel){
+  panel.addEventListener('click', (e)=>{
+    if(Date.now() - _swClickBlock < 450 && e.target.closest && e.target.closest('.item-list .inv-item')){ e.preventDefault(); e.stopPropagation(); return; }
+    if(typeof invPickClick==='function') invPickClick(e);
+  }, true);
+  panel.addEventListener('keydown', (e)=>{
+    if(!invState.sel || (e.key!=='Enter' && e.key!==' ')) return;
+    const it = e.target.closest && e.target.closest('#inv-results .inv-body [data-pid]');
+    if(!it || (e.target!==it && !e.target.matches('button, [role="link"]'))) return;
+    e.preventDefault(); e.stopPropagation(); invPickToggle(it.dataset.pid);
+  }, true);
+  panel.addEventListener('touchstart', (e)=>{
+    if(e.touches.length!==1 || invState.sel || view.productId || view.page!=='inventario') return;
+    const row = e.target.closest && e.target.closest('.item-list .inv-item');
+    if(!row || !row.dataset.pid || e.target.closest('.flip-card, button, a, input, select, label')) return;
+    const tt = e.touches[0];
+    const sw = { row, pid:row.dataset.pid, x0:tt.clientX, y0:tt.clientY, dx:0, on:false };
+    const move = (ev)=>{
+      const q = ev.touches[0]; if(!q) return;
+      const dx = q.clientX - sw.x0, dy = q.clientY - sw.y0;
+      if(!sw.on){
+        if(Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)){ end(true); return; }
+        if(Math.abs(dx) < 16 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+        sw.on = true; row.classList.add('is-swiping');
+      }
+      ev.preventDefault();
+      sw.dx = Math.max(-140, Math.min(140, dx));
+      const p = PRODUCTS_BY_ID[sw.pid], dir = sw.dx < 0 ? 'left' : 'right';
+      row.style.setProperty('--sx', sw.dx + 'px');
+      row.dataset.sw = dir;
+      row.dataset.swLabel = dir==='left' ? (p && p.possession==='tengo' ? t('swipe.missing') : t('swipe.have')) : (p && p.possession==='en_camino' ? t('swipe.missing') : t('swipe.coming'));
+      row.classList.toggle('is-armed', Math.abs(sw.dx) >= 72);
+    };
+    const end = (cancel)=>{
+      row.removeEventListener('touchmove', move); row.removeEventListener('touchend', onEnd); row.removeEventListener('touchcancel', onCancel);
+      if(!sw.on) return;
+      _swClickBlock = Date.now();
+      const fire = !cancel && Math.abs(sw.dx) >= 72, dir = sw.dx < 0 ? 'left' : 'right';
+      row.classList.remove('is-swiping', 'is-armed'); row.style.removeProperty('--sx'); delete row.dataset.sw; delete row.dataset.swLabel;
+      if(fire && typeof swipeAction==='function') swipeAction(sw.pid, dir);
+    };
+    const onEnd = ()=> end(false), onCancel = ()=> end(true);
+    row.addEventListener('touchmove', move, { passive:false });
+    row.addEventListener('touchend', onEnd); row.addEventListener('touchcancel', onCancel);
+  }, { passive:true });
 }
 
 /* ---------- Visor de fotos con zoom (v11.1.1) ----------
@@ -529,6 +585,7 @@ function viewerApply(animate){
   const zo = document.getElementById('viewerZoomOut'), zi = document.getElementById('viewerZoomIn');
   if(zo) zo.disabled = v.s <= 1.01;
   if(zi) zi.disabled = v.s >= VIEWER_MAX - 0.01;
+  viewerMarksPlace(animate);   // v11.19: las marcas siguen a la foto
 }
 function viewerZoomAt(s, cx, cy, animate){
   const v = viewerState; if(!v) return;
@@ -584,12 +641,14 @@ async function openPhotoViewer(pid, side, opts){
   bar.innerHTML = (sides.length > 1 ? `<span class="viewer-sides" role="group" aria-label="${escapeHTML(t('photo.photos'))}">` + sides.map(s=>`<button type="button" class="chip ${s===side?'active':''}" aria-pressed="${s===side}" onclick="openPhotoViewer('${escapeHTML(pid)}','${s}')">${escapeHTML(photoSideLabel(s))}</button>`).join('') + `</span>` : '')
     + `<span class="viewer-zoom"><button type="button" class="round-btn" id="viewerZoomOut" onclick="viewerZoomBy(1/1.6)" aria-label="${t('viewer.zoom_out')}" title="${t('viewer.zoom_out')}">${icon('minus')}</button>`
     + `<button type="button" class="round-btn" id="viewerZoomIn" onclick="viewerZoomBy(1.6)" aria-label="${t('viewer.zoom_in')}" title="${t('viewer.zoom_in')}">${icon('plus')}</button></span>`
-    + `<button type="button" class="chip viewer-edit" id="viewerEdit" onclick="editViewerPhoto()">${icon('crop')} ${t('pe.edit')}</button>`;
+    + `<button type="button" class="chip viewer-edit" id="viewerEdit" onclick="editViewerPhoto()">${icon('crop')} ${t('pe.edit')}</button>`
+    + viewerMarksBtnHTML();   // v11.19: marcas de defectos
   ov.classList.add('is-open');
   ov.classList.toggle('is-over-sheet', isSheetOpen());   // v11.11: abierto desde una hoja (la de una copia): va por encima
   ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true'); ov.setAttribute('aria-label', p.name + (vc ? ' — ' + t('copy.n').replace('{n}', vc.n) : ''));
   viewerApply(false);
   viewerListen(true);
+  viewerExtrasSync();   // v11.19: marcas, pie de foto y, desde la galería, la pieza y su posición
   if(from && opts.touches && opts.touches.length>=2) viewerStartPinch(opts.touches, true);
   else close.focus();
   if(!from){ const thumb = await getPhotoURL(pid, side, 'thumb'); if(thumb && viewerState===v && !img.getAttribute('src')) viewerSetSrc(thumb, v); }
@@ -598,6 +657,7 @@ async function openPhotoViewer(pid, side, opts){
 /* Siguiente / anterior foto de la misma pieza (sin ampliar) */
 function viewerStep(dir){
   const v = viewerState; if(!v) return false;
+  if(viewerList) return viewerListStep(dir);   // v11.19: desde la galería, la pieza siguiente / anterior
   const sides = photoSidesFor(v.pid);
   if(sides.length < 2) return false;
   const i = sides.indexOf(v.side);
@@ -610,6 +670,7 @@ function closePhotoViewer(){
   if(img){ img.removeAttribute('src'); img.style.transform = ''; img.classList.remove('is-animating'); }
   viewerState = null; _viewerGesture = null;
   viewerListen(false);
+  viewerExtrasClear();   // v11.19
   if(_viewerReturnFocus && _viewerReturnFocus.focus && document.contains(_viewerReturnFocus)) try{ _viewerReturnFocus.focus(); }catch(e){}
   _viewerReturnFocus = null;
 }
@@ -1655,6 +1716,7 @@ async function editViewerPhoto(){
   if(!out) return;
   if(!await storePhotoData(key, out)) return;
   showToast(t('photo.saved'), { ok:true, replace:true });
+  await photoMarksClearKey(key);   // v11.19
   if(viewerState && viewerState.pid===v.pid) openPhotoViewer(v.pid, v.side);
   render();
   if(typeof estSidesRefresh==='function') estSidesRefresh();          // v11.14: la hoja «Fotos de los lados», si está abierta
@@ -1685,7 +1747,7 @@ function viewerStartPan(t, moved){
   _viewerGesture = { type:'pan', sx:t.clientX, sy:t.clientY, x0:v.x, y0:v.y, moved:!!moved };
 }
 function viewerTouchStart(e){
-  if(!viewerState || !e.target.closest || !e.target.closest('#pinchOverlay') || e.target.closest('button')) return;
+  if(!viewerState || !e.target.closest || !e.target.closest('#pinchOverlay') || e.target.closest('button, .viewer-cap, .viewer-mark-list')) return;
   if(e.touches.length >= 2) viewerStartPinch(e.touches, false);
   else if(e.touches.length === 1) viewerStartPan(e.touches[0]);
 }
@@ -1716,6 +1778,7 @@ function viewerTouchEnd(e){
   if(e.touches.length > 0) return;
   _viewerGesture = null;
   if(g.type==='pan' && !g.moved){
+    if(viewerMarksOn) return;   // v11.19: con «Marcas», cada toque pone una (el clic normal); sin doble toque
     const t = e.changedTouches[0], now = Date.now();
     const last = _viewerLastTap;
     if(last && now - last.t < 320 && Math.hypot(t.clientX - last.x, t.clientY - last.y) < 30){
@@ -1753,7 +1816,7 @@ function viewerOnResize(){ const v = viewerState; if(!v) return; viewerFit(v); v
   });
   document.addEventListener('mouseup', ()=>{ if(drag){ drag = null; const { ov } = viewerEls(); if(ov) ov.classList.remove('is-dragging'); } });
   document.addEventListener('dblclick', (e)=>{
-    if(!viewerState || e.target.id!=='pinchImg') return;
+    if(!viewerState || e.target.id!=='pinchImg' || viewerMarksOn) return;
     if(viewerState.s > 1.01) viewerReset(true); else viewerZoomAt(2.5, e.clientX, e.clientY, true);
   });
 })();
@@ -1836,12 +1899,14 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Escape'){
     if(isModalOpen()){ e.preventDefault(); modalCancelAction(); return; }
     if(isPhotoEditorOpen()){ e.preventDefault(); closePhotoEditor(null); return; }
+    if(!isViewerOpen() && v1119Overlay()){ e.preventDefault(); v1119OverlayClose(); return; }   // v11.19: sesión de fotos / comparar copias
     if(typeof estInspectOpen==='function' && estInspectOpen()){ e.preventDefault(); estCloseInspect(); return; }   // v11.11
     if(typeof isScannerOpen==='function' && isScannerOpen()){ e.preventDefault(); scannerBack(); return; }
     if(isViewerOpen() && isSheetOpen()){ e.preventDefault(); closePhotoViewer(); return; }   // v11.11
     if(isSheetOpen()){ e.preventDefault(); closeSheet(); return; }
     if(isViewerOpen()){ e.preventDefault(); closePhotoViewer(); return; }
     if(!isModalOpen() && typeof estBackLevel==='function' && estBackLevel()){ e.preventDefault(); return; }   // v11.11.1
+    if(typeof invState!=='undefined' && invState.sel && view.page==='inventario' && !view.productId){ e.preventDefault(); invPickMode(false); return; }   // v11.19
   }
   if(e.key==='Enter' && isModalOpen() && e.target && e.target.tagName==='INPUT'){ e.preventDefault(); modalConfirmAction(); return; }
   // visor de fotos: + − 0 para el zoom y flechas para moverse por la foto ampliada
@@ -1855,7 +1920,7 @@ document.addEventListener('keydown', (e)=>{
     if((k==='ArrowRight' || k==='ArrowLeft') && viewerStep(k==='ArrowRight' ? 1 : -1)){ e.preventDefault(); return; }
   }
   if(e.key==='Tab'){
-    const box = isModalOpen() ? document.querySelector('#modalOverlay .modal-card') : isPhotoEditorOpen() ? photoEditor.root : (typeof estInspectOpen==='function' && estInspectOpen()) ? (typeof estDialogEl==='function' ? estDialogEl() : document.getElementById('estInspect')) : (typeof isScannerOpen==='function' && isScannerOpen()) ? scanner.root : (isViewerOpen() && isSheetOpen()) ? document.getElementById('pinchOverlay') : isSheetOpen() ? document.querySelector('#sheetOverlay .sheet') : isViewerOpen() ? document.getElementById('pinchOverlay') : null;
+    const box = isModalOpen() ? document.querySelector('#modalOverlay .modal-card') : isPhotoEditorOpen() ? photoEditor.root : (v1119Overlay() && !isViewerOpen()) ? v1119Overlay() : (typeof estInspectOpen==='function' && estInspectOpen()) ? (typeof estDialogEl==='function' ? estDialogEl() : document.getElementById('estInspect')) : (typeof isScannerOpen==='function' && isScannerOpen()) ? scanner.root : (isViewerOpen() && isSheetOpen()) ? document.getElementById('pinchOverlay') : isSheetOpen() ? document.querySelector('#sheetOverlay .sheet') : isViewerOpen() ? document.getElementById('pinchOverlay') : null;
     if(!box) return;
     const f = [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled && el.offsetParent!==null);
     if(!f.length) return;
@@ -2069,7 +2134,8 @@ function productBadgesHTML(p, opts){
     ${p.dlc ? `<span class="badge badge-dlc">DLC</span>` : ``}
     ${p.special ? `<span class="badge badge-special">${t('badge.special')}</span>` : ``}
     ${opts.noRegion ? '' : regionBadgesHTML(p)}
-    ${p.existence!=='confirmado' ? `<span class="badge badge-unconfirmed">${existenceLabel(p.existence)}</span>` : ``}`;
+    ${p.existence!=='confirmado' ? `<span class="badge badge-unconfirmed">${existenceLabel(p.existence)}</span>` : ``}
+    ${typeof isLoaned==='function' && isLoaned(p) ? `<span class="badge badge-loan" title="${escapeHTML(t('loan.sum').replace('{a}', p.prestamo.a))}">${icon('loan')} ${t('loan.badge')}</span>` : ''}`;
 }
 
 /* Posesión: verde si lo tienes, amarillo pastel si además está precintado,
@@ -2190,6 +2256,7 @@ function coverTagsHTML(p){
   if(p.dlc) b.push(`<span class="cover-tag tag-dlc">DLC</span>`);
   if(p.standalone) b.push(`<span class="cover-tag tag-dual">${t('badge.dual')}</span>`);
   if(p.existence && p.existence!=='confirmado') b.push(`<span class="cover-tag tag-unconf">${existenceLabel(p.existence)}</span>`);
+  if(typeof isLoaned==='function' && isLoaned(p)) b.push(`<span class="cover-tag tag-loan">${t('loan.badge')}</span>`);   // v11.19
   return b.length ? `<span class="cover-tags">${b.join('')}</span>` : '';
 }
 
@@ -2338,4 +2405,554 @@ function viewToggleHTML(current, onclickTpl, withWall){
   return `<div class="segmented" role="group" aria-label="${t('view.label')}">
     ${b('grid','view.grid','covers')}${b('list','view.list','rows')}${withWall ? b('wall','view.wall','wall') : ''}
   </div>`;
+}
+
+/* =====================================================================
+   v11.19 · IMÁGENES
+   · Pie de foto y orden de las fotos extra.
+   · Marcas de defectos sobre una foto (un punto y su nota).
+   · El visor recorre la galería (deslizar o ← → pasa a la pieza siguiente).
+   · Sesión de fotos: una detrás de otra, con la cámara.
+   · Comparar dos copias lado a lado.
+   · Importar muchas fotos de una vez: cada una va a su pieza por su código
+     de barras.
+   Datos (todo en la pieza, solo se añaden; sin ellos todo queda como antes):
+   fotoNotas { hueco: texto } · fotosOrden [huecos extra en orden] ·
+   marcas { hueco: [{ x, y, t }] } (x, y de 0 a 1 sobre la foto).
+   Para las fotos de otra copia, la clave lleva delante su número: «c2:front».
+   ===================================================================== */
+function photoMetaKey(photoId, side){ const p = productForPhotoId(photoId); return !p || photoId===p.id ? side : String(photoId).slice(p.id.length + 2) + ':' + side; }
+function photoMetaObj(p, field){ return p && p[field] && typeof p[field]==='object' && !Array.isArray(p[field]) ? p[field] : null; }
+function photoNoteOf(photoId, side){ const p = productForPhotoId(photoId), o = photoMetaObj(p, 'fotoNotas'); const n = o ? o[photoMetaKey(photoId, side)] : ''; return typeof n==='string' ? n : ''; }
+function photoMarksOf(photoId, side){
+  const p = productForPhotoId(photoId), o = photoMetaObj(p, 'marcas'); const m = o ? o[photoMetaKey(photoId, side)] : null;
+  return Array.isArray(m) ? m.filter(x=> x && typeof x.x==='number' && typeof x.y==='number') : [];
+}
+async function setPhotoMeta(photoId, side, field, val){
+  const p = productForPhotoId(photoId); if(!p) return;
+  const all = Object.assign({}, photoMetaObj(p, field) || {}), key = photoMetaKey(photoId, side);
+  if(val===null || val===undefined || val==='' || (Array.isArray(val) && !val.length)) delete all[key]; else all[key] = val;
+  const out = Object.keys(all).length ? all : null;
+  p[field] = out; await setProductField(p.id, field, out);
+}
+/* Las extra, en tu orden (las que no has movido, detrás, en su orden de siempre) */
+function orderedExtraSides(id){
+  const used = EXTRA_SLOTS.filter(s=> hasPhoto(id, s));
+  const p = PRODUCTS_BY_ID[id], ord = p && Array.isArray(p.fotosOrden) ? p.fotosOrden : [];
+  if(!ord.length) return used;
+  const rank = (s)=>{ const i = ord.indexOf(s); return i < 0 ? 100 + EXTRA_SLOTS.indexOf(s) : i; };
+  return used.slice().sort((a, b)=> rank(a) - rank(b));
+}
+/* Al quitar una foto, su pie, sus marcas y su sitio en el orden se van con ella
+   (si no, la siguiente foto de ese hueco los heredaría) */
+async function forgetPhotoMeta(key){
+  const info = parsePhotoKey(key); if(!info) return;
+  const p = productForPhotoId(info.id); if(!p) return;
+  const mk = photoMetaKey(info.id, info.side);
+  for(const f of ['fotoNotas', 'marcas']){ const o = photoMetaObj(p, f); if(o && o[mk]!==undefined) await setPhotoMeta(info.id, info.side, f, null); }
+  if(info.id===p.id && Array.isArray(p.fotosOrden) && p.fotosOrden.includes(info.side)){
+    const o = p.fotosOrden.filter(s=> s!==info.side), v = o.length ? o : null;
+    p.fotosOrden = v; await setProductField(p.id, 'fotosOrden', v);
+  }
+}
+/* Un texto que se puede dejar vacío (vacío = quitarlo); null = cancelar */
+function askText(title, value){
+  return showFormModal(title, [{ name:'value', label:title, value: value || '', required:false }], {}).then(r=> r ? String(r.value || '') : null);
+}
+/* Si la foto de un hueco cambia (otra foto, o recortada o girada), sus marcas ya no estarían
+   en su sitio: se quitan (el pie se queda) */
+async function photoMarksClearKey(key){
+  const info = parsePhotoKey(key); if(!info) return;
+  if(photoMarksOf(info.id, info.side).length){ await setPhotoMeta(info.id, info.side, 'marcas', null); showToast(t('mk.cleared'), { replace:false, duration:5000 }); }
+}
+/* Al quitar la copia 1, la siguiente pasa a ser la pieza: su pie y sus marcas van con sus fotos */
+async function photoMetaPromote(id, copyPhotoId, sides){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  for(const f of ['fotoNotas', 'marcas']){
+    const o = photoMetaObj(p, f); if(!o) continue;
+    const n = Object.assign({}, o); let ch = false;
+    sides.forEach(s=>{ const from = photoMetaKey(copyPhotoId, s); if(s in n){ delete n[s]; ch = true; } if(from in n){ n[s] = n[from]; delete n[from]; ch = true; } });
+    if(ch){ const v = Object.keys(n).length ? n : null; p[f] = v; await setProductField(id, f, v); }
+  }
+}
+async function editPhotoNote(photoId, side){
+  const p = productForPhotoId(photoId); if(!p) return;
+  const v = await askText(t('photo.note_q').replace('{s}', photoSideLabel(side)), photoNoteOf(photoId, side));
+  if(v===null || v===undefined) return;
+  await setPhotoMeta(photoId, side, 'fotoNotas', String(v).trim().slice(0, 140));
+  if(isViewerOpen() && viewerState.pid===photoId && viewerState.side===side){ viewerCaption(); const b = document.querySelector('#viewerCap .vc-note'); if(b) b.focus({ preventScroll:true }); }
+  if(document.getElementById('photo-extras')) await renderKeepFocus();
+}
+/* ---------- Ordenar las fotos extra ---------- */
+async function saveExtraOrder(id, order, focusSide){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  p.fotosOrden = order.slice(); await setProductField(id, 'fotosOrden', p.fotosOrden);
+  await render();
+  if(focusSide){ const g = document.querySelector(`#photo-extras [data-fk="xg-${focusSide}"]`); if(g) g.focus({ preventScroll:true }); }
+}
+/* Con el teclado: ← → sobre el asa mueven la foto */
+function extraKey(ev, id, side){
+  if(ev.key!=='ArrowLeft' && ev.key!=='ArrowRight') return;
+  ev.preventDefault();
+  const order = orderedExtraSides(id), i = order.indexOf(side), j = i + (ev.key==='ArrowLeft' ? -1 : 1);
+  if(i < 0 || j < 0 || j >= order.length) return;
+  order.splice(i, 1); order.splice(j, 0, side);
+  saveExtraOrder(id, order, side);
+}
+/* Arrastrando el asa: la foto sigue al dedo y se suelta delante o detrás de otra */
+function extraDragStart(ev, id, side){
+  if(ev.button > 0) return;
+  const tile = ev.currentTarget.closest('.extra-tile'), grid = tile && tile.parentElement; if(!grid) return;
+  ev.preventDefault();
+  const st = { x0:ev.clientX, y0:ev.clientY, moved:false, over:null, before:false };
+  const clear = ()=> grid.querySelectorAll('.is-drop-before, .is-drop-after').forEach(e=> e.classList.remove('is-drop-before', 'is-drop-after'));
+  const move = (e)=>{
+    const dx = e.clientX - st.x0, dy = e.clientY - st.y0;
+    if(!st.moved && Math.hypot(dx, dy) < 6) return;
+    if(!st.moved){ st.moved = true; tile.classList.add('is-dragging'); }
+    e.preventDefault();
+    tile.style.transform = `translate(${dx}px, ${dy}px)`;
+    tile.style.pointerEvents = 'none';
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    tile.style.pointerEvents = '';
+    const other = under && under.closest ? under.closest('.extra-tile[data-side]') : null;
+    clear(); st.over = null;
+    if(other && other!==tile && other.parentElement===grid){
+      const ro = other.getBoundingClientRect();
+      st.over = other.dataset.side; st.before = e.clientX < ro.left + ro.width / 2;
+      other.classList.add(st.before ? 'is-drop-before' : 'is-drop-after');
+    }
+  };
+  const up = ()=>{
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+    tile.classList.remove('is-dragging'); tile.style.transform = ''; clear();
+    if(!st.moved || !st.over) return;
+    const order = orderedExtraSides(id).filter(s=> s!==side), j = order.indexOf(st.over);
+    if(j < 0) return;
+    order.splice(st.before ? j : j + 1, 0, side);
+    if(order.join()!==orderedExtraSides(id).join()) saveExtraOrder(id, order, side);
+  };
+  window.addEventListener('pointermove', move, { passive:false }); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+}
+
+/* ---------- En el visor: marcas, pie de foto y recorrer la galería ---------- */
+let viewerMarksOn = false;
+let viewerList = null;   // { items:[{ pid, photoId }], i } (abierto desde la galería)
+function viewerLayer(id, cls, tag){
+  let el = document.getElementById(id);
+  if(!el){ el = document.createElement(tag || 'div'); el.id = id; el.className = cls; document.getElementById('pinchOverlay').appendChild(el); }
+  return el;
+}
+/* Todo lo de alrededor de la foto, al abrirla o cambiar de foto */
+function viewerExtrasSync(){
+  viewerLayer('viewerMarks', 'viewer-marks').hidden = false;
+  viewerMarksPlace(false); viewerCaption(); viewerMarksList(); viewerHint(viewerMarksOn ? t('mk.hint') : '');
+}
+function viewerExtrasClear(){
+  viewerList = null; viewerMarksOn = false;
+  ['viewerMarks', 'viewerCap', 'viewerMarkList', 'viewerHint'].forEach(id=>{ const el = document.getElementById(id); if(el){ el.innerHTML = ''; el.hidden = true; el.dataset.sig = ''; } });
+}
+/* Los puntos van encima de la foto tal y como se ve (con su zoom); se recolocan en cada gesto */
+function viewerMarksPlace(animate){
+  const layer = document.getElementById('viewerMarks'); if(!layer) return;
+  const v = viewerState, marks = v ? photoMarksOf(v.pid, v.side) : [];
+  const sig = v ? v.pid + '|' + v.side + '|' + JSON.stringify(marks) : '';
+  if(layer.dataset.sig!==sig){
+    layer.dataset.sig = sig;
+    layer.innerHTML = marks.map((m, i)=> `<button type="button" class="vm-pin" data-i="${i}" onclick="viewerMarkTap(${i})" aria-label="${escapeHTML(t('mk.pin').replace('{n}', i + 1) + (m.t ? ': ' + m.t : ''))}"><span aria-hidden="true">${i + 1}</span></button>`).join('');
+  }
+  layer.classList.toggle('is-edit', viewerMarksOn);
+  layer.classList.toggle('is-animating', !!animate);
+  if(!marks.length) return;
+  const w = v.w0 * v.s, h = v.h0 * v.s;
+  layer.querySelectorAll('.vm-pin').forEach((b, i)=>{ const m = marks[i]; if(m) b.style.transform = `translate3d(${(v.x + m.x * w).toFixed(1)}px, ${(v.y + m.y * h).toFixed(1)}px, 0)`; });
+}
+function viewerMarksBtnHTML(){
+  const v = viewerState; if(!v) return '';
+  const n = photoMarksOf(v.pid, v.side).length;
+  return `<button type="button" class="chip viewer-marks-btn${viewerMarksOn ? ' active' : ''}" id="viewerMarksBtn" aria-pressed="${viewerMarksOn}" onclick="viewerMarksToggle()">${icon('pin')} ${t('mk.title')}${n ? ` <span class="vm-n">${n}</span>` : ''}</button>`;
+}
+function viewerMarksToggle(){
+  viewerMarksOn = !viewerMarksOn;
+  viewerMarksRefresh(-1);
+  const b = document.getElementById('viewerMarksBtn'); if(b) b.focus({ preventScroll:true });
+  viewerHint(viewerMarksOn ? t('mk.hint') : '');
+}
+function viewerHint(text){
+  const el = viewerLayer('viewerHint', 'viewer-hint', 'p'); el.setAttribute('role', 'status');
+  el.textContent = text || ''; el.hidden = !text;
+  if(text){ el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; }   // (el aviso vuelve a verse y se desvanece)
+}
+/* Con «Marcas» activado, tocar la foto pone una marca ahí (y pide su nota) */
+async function viewerMarkAddAt(cx, cy){
+  const v = viewerState; if(!v) return;
+  const x = (cx - v.x) / (v.w0 * v.s), y = (cy - v.y) / (v.h0 * v.s);
+  if(!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) return;
+  const note = await askText(t('mk.note_q'), '');
+  if(note===null || note===undefined || viewerState!==v) return;
+  const list = photoMarksOf(v.pid, v.side).concat([{ x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000, t: String(note).trim().slice(0, 140) }]);
+  await setPhotoMeta(v.pid, v.side, 'marcas', list);
+  viewerMarksRefresh(list.length - 1);
+}
+/* Sin dedo (teclado, lector de pantalla): una marca en el centro de lo que se ve */
+function viewerMarkAddCenter(){ viewerMarkAddAt(innerWidth / 2, innerHeight / 2); }
+/* Tocar un punto: con «Marcas» activado, se edita; si no, enseña su nota */
+function viewerMarkTap(i){
+  const v = viewerState; if(!v) return;
+  const m = photoMarksOf(v.pid, v.side)[i]; if(!m) return;
+  if(viewerMarksOn) viewerMarkOpen(i);
+  else showToast(`${i + 1}. ${m.t || t('mk.no_note')}`, { replace:true, duration:5000 });
+}
+async function viewerMarkOpen(i){
+  const v = viewerState; if(!v) return;
+  const list = photoMarksOf(v.pid, v.side); const m = list[i]; if(!m) return;
+  const txt = await askText(t('mk.edit_q').replace('{n}', i + 1), m.t || '');
+  if(txt===null || txt===undefined || viewerState!==v) return;
+  list[i] = Object.assign({}, m, { t: String(txt).trim().slice(0, 140) });
+  await setPhotoMeta(v.pid, v.side, 'marcas', list);
+  viewerMarksRefresh(i);
+}
+async function viewerMarkRemove(i){
+  const v = viewerState; if(!v) return;
+  const list = photoMarksOf(v.pid, v.side); const gone = list.splice(i, 1)[0]; if(!gone) return;
+  await setPhotoMeta(v.pid, v.side, 'marcas', list);
+  viewerMarksRefresh(-1);
+  const add = document.querySelector('#viewerMarkList [data-fk="mk-add"]'); if(add) add.focus({ preventScroll:true });
+  showToast(t('mk.removed'), { replace:true, action:{ label:t('common.undo'), fn: async ()=>{
+    const l2 = photoMarksOf(v.pid, v.side); l2.splice(Math.min(i, l2.length), 0, gone);
+    await setPhotoMeta(v.pid, v.side, 'marcas', l2);
+    if(viewerState && viewerState.pid===v.pid && viewerState.side===v.side) viewerMarksRefresh(-1);
+    else render();
+  } } });
+}
+function viewerMarksRefresh(focusI){
+  const b = document.getElementById('viewerMarksBtn'); if(b) b.outerHTML = viewerMarksBtnHTML();
+  viewerMarksPlace(false); viewerMarksList();
+  if(focusI >= 0){ const p = document.querySelector(`#viewerMarkList [data-fk="mk-e${focusI}"]`); if(p) p.focus({ preventScroll:true }); }
+}
+/* La lista de marcas con sus notas (para leerlas, cambiarlas o quitarlas) */
+function viewerMarksList(){
+  const v = viewerState, el = viewerLayer('viewerMarkList', 'viewer-mark-list');
+  if(!v || !viewerMarksOn){ el.hidden = true; el.innerHTML = ''; return; }
+  const marks = photoMarksOf(v.pid, v.side);
+  el.hidden = false;
+  const bar = document.getElementById('viewerBar');   // (justo encima de la barra, que puede ocupar una o dos filas)
+  if(bar && !bar.hidden){ const top = bar.getBoundingClientRect().top; if(top > 0) el.style.bottom = Math.round(innerHeight - top + 8) + 'px'; }
+  el.innerHTML = (marks.length ? `<ol>${marks.map((m, i)=> `<li><span class="vml-n" aria-hidden="true">${i + 1}</span><span class="vml-t">${escapeHTML(m.t || t('mk.no_note'))}</span><button type="button" class="round-btn is-sm" data-fk="mk-e${i}" onclick="viewerMarkOpen(${i})" aria-label="${escapeHTML(t('mk.edit').replace('{n}', i + 1))}" title="${escapeHTML(t('mk.edit').replace('{n}', i + 1))}">${icon('pencil')}</button><button type="button" class="round-btn is-sm" onclick="viewerMarkRemove(${i})" aria-label="${escapeHTML(t('mk.remove').replace('{n}', i + 1))}" title="${escapeHTML(t('mk.remove').replace('{n}', i + 1))}">${icon('trash')}</button></li>`).join('')}</ol>` : '')
+    + `<button type="button" class="chip" data-fk="mk-add" onclick="viewerMarkAddCenter()">${icon('plus')} ${t('mk.add_center')}</button>`;
+}
+/* Arriba: la pieza (si vienes de la galería), su posición y el pie de foto */
+function viewerCaption(){
+  const v = viewerState, el = viewerLayer('viewerCap', 'viewer-cap');
+  if(!v){ el.hidden = true; el.innerHTML = ''; return; }
+  const p = productForPhotoId(v.pid); if(!p){ el.hidden = true; return; }
+  const note = photoNoteOf(v.pid, v.side), L = viewerList;
+  const nav = L && L.items.length > 1 ? `<span class="vc-nav"><button type="button" class="round-btn is-sm" id="viewerPrev" onclick="viewerListStep(-1,'viewerPrev')" aria-label="${escapeHTML(t('gal.prev'))}" title="${escapeHTML(t('gal.prev'))}">${icon('chevronLeft')}</button><span class="vc-pos">${(L.i + 1).toLocaleString(numLocale())} / ${L.items.length.toLocaleString(numLocale())}</span><button type="button" class="round-btn is-sm" id="viewerNext" onclick="viewerListStep(1,'viewerNext')" aria-label="${escapeHTML(t('gal.next'))}" title="${escapeHTML(t('gal.next'))}">${icon('chevronRight')}</button></span>` : '';
+  const name = L ? `<button type="button" class="vc-name" onclick="viewerOpenFicha()"><b>${escapeHTML(p.name)}</b><small>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))} · ${t('gal.open')}</small></button>` : '';
+  el.innerHTML = nav + name + `<button type="button" class="vc-note${note ? '' : ' is-empty'}" onclick="editPhotoNote('${escapeHTML(v.pid)}','${v.side}')" aria-label="${escapeHTML(note ? t('photo.note_edit') + ': ' + note : t('photo.note_add'))}">${note ? escapeHTML(note) : `${icon('pencil')} ${t('photo.note_add')}`}</button>`;
+  el.hidden = false;
+}
+function viewerListStep(dir, refocus){
+  const L = viewerList; if(!L || L.items.length < 2) return false;
+  L.i = (L.i + dir + L.items.length) % L.items.length;
+  viewerMarksOn = false;
+  openPhotoViewer(L.items[L.i].photoId, 'front');
+  if(refocus){ const b = document.getElementById(refocus); if(b) b.focus({ preventScroll:true }); }
+  return true;
+}
+function viewerOpenFicha(){
+  const v = viewerState; if(!v) return;
+  const p = productForPhotoId(v.pid); closePhotoViewer(); if(p) goProduct(p.id);
+}
+/* Galería: tocar una foto la abre a pantalla completa y se pasa a la siguiente deslizando */
+function openGalleryViewer(i){
+  const list = galleryList();
+  viewerList = { items: list.map(p=>{ const ph = shownPhotoId(p); return { pid:p.id, photoId: hasPhoto(ph, 'front') ? ph : p.id }; }), i };
+  const it = viewerList.items[i]; if(!it){ viewerList = null; return; }
+  openPhotoViewer(it.photoId, 'front');
+}
+/* Tocar la foto con «Marcas» activado (ratón o dedo: el clic llega igual). Si se ha
+   arrastrado la foto (ampliada), no es un toque: no pone marca */
+let _vmDown = null;
+document.addEventListener('pointerdown', (e)=>{ _vmDown = viewerMarksOn ? { x:e.clientX, y:e.clientY } : null; }, true);
+document.addEventListener('click', (e)=>{
+  if(!(viewerMarksOn && viewerState && e.target && e.target.id==='pinchImg')) return;
+  if(_vmDown && Math.hypot(e.clientX - _vmDown.x, e.clientY - _vmDown.y) > 8) return;
+  e.preventDefault(); viewerMarkAddAt(e.clientX, e.clientY);
+});
+
+/* ---------- Ventanas a pantalla completa de esta versión (sesión de fotos, comparar copias) ---------- */
+function v1119Overlay(){ return (typeof ps!=='undefined' && ps) ? ps.root : (typeof cmpState!=='undefined' && cmpState) ? cmpState.root : null; }
+function v1119OverlayClose(){ if(ps) psClose(); else if(cmpState) closeCompareCopies(); }
+function overlayOpen(id, cls, labelledBy){
+  const root = document.createElement('div');
+  root.id = id; root.className = cls;
+  root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-labelledby', labelledBy);
+  document.body.appendChild(root);
+  document.body.classList.add('has-fs-overlay');
+  return root;
+}
+function overlayClose(root, returnFocus){
+  root.remove();
+  if(!v1119Overlay()) document.body.classList.remove('has-fs-overlay');
+  if(returnFocus && returnFocus.focus && document.contains(returnFocus)) try{ returnFocus.focus({ preventScroll:true }); }catch(e){}
+}
+
+/* ---------- Sesión de fotos ---------- */
+let psOpts = { what:'front', who:'have', plat:'' };
+let ps = null;   // { queue:[{ pid, side }], i, done, skipped, root, returnFocus }
+function psSidesFor(what){ return what==='back' ? ['back'] : what==='both' ? ['front', 'back'] : what==='sides' ? SIDE_SLOTS : ['front']; }
+/* Las piezas en el orden de tus plataformas y, dentro, por año y nombre */
+function psQueue(o){
+  const sides = psSidesFor(o.what);
+  const order = new Map(); let k = 0;
+  getAllCategories().forEach(c=> orderedPlatformsForCategory(c.id, getAllPlatforms().filter(pl=> pl.categoryId===c.id)).forEach(pl=> order.set(pl.id, k++)));
+  const list = PRODUCTS.filter(p=> !p.isFolder && (o.who==='all' || p.possession==='tengo') && (!o.plat || p.platformId===o.plat));
+  list.sort((a, b)=> ((order.has(a.platformId) ? order.get(a.platformId) : 1e6) - (order.has(b.platformId) ? order.get(b.platformId) : 1e6)) || cmpYearName(a, b));
+  const q = [];
+  list.forEach(p=> sides.forEach(side=>{ if(!hasPhoto(p.id, side)) q.push({ pid:p.id, side }); }));
+  return q;
+}
+function openPhotoSession(){
+  psOpts = { what:'front', who:'have', plat:'' };
+  openSheet({ kind:'photo-session', title:t('ps.title'), body:psSetupHTML(), foot:psSetupFootHTML() });
+}
+function psSetupHTML(){
+  const ch = (key, val, label)=> `<button type="button" class="chip ${psOpts[key]===val ? 'active' : ''}" aria-pressed="${psOpts[key]===val}" data-fk="ps-${key}-${val}" onclick="psOpts['${key}']='${val}'; psSetupRefresh()">${escapeHTML(label)}</button>`;
+  const plats = getAllPlatforms().filter(pl=> PRODUCTS.some(p=> p.platformId===pl.id));
+  return `<p class="settings-note">${t('ps.intro')}</p>
+    <div class="sheet-group"><div class="field-label" id="psWhatL">${t('ps.what')}</div><div class="chip-row" role="group" aria-labelledby="psWhatL">${ch('what', 'front', t('photo.front'))}${ch('what', 'back', t('photo.back'))}${ch('what', 'both', t('ps.both'))}${ch('what', 'sides', t('photo.sides'))}</div></div>
+    <div class="sheet-group"><div class="field-label" id="psWhoL">${t('ps.who')}</div><div class="chip-row" role="group" aria-labelledby="psWhoL">${ch('who', 'have', t('ps.who_have'))}${ch('who', 'all', t('ps.who_all'))}</div></div>
+    <div class="field" data-nosave><label for="psPlat">${t('filter.platform')}</label><select id="psPlat" onchange="psOpts.plat=this.value; psSetupRefresh()"><option value="">${t('val.platform_all')}</option>${plats.map(pl=>`<option value="${escapeHTML(pl.id)}" ${psOpts.plat===pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}</select></div>`;
+}
+function psSetupFootHTML(){
+  const n = psQueue(psOpts).length;
+  return `<button type="button" class="btn" onclick="closeSheet()">${t('modal.cancel')}</button><button type="button" class="btn primary" id="psStart" onclick="startPhotoSession()" ${n ? '' : 'disabled'}>${icon('camera')} ${escapeHTML(n ? (n===1 ? t('ps.start1') : t('ps.start').replace('{n}', n.toLocaleString(numLocale()))) : t('ps.none'))}</button>`;
+}
+function psSetupRefresh(){
+  if(!isSheetKind('photo-session')) return;
+  const a = document.activeElement, fk = a && a.dataset ? a.dataset.fk : null, id = a && a.id;
+  updateSheetBody(psSetupHTML());
+  const foot = document.querySelector('#sheetOverlay .sheet-foot'); if(foot) foot.innerHTML = psSetupFootHTML();
+  const b = fk ? document.querySelector(`#sheetBody [data-fk="${fk}"]`) : id ? document.getElementById(id) : null; if(b) b.focus();
+}
+function startPhotoSession(){
+  const queue = psQueue(psOpts); if(!queue.length) return;
+  const ret = document.querySelector('[data-fk="ps-open"]') || document.activeElement;
+  closeSheet();
+  ps = { queue, i:0, done:0, skipped:0, root: overlayOpen('photoSession', 'fs-overlay ps', 'psName'), returnFocus: ret };
+  psRender();
+}
+function psRender(focusSel){
+  if(!ps) return;
+  const root = ps.root, q = ps.queue;
+  if(ps.i >= q.length){
+    root.innerHTML = `<div class="ps-card is-end">${icon('checkCircle')}<h2 id="psName">${t('ps.end_title')}</h2><p class="ps-meta">${escapeHTML(t('ps.end').replace('{n}', ps.done).replace('{s}', ps.skipped))}</p>
+      <button type="button" class="btn primary" id="psEndBtn" onclick="psClose()">${t('copy.done')}</button></div>`;
+    const b = document.getElementById('psEndBtn'); if(b) b.focus();
+    return;
+  }
+  const it = q[ps.i], p = PRODUCTS_BY_ID[it.pid];
+  if(!p){ ps.i++; return psRender(focusSel); }
+  const pv = platVisual(p.platformId), key = 'photo_' + p.id + '_' + it.side;
+  const have = PHOTO_SIDES.filter(s=> hasPhoto(p.id, s)).slice(0, 4);
+  const pct = (ps.i / q.length * 100).toFixed(1);
+  root.innerHTML = `<div class="ps-top"><span class="ps-prog">${escapeHTML(t('ps.pos').replace('{i}', (ps.i + 1).toLocaleString(numLocale())).replace('{n}', q.length.toLocaleString(numLocale())))}</span><span class="ps-bar" aria-hidden="true"><i style="width:${pct}%"></i></span>
+      <button type="button" class="round-btn" data-fk="ps-close" onclick="psClose()" aria-label="${escapeHTML(t('ps.finish'))}" title="${escapeHTML(t('ps.finish'))}">${icon('x')}</button></div>
+    <div class="ps-card" style="--plat:${pv.color}">
+      <p class="ps-need"><span class="side-glyph is-${it.side}" aria-hidden="true"></span>${escapeHTML(t('ps.need').replace('{s}', photoSideLabel(it.side)))}</p>
+      <h2 id="psName">${escapeHTML(p.name)}</h2>
+      <p class="ps-meta">${pv.code ? `<span class="code-chip" aria-hidden="true">${escapeHTML(pv.code)}</span> ` : ''}${escapeHTML([p.platformName, p.year, regionShortText(p)].filter(Boolean).join(' · '))}</p>
+      ${have.length ? `<div class="ps-have" role="group" aria-label="${escapeHTML(t('ps.has'))}">${have.map(s=> `<span class="ps-thumb">${photoImgHTML(p, s, 'thumb', 'data-eager="1"')}<small>${escapeHTML(photoSideLabel(s))}</small></span>`).join('')}</div>` : ''}
+      <div class="ps-acts">
+        <label class="btn primary ps-shot photo-picker" data-fk="ps-shot">${icon('camera')} ${t('ps.shoot')}<input type="file" accept="image/*" capture="environment" class="sr-only" aria-label="${escapeHTML(t('ps.shoot') + ' — ' + p.name + ' — ' + photoSideLabel(it.side))}" onchange="psFile(this,'${escapeHTML(key)}')"></label>
+        <label class="btn photo-picker" data-fk="ps-pick">${icon('image')} ${t('ps.pick')}<input type="file" accept="image/*" class="sr-only" aria-label="${escapeHTML(t('ps.pick') + ' — ' + p.name + ' — ' + photoSideLabel(it.side))}" onchange="psFile(this,'${escapeHTML(key)}')"></label>
+        <button type="button" class="btn btn-ghost" data-fk="ps-skip" onclick="psSkip()">${icon('next')} ${t('ps.skip')}</button>
+      </div>
+      <p class="ps-count" aria-live="polite">${escapeHTML(t('ps.count').replace('{n}', ps.done).replace('{s}', ps.skipped))}</p>
+    </div>`;
+  hydratePhotos(root);
+  const f = root.querySelector(focusSel || '[data-fk="ps-shot"] input'); if(f) f.focus({ preventScroll:true });
+}
+async function psFile(input, key){
+  const file = input.files && input.files[0]; input.value = '';
+  if(!file || !ps) return;
+  const S = ps, it = S.queue[S.i];
+  const lab = input.closest('label'); if(lab) lab.classList.add('is-busy');
+  const ok = await savePhotoFile(key, file);
+  if(lab) lab.classList.remove('is-busy');
+  if(ps!==S || !ok) return;   // (cancelada en el editor: sigue en la misma pieza)
+  S.done++;
+  if(it && it.side==='front' && typeof autoBarcodeFromFile==='function') autoBarcodeFromFile(it.pid, file);
+  showToast(t('photo.saved'), { ok:true, replace:true });
+  S.i++; psRender();
+}
+function psSkip(){ if(!ps) return; ps.skipped++; ps.i++; psRender('[data-fk="ps-skip"]'); }
+function psClose(){
+  if(!ps) return;
+  const S = ps; ps = null;
+  overlayClose(S.root, null);
+  render().then(()=>{ const b = document.querySelector('[data-fk="ps-open"]') || S.returnFocus; if(b && b.focus && document.contains(b)) try{ b.focus({ preventScroll:true }); }catch(e){} });
+  if(S.done) showToast(S.done===1 ? t('ps.saved1') : t('ps.saved_n').replace('{n}', S.done), { ok:true, replace:true });
+}
+
+/* ---------- Comparar dos copias, lado a lado ---------- */
+let cmpState = null;   // { pid, a:{ c, side }, b:{ c, side }, zoom:null|{ x, y }, root, returnFocus }
+function copiesWithPhotos(p){ return copiesOf(p).filter(c=> hasPhoto(c.photoId, 'front') || hasPhoto(c.photoId, 'back')); }
+function openCompareCopies(id){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const list = copiesWithPhotos(p); if(list.length < 2) return;
+  const side = (c)=> hasPhoto(c.photoId, 'front') ? 'front' : 'back';
+  cmpState = { pid:id, a:{ c:list[0].id, side:side(list[0]) }, b:{ c:list[1].id, side:side(list[1]) }, zoom:null, returnFocus: document.activeElement, root: overlayOpen('cmpCopies', 'fs-overlay cmp', 'cmpTitle') };
+  cmpRender('#cmpClose');
+}
+function cmpPaneHTML(k){
+  const S = cmpState, p = PRODUCTS_BY_ID[S.pid], list = copiesWithPhotos(p), cur = S[k];
+  const c = list.find(x=> x.id===cur.c) || list[0]; cur.c = c.id;
+  const sides = ['front', 'back'].filter(s=> hasPhoto(c.photoId, s)); if(!sides.includes(cur.side)) cur.side = sides[0];
+  const lab = t('copy.n').replace('{n}', c.n);
+  return `<section class="cmp-pane" aria-label="${escapeHTML(lab)}">
+    <div class="cmp-tools"><div class="chip-row" role="group" aria-label="${escapeHTML(t('cmp.which'))}">${list.map(x=> `<button type="button" class="chip ${x.id===c.id ? 'active' : ''}" aria-pressed="${x.id===c.id}" data-fk="cmp-${k}-${x.id}" onclick="cmpSet('${k}','c','${x.id}')">${escapeHTML(t('copy.n').replace('{n}', x.n))}</button>`).join('')}</div>
+      ${sides.length > 1 ? `<div class="chip-row" role="group" aria-label="${escapeHTML(t('photo.photos'))}">${sides.map(s=> `<button type="button" class="chip ${s===cur.side ? 'active' : ''}" aria-pressed="${s===cur.side}" data-fk="cmp-${k}-${s}" onclick="cmpSet('${k}','side','${s}')">${escapeHTML(photoSideLabel(s))}</button>`).join('')}</div>` : ''}</div>
+    <div class="cmp-photo" onclick="cmpZoom(event)">${photoImgHTML(p, cur.side, 'full', 'data-eager="1"', c.photoId)}</div>
+    <p class="cmp-line">${escapeHTML(copyLine(p, c))}</p>
+  </section>`;
+}
+function cmpRender(focusSel){
+  const S = cmpState; if(!S) return;
+  const p = PRODUCTS_BY_ID[S.pid];
+  S.root.innerHTML = `<div class="cmp-top"><h2 id="cmpTitle">${escapeHTML(t('cmp.title'))}<small>${escapeHTML(p.name)}</small></h2><button type="button" class="round-btn" id="cmpClose" onclick="closeCompareCopies()" aria-label="${escapeHTML(t('common.close'))}" title="${escapeHTML(t('common.close'))}">${icon('x')}</button></div>
+    <div class="cmp-grid">${cmpPaneHTML('a')}${cmpPaneHTML('b')}</div>
+    <p class="cmp-hint" id="cmpHint">${t('cmp.hint')}</p>`;
+  hydratePhotos(S.root);
+  cmpApplyZoom();
+  const f = focusSel && S.root.querySelector(focusSel); if(f) f.focus({ preventScroll:true });
+}
+function cmpSet(k, field, val){ if(!cmpState) return; cmpState[k][field] = val; cmpRender(`[data-fk="cmp-${k}-${val}"]`); }
+/* Tocar un punto acerca las dos fotos en ese mismo sitio; otro toque las aleja */
+function cmpZoom(e){
+  const S = cmpState; if(!S) return;
+  if(S.zoom) S.zoom = null;
+  else { const box = e.currentTarget.getBoundingClientRect(); S.zoom = { x: Math.min(1, Math.max(0, (e.clientX - box.left) / box.width)), y: Math.min(1, Math.max(0, (e.clientY - box.top) / box.height)) }; }
+  cmpApplyZoom();
+}
+function cmpApplyZoom(){
+  const S = cmpState; if(!S) return;
+  S.root.classList.toggle('is-zoomed', !!S.zoom);
+  S.root.querySelectorAll('.cmp-photo img').forEach(img=>{
+    img.style.transformOrigin = S.zoom ? `${(S.zoom.x * 100).toFixed(1)}% ${(S.zoom.y * 100).toFixed(1)}%` : '';
+    img.style.transform = S.zoom ? 'scale(2.5)' : '';
+  });
+  const h = document.getElementById('cmpHint'); if(h) h.textContent = t(S.zoom ? 'cmp.hint_zoomed' : 'cmp.hint');
+}
+function closeCompareCopies(){
+  const S = cmpState; if(!S) return; cmpState = null;
+  overlayClose(S.root, S.returnFocus);
+}
+
+/* ---------- Importar muchas fotos de una vez (por su código de barras) ---------- */
+let biState = null;   // { total, i, done:[{ pid, side }], pending:[{ id, file, url, code, reason }], q, sel, noReader }
+/* La foto cuadrada y recortada sola (como «Auto» en el editor); luego se puede retocar con «Editar» */
+async function autoPhotoData(file){
+  const { img, url } = await decodeImageFile(file);
+  try{
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if(isSquareImage(w, h)) return squarePhotoDataURL(img, w, h, 0, null, 0);
+    let det = null;
+    try{ det = await detectPieceQuad(img, w, h); }catch(_){ det = null; }
+    return det && det.quad ? squarePhotoQuadDataURL(img, w, h, 0, det.quad, 0) : squarePhotoDataURL(img, w, h, 0, null, 0);
+  } finally { URL.revokeObjectURL(url); }
+}
+/* El primer hueco libre: delantera, trasera o una extra */
+function freePhotoSlot(id){ return !hasPhoto(id, 'front') ? 'front' : !hasPhoto(id, 'back') ? 'back' : freeExtraSlot(id); }
+async function bulkImportFiles(input){
+  const files = [...(input.files || [])].filter(f=> !f.type || /^image\//.test(f.type)); input.value = '';
+  if(!files.length) return;
+  if(biState) biState.pending.forEach(x=> URL.revokeObjectURL(x.url));
+  const S = biState = { total:files.length, i:0, done:[], pending:[], q:'', sel:null, noReader:false };
+  // (si cierras la hoja mientras importa, sigue sola y al acabar avisa de cuántas ha colocado)
+  openSheet({ kind:'bulk-import', title:t('bi.title'), body:biBodyHTML(), foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>`, onClose: ()=>{ if(biState!==S) return; if(S.i < S.total){ S.closed = true; showToast(t('bi.bg'), { replace:true, duration:4000 }); } else biClose(true); } });
+  const det = typeof getBarcodeDetector==='function' ? await getBarcodeDetector() : null;
+  S.noReader = !det;
+  for(const file of files){
+    if(biState!==S) return;
+    let codes = [];
+    if(det){
+      try{ const bmp = await createImageBitmap(file); try{ codes = await detectBarcodesIn(bmp, bmp.width, bmp.height); } finally { try{ bmp.close(); }catch(e){} } }catch(e){ codes = []; }
+    }
+    const vals = [...new Set((codes || []).map(c=> c && c.value).filter(Boolean))];
+    const code = vals.length===1 ? vals[0] : '';
+    const match = code ? productsByBarcode(code) : [];
+    const p = match.length===1 ? match[0] : null;
+    const slot = p ? freePhotoSlot(p.id) : null;
+    if(p && slot){
+      let ok = false;
+      try{ ok = !!(await storePhotoData('photo_' + p.id + '_' + slot, await autoPhotoData(file))); }catch(e){ ok = false; }
+      if(ok) S.done.push({ pid:p.id, side:slot }); else S.pending.push(biPend(file, code, 'fail'));
+    } else S.pending.push(biPend(file, code, !vals.length ? (det ? 'nocode' : 'noreader') : vals.length > 1 ? 'several' : !match.length ? 'unknown' : match.length > 1 ? 'many' : 'full'));
+    S.i++;
+    biRefresh();
+  }
+  if(biState===S && S.closed){   // (cerraste la hoja mientras importaba)
+    biClose(true);
+    showToast(t('bi.bg_done').replace('{n}', S.done.length).replace('{r}', S.pending.length), { ok: !S.pending.length, duration:8000 });
+  }
+}
+function biPend(file, code, reason){ return { id:'bi' + Math.random().toString(36).slice(2, 9), file, url:URL.createObjectURL(file), code, reason }; }
+function biBodyHTML(){
+  const S = biState; if(!S) return '';
+  const busy = S.i < S.total;
+  const prog = `<div class="bi-prog" role="status" aria-live="polite"><span>${escapeHTML(busy ? t('bi.working').replace('{i}', S.i + 1).replace('{n}', S.total) : t('bi.finished').replace('{n}', S.done.length).replace('{r}', S.pending.length))}</span><span class="ps-bar" aria-hidden="true"><i style="width:${(S.i / S.total * 100).toFixed(1)}%"></i></span></div>`;
+  const done = S.done.length ? `<div class="sheet-group"><div class="field-label">${t('bi.done_t')}</div><ul class="bi-done">${S.done.map(d=>{ const p = PRODUCTS_BY_ID[d.pid]; return `<li>${icon('check')}<span>${escapeHTML(p ? p.name : d.pid)} <small>${escapeHTML(photoSideLabel(d.side))}</small></span></li>`; }).join('')}</ul></div>` : '';
+  let pend = '';
+  if(S.pending.length){
+    const tokens = S.sel ? searchTokens(S.q) : [];
+    const cands = tokens.length ? sortGames(PRODUCTS.filter(p=> !p.isFolder && productMatchesSearch(p, tokens) && freePhotoSlot(p.id))).slice(0, 8) : [];
+    const fmt = (c)=> typeof formatBarcode==='function' ? formatBarcode(c) : c;
+    pend = `<div class="sheet-group"><div class="field-label">${t('bi.pending_t')}</div>${S.noReader ? `<p class="settings-note">${t('bi.no_reader')}</p>` : ''}
+      <ul class="bi-pend">${S.pending.map(x=> `<li class="bi-item${S.sel===x.id ? ' is-sel' : ''}"><button type="button" class="bi-thumb" data-fk="bi-${x.id}" onclick="biPick('${x.id}')" aria-pressed="${S.sel===x.id}" aria-label="${escapeHTML(t('bi.choose') + ' — ' + x.file.name)}"><img src="${x.url}" alt=""></button>
+        <span class="bi-why">${escapeHTML(t('bi.why.' + x.reason).replace('{code}', x.code ? fmt(x.code) : ''))}</span>
+        <button type="button" class="round-btn is-sm" onclick="biDrop('${x.id}')" aria-label="${escapeHTML(t('bi.drop') + ' — ' + x.file.name)}" title="${escapeHTML(t('bi.drop'))}">${icon('x')}</button></li>`).join('')}</ul>
+      ${S.sel ? `<div class="searchbar bi-search" role="search">${icon('search', 'ico-search')}<input type="search" id="biQ" value="${escapeHTML(S.q)}" placeholder="${escapeHTML(t('bi.search_ph'))}" aria-label="${escapeHTML(t('bi.search_ph'))}" oninput="biState.q=this.value; clearTimeout(window._biT); window._biT=setTimeout(biRefresh, 160)" autocomplete="off"></div>
+        <div class="est-add-list">${cands.map(p=>{ const pv = platVisual(p.platformId); return `<button type="button" class="est-add-row" onclick="biAssign('${escapeHTML(p.id)}')"><span class="code-chip" style="--plat:${pv.color}" aria-hidden="true">${escapeHTML(pv.code || '#')}</span><span class="est-add-name">${escapeHTML(p.name)}<small>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · ') + ' · ' + t('bi.goes_to').replace('{s}', photoSideLabel(freePhotoSlot(p.id))))}</small></span>${icon('plus')}</button>`; }).join('') || `<p class="section-sub">${t(tokens.length ? 'filter.no_results' : 'bi.type_name')}</p>`}</div>` : `<p class="section-sub">${t('bi.tap_photo')}</p>`}</div>`;
+  }
+  return prog + done + pend;
+}
+function biRefresh(){
+  if(!isSheetKind('bulk-import') || !biState) return;
+  const a = document.activeElement, hadQ = a && a.id==='biQ', pos = hadQ ? a.selectionStart : 0, fk = a && a.dataset ? a.dataset.fk : null;
+  const body = document.getElementById('sheetBody'), y = body ? body.scrollTop : 0;
+  updateSheetBody(biBodyHTML());
+  if(body) body.scrollTop = y;
+  if(hadQ){ const q = document.getElementById('biQ'); if(q){ q.focus(); try{ q.setSelectionRange(pos, pos); }catch(e){} } }
+  else if(fk){ const b = document.querySelector(`#sheetBody [data-fk="${fk}"]`); if(b) b.focus({ preventScroll:true }); }
+}
+function biPick(id){
+  if(!biState) return;
+  biState.sel = biState.sel===id ? null : id; biState.q = '';
+  biRefresh();
+  const q = document.getElementById('biQ'); if(q) q.focus();
+}
+function biDrop(id){
+  const S = biState; if(!S) return;
+  const i = S.pending.findIndex(x=> x.id===id); if(i < 0) return;
+  URL.revokeObjectURL(S.pending[i].url); S.pending.splice(i, 1); if(S.sel===id) S.sel = null;
+  biRefresh();
+  const next = document.querySelector('#sheetBody .bi-thumb') || document.querySelector('#sheetOverlay .sheet-foot .btn'); if(next) next.focus({ preventScroll:true });
+}
+async function biAssign(pid){
+  const S = biState; if(!S || !S.sel) return;
+  const x = S.pending.find(y=> y.id===S.sel), slot = freePhotoSlot(pid); if(!x || !slot) return;
+  const ok = await savePhotoFile('photo_' + pid + '_' + slot, x.file);   // (pasa por el editor, como cualquier foto que eliges tú)
+  if(!ok || biState!==S) return;
+  S.done.push({ pid, side:slot });
+  URL.revokeObjectURL(x.url); S.pending = S.pending.filter(y=> y!==x); S.sel = null; S.q = '';
+  biRefresh();
+  const next = document.querySelector('#sheetBody .bi-thumb') || document.querySelector('#sheetOverlay .sheet-foot .btn'); if(next) next.focus({ preventScroll:true });
+}
+function biClose(fromSheet){
+  const S = biState; biState = null;
+  if(S) S.pending.forEach(x=> URL.revokeObjectURL(x.url));
+  if(!fromSheet) closeSheet();
+  render();
 }

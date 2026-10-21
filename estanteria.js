@@ -131,7 +131,11 @@ function estData(){
     m.encima.items = estCleanItems(m.encima.items);
     if(!Array.isArray(m.baldas)) m.baldas = [];
     if(m.baldas.length > EST_MAX_BALDAS || m.baldas.some(b=> !estIsObj(b))) m.baldas = m.baldas.filter(estIsObj).slice(0, EST_MAX_BALDAS);
-    m.baldas.forEach(b=>{ if(!estOkId(b.id) || ids.has(b.id)) b.id = estUid('b'); ids.add(b.id); b.alto = estNum(b.alto, 6, 80, 22); b.placa = String(b.placa || ''); b.items = estCleanItems(b.items); });
+    m.baldas.forEach(b=>{ if(!estOkId(b.id) || ids.has(b.id)) b.id = estUid('b'); ids.add(b.id); b.alto = estNum(b.alto, 6, 80, 22); b.placa = String(b.placa || ''); b.items = estCleanItems(b.items);
+      // v11.19: divisiones y escalón (solo si ya los hay)
+      if('paneles' in b){ const P = Array.isArray(b.paneles) ? [...new Set(b.paneles.map(Number).filter(x=> isFinite(x) && x > 0 && x < 400).map(estR1))].sort((x, y)=> x - y).slice(0, 8) : []; if(P.length) b.paneles = P; else delete b.paneles; }
+      if('escalon' in b){ const e = Number(b.escalon); if(isFinite(e) && e > 0) b.escalon = Math.min(30, Math.round(e)); else delete b.escalon; }
+    });
     // v11.16: el hueco a su izquierda en la sala (solo si se ha cambiado)
     if('hueco' in m){ const h = Number(m.hueco); if(isFinite(h)) m.hueco = Math.round(Math.min(EST_MAX_HUECO, Math.max(0, h))); else delete m.hueco; }
   });
@@ -249,6 +253,7 @@ let _estSaveTimer = null;
 let _estGen = 0, _estUndo = null;   // v11.13: cada cambio cuenta; el «Deshacer» de varias solo vale hasta el siguiente
 function estSave(now){
   estSettleAll();
+  estHistRecord();   // v11.19: deshacer / rehacer
   _estGen++;
   if(_estUndo && _estUndo.gen!==_estGen){ dismissToast(_estUndo.el); _estUndo = null; }
   clearTimeout(_estSaveTimer);
@@ -466,6 +471,9 @@ function estLayout(items, W, H, D, obst){
     }
     c.x = x; done.push(c);
   });
+  // v11.19: con escalón, la fila de detrás va encima de él
+  const lift = obst && obst.lift || 0;
+  if(lift) cols.forEach(c=>{ if(c.row===1){ c.items.forEach(r=>{ r.y += lift; }); c.top += lift; } });
   const over = [], tall = [];
   let used = EST_GAP;
   cols.forEach(c=>{
@@ -482,7 +490,7 @@ function estLayout(items, W, H, D, obst){
   // se fueran dejando caer): cada una, sobre lo más alto que tenga debajo (una o varias
   // piezas; si no hay nada, en la balda). La app mantiene ese orden al moverlas
   const placed = out.filter(r=> !r.it.sobre);
-  const yAt = (r)=>{ let y = 0; placed.forEach(q=>{ if(r.x0 < q.x1 - 0.01 && q.x0 < r.x1 - 0.01 && r.z0 < q.z1 - 0.01 && q.z0 < r.z1 - 0.01) y = Math.max(y, q.y + q.b.hgt); }); return y; };
+  const yAt = (r)=>{ let y = lift && (r.z0 + r.z1) / 2 > D / 2 ? lift : 0; placed.forEach(q=>{ if(r.x0 < q.x1 - 0.01 && q.x0 < r.x1 - 0.01 && r.z0 < q.z1 - 0.01 && q.z0 < r.z1 - 0.01) y = Math.max(y, q.y + q.b.hgt); }); return y; };
   free.forEach(r=>{
     const it = r.it, fw = r.b.fw, fd = r.b.fd;
     let x0 = Math.min(Math.max(0, typeof it.x==='number' ? it.x : 0), Math.max(0, W - fw));
@@ -1042,7 +1050,7 @@ function estBayHTML(m, sid, sf, w, h, s, o){
     const E = o.P * 0.7;
     inner += `<div class="est-fl is-room" data-piso="${estData().piso || 'tarima'}" style="top:${h.toFixed(1)}px;width:${w.toFixed(1)}px;height:${(D + E).toFixed(1)}px;transform:translateZ(${E.toFixed(1)}px) rotateX(-90deg)"></div>`;
     (L.fixed || []).forEach(q=> inner += estObstBoxHTML(q, h, s, o.eyeX));
-  }
+  } else if(b) inner += estBayExtrasHTML(m, b, L, w, h, D, s, o);   // v11.19: divisiones y escalón
   // piezas (las de la fila de detrás, primero)
   const zFront = -EST_FRONT * s;
   const recs = L.recs.filter(r=>r.row).concat(L.recs.filter(r=>!r.row)).sort((a, b)=> (b.row - a.row) || ((a.y > 0.01) - (b.y > 0.01)));
@@ -1317,6 +1325,7 @@ function estDraw(){
     if(estBookState.src) estBookState.src.classList.add('is-out');
   }
   estRefreshCtl();
+  estHlApply();   // v11.19: resaltar
   if(EST.view==='balda') requestAnimationFrame(estUpdateRail);
 }
 /* Redibujar lo que se ve de la estantería (escenario y panel), si está abierta */
@@ -1548,6 +1557,7 @@ function estBaldaStep(d){
    sala si veníamos de ella */
 function estBackLevel(){
   if(view.page!=='estanteria' || view.productId) return false;
+  if(typeof estTour!=='undefined' && estTour){ estTourStop(true); return true; }   // v11.19: «atrás» primero para el modo vitrina
   if(EST.mode==='editar' && EST.multi){ estMultiOn(false); return true; }   // primero se dejan de elegir varias
   if(EST.view==='balda' && EST.sel){ estSelect(null); return true; }
   if(EST.view==='balda'){ estExitBalda(); return true; }
@@ -1866,7 +1876,17 @@ function estSelCol(){
 }
 /* La colocación de una superficie (con lo que no se mueve, si lo hay) */
 function estSurfLayout(m, sid){ const sf = estSurface(m, sid); return estLayout(sf.items, m.ancho, estSurfaceH(m, sid), m.fondo, estSurfObst(m, sid)); }
-function estSurfObst(m, sid){ return m && m.isFloor && typeof estFloorObst==='function' ? estFloorObst() : null; }
+function estSurfObst(m, sid){
+  if(m && m.isFloor) return typeof estFloorObst==='function' ? estFloorObst() : null;
+  // v11.19: en una balda, sus divisiones (no se mueven) y su escalón (o.lift); sin ellos, nada (como siempre)
+  if(!m || sid==='top') return null;
+  const b = estSurface(m, sid); if(!b) return null;
+  const P = estPanels(m, b), lift = estLift(b);
+  if(!P.length && !lift) return null;
+  const o = P.map(x=>({ x0:x, x1:x + EST_PANEL_T, z0:0, z1:m.fondo, ref:'panel' }));
+  o.lift = lift;
+  return o;
+}
 /* v11.16: una pieza de una pila de antes (o la base que se sube encima de otra) pasa a
    ir «encima de lo que haya debajo», en el sitio exacto en el que se ve; las de encima
    de ella, también (y siguen encima). Vuelve a calcular la elegida. */
@@ -2205,6 +2225,7 @@ function estCountPlaced(){ const s = estPlacedSet(); return PRODUCTS.filter(p=>s
 function estOwnCounts(){ const s = estPlacedSet(), own = PRODUCTS.filter(p=> p.possession==='tengo'), n = own.filter(p=> s.has(p.id)).length; return { n, t: own.length, left: own.length - n }; }
 function renderEstanteria(){
   EST.night = uiPref('estNight', '')==='1';
+  estHistSync();   // v11.19
   const E = estData();
   // v11.13: para mirarla, a pantalla completa (sin editar nada); «Editar», la de siempre
   if(estHas() && EST.mode==='ver'){
@@ -2262,11 +2283,11 @@ function estCtlHTML(){
         <button type="button" class="round-btn est-btn ${EST.covers ? 'is-on' : ''}" onclick="estToggleCovers()" aria-pressed="${EST.covers}" aria-label="${escapeHTML(t('est.covers'))}" title="${escapeHTML(t('est.covers'))}">${icon('image')}</button>
         <button type="button" class="round-btn est-btn ${EST.multi ? 'is-on' : ''}" data-fk="multi" onclick="estMultiOn(!EST.multi)" aria-pressed="${!!EST.multi}" aria-label="${escapeHTML(t('est.multi'))}" title="${escapeHTML(t('est.multi'))}">${icon('multi')}</button>
         ${night}
-      </div>`;
+      </div>${estHlChipHTML()}`;
   }
   const doors = m && EST.view!=='sala' && m.puertas!=='sin' ? `<button type="button" class="round-btn est-btn ${EST.doors ? 'is-on' : ''}" onclick="estToggleDoors()" aria-pressed="${EST.doors}" aria-label="${escapeHTML(t('est.doors'))}" title="${escapeHTML(t('est.doors'))}">${icon('doors')}</button>` : '';
   return `<div class="est-ctl-l"><span class="est-where-chip is-hint">${escapeHTML(t(EST.view==='sala' ? 'est.sala_tap' : 'est.enter_hint'))}</span></div>
-    <div class="est-ctl-r">${doors}${night}</div>`;
+    <div class="est-ctl-r">${doors}${night}</div>${estHlChipHTML()}`;
 }
 /* Pantalla completa: atrás, dónde estás, y a la derecha (en una balda) ▲ ▼ y
    portadas, la noche y «Editar» */
@@ -2291,7 +2312,7 @@ function estImmCtlHTML(m, night){
   const backLabel = EST.view==='balda' ? (m && m.isFloor ? t('est.sala') : t('est.to_mueble')) : (EST.view==='mueble' && EST.fromSala && estSalaOn()) ? t('est.sala') : t('est.imm_exit');
   return `<div class="est-imm-l"><button type="button" class="round-btn est-btn" data-fk="imm-back" onclick="estImmBack()" aria-label="${escapeHTML(backLabel)}" title="${escapeHTML(backLabel)}">${icon('chevronLeft')}</button>
       <div class="est-imm-t"><b>${escapeHTML(title)}</b><small>${escapeHTML(sub)}</small></div></div>
-    <div class="est-ctl-r">${right}${night}<button type="button" class="btn btn-sm est-edit-btn" data-fk="imm-edit" onclick="estSetMode('editar')">${icon('pencil')}<span> ${t('est.edit')}</span></button></div>${lift}`;
+    <div class="est-ctl-r">${right}<button type="button" class="round-btn est-btn${EST.hl ? ' is-on' : ''}" data-fk="tools" onclick="openEstTools()" aria-label="${escapeHTML(t('estx.tools'))}" title="${escapeHTML(t('estx.tools'))}">${icon('search')}</button>${night}<button type="button" class="btn btn-sm est-edit-btn" data-fk="imm-edit" onclick="estSetMode('editar')">${icon('pencil')}<span> ${t('est.edit')}</span></button></div>${lift}${estHlChipHTML()}`;
 }
 /* Abajo, dentro de una balda: el nombre de la que tienes delante o, con una
    pieza elegida, sus controles más usados (postura, mover, girar, sacarla);
@@ -2420,12 +2441,12 @@ function estShowMueble(mid){ EST.view = 'mueble'; EST.mid = mid; EST.sel = null;
 function estPanelHTML(){
   const E = estData();
   if(EST.view==='sala'){
-    return `<p class="section-sub est-hint">${t('est.sala_hint')}</p>
+    return estHistRowHTML() + `<p class="section-sub est-hint">${t('est.sala_hint')}</p>
       ${estSalaPanelHTML()}
       <div class="quick-actions">${estStyleBtn()}${estMedColBtn()}</div>${estFoldersHTML()}${estDeleteAllHTML()}`;
   }
   const m = estMueble(estMid()); if(!m) return '';
-  let html = '';
+  let html = estHistRowHTML();   // v11.19: deshacer, rehacer, buscar y resaltar
   const surf = (sid, label, sf, H, isOpen)=>{
     const L = estLayout(sf.items, m.ancho, H, m.fondo, estSurfObst(m, sid));
     const pct = Math.min(100, Math.round(L.used / m.ancho * 100));
@@ -2450,7 +2471,7 @@ function estPanelHTML(){
         ${L.over.length ? `<div class="est-over-row" role="status"><span>${escapeHTML(estN('est.over_note', L.over.length))}</span><button type="button" class="btn btn-sm primary" data-fk="fit-${sid}" onclick="estFitSurface('${m.id}','${sid}')">${icon('fit')} ${t('est.fit_btn')}</button></div>` : ''}
         <div class="quick-actions">${enter}<button type="button" class="btn btn-sm" onclick="openEstAddSheet('${sid}')">${icon('plus')} ${t('est.add_here')}</button>
           <button type="button" class="btn btn-sm" onclick="openEstFolderSheet(null, '${sid}')">${icon('folder')} ${t('est.folder_new_here')}</button>
-          ${k ? `${gaps}<button type="button" class="btn btn-sm btn-ghost" onclick="estSortSurface('${m.id}','${sid}')">${icon('sortIcon')} ${t('est.sort')}</button><button type="button" class="btn btn-sm btn-ghost" onclick="estClearSurface('${m.id}','${sid}')">${icon('trash')} ${t('est.clear')}</button>` : ''}</div>
+          ${k ? `${gaps}<button type="button" class="btn btn-sm btn-ghost" onclick="openEstSortSheet('${m.id}','${sid}')">${icon('sortIcon')} ${t('est.sort')}</button><button type="button" class="btn btn-sm btn-ghost" onclick="estClearSurface('${m.id}','${sid}')">${icon('trash')} ${t('est.clear')}</button>` : ''}</div>
       </div></details>`;
   };
   const label = (sid)=> m.isFloor ? t('est.floor') : sid==='top' ? t('est.top') : (()=>{ const i = m.baldas.findIndex(b=>b.id===sid); const b = m.baldas[i]; return t('est.balda_n').replace('{n}', i + 1) + (estPlateText(b) ? ' · ' + estPlateText(b) : ''); })();
@@ -2735,28 +2756,23 @@ async function estAutoAddUnplaced(){
   showToast(t('est.added_unplaced').replace('{n}', ms.reduce((a, m)=>a + m.baldas.reduce((b, x)=>b + x.items.length, 0), 0)), { ok:true });
   render();
 }
-async function estAddMueble(){
-  const name = await showPromptModal(t('est.new_mueble_name'), t('est.mueble_default'));
-  if(!name) return;
-  const E = estEnsure();
-  const m = estNewMueble(name);
-  m.baldas = [{ id:estUid('b'), alto:22, placa:'', items:[] }, { id:estUid('b'), alto:22, placa:'', items:[] }, { id:estUid('b'), alto:22, placa:'', items:[] }];
-  const look = E.muebles[0];
-  if(look){ m.madera = look.madera; m.puertas = look.puertas; m.luz = look.luz; m.placas = look.placas; }
-  E.muebles.push(m);
-  EST.view = 'mueble'; EST.mid = m.id; EST.sel = null;
-  await estSave(true);
-  if(view.page!=='estanteria') goEstanteria(); else render();
-}
-function estSortSurface(mid, sid){
+/* (v11.19: «Añadir un mueble» está más abajo: ahora se elige el tipo, a medida o con medidas reales) */
+let _estSortBusy = false;
+function estSortSurface(mid, sid, crit){
   // v11.17: ordenadas en la fila de delante; las que ahí no quepan, detrás o encima (dentro de la balda)
-  if(!estSurface(estMueble(mid), sid)) return;
-  estInside(()=> estSortSurface_(mid, sid), { fit:'shelf', msg:'est.no_room_sort' });
+  // v11.19: por un criterio (año, como siempre; nombre, región, plataforma o color del lomo)
+  const sf0 = estSurface(estMueble(mid), sid); if(!sf0) return;
+  if(crit==='color'){
+    if(_estSortBusy) return;
+    _estSortBusy = true;   // (lee el color de cada foto: una vez cada vez)
+    return estSpineColors(sf0.items.map(it=>PRODUCTS_BY_ID[it.pid]).filter(Boolean)).then(colors=> estInside(()=> estSortSurface_(mid, sid, crit, colors), { fit:'shelf', msg:'est.no_room_sort' })).finally(()=>{ _estSortBusy = false; });
+  }
+  return estInside(()=> estSortSurface_(mid, sid, crit), { fit:'shelf', msg:'est.no_room_sort' });
 }
-function estSortSurface_(mid, sid){
+function estSortSurface_(mid, sid, crit, colors){
   const m = estMueble(mid), sf = estSurface(m, sid); if(!sf) return;
   // (las carpetas, detrás de las piezas, en el orden en que estaban)
-  const by = new Map(sortGames(sf.items.map(it=>PRODUCTS_BY_ID[it.pid]).filter(Boolean)).map((p, i)=>[p.id, i]));
+  const by = new Map(estSortList(sf.items.map(it=>PRODUCTS_BY_ID[it.pid]).filter(Boolean), crit, colors).map((p, i)=>[p.id, i]));
   const rank = (it, i)=> by.has(it.pid) ? by.get(it.pid) : estIsFolderPid(it.pid) ? 1e6 + i : 1e9 + i;
   const order = new Map(sf.items.map((it, i)=>[it, rank(it, i)]));
   sf.items.sort((a, b)=> order.get(a) - order.get(b));
@@ -2932,6 +2948,8 @@ function estDesignBodyHTML(mid){
   const baldas = m.baldas.map((b, i)=>`<div class="est-balda-row">
       ${slider('estB_' + b.id, t('est.balda_n').replace('{n}', i + 1), b.alto, 6, 70, 1, `estSetBalda('${mid}','${b.id}','alto',+this.value)`)}
       <div class="field"><label for="estP_${b.id}">${t('est.plate_text')}</label><input id="estP_${b.id}" type="text" data-nosave value="${escapeHTML(b.placa)}" placeholder="${escapeHTML(estAutoPlate(b) || t('est.plate_auto'))}" onchange="estSetBalda('${mid}','${b.id}','placa',this.value)"></div>
+      <div class="est-balda-sel"><div class="field" data-nosave><label for="estDv_${b.id}">${t('estx.divisions')}</label><select id="estDv_${b.id}" onchange="estSetDivisions('${mid}','${b.id}',this.value)">${[0, 1, 2, 3, 4, 5].map(n=> `<option value="${n}" ${estPanels(m, b).length===n ? 'selected' : ''}>${n ? (n===1 ? t('estx.div_1') : t('estx.div_n').replace('{n}', n)) : t('estx.div_0')}</option>`).join('')}</select></div>
+        <div class="field" data-nosave><label for="estEs_${b.id}">${t('estx.escalon')}</label><select id="estEs_${b.id}" onchange="estSetEscalon('${mid}','${b.id}',this.value)">${EST_ESCALONES.concat(EST_ESCALONES.includes(estLift(b)) ? [] : [estLift(b)]).map(v=> `<option value="${v}" ${estLift(b)===v ? 'selected' : ''}>${v ? fmtCm(v) + ' cm' : t('estx.esc_0')}</option>`).join('')}</select></div></div>
       <div class="est-balda-btns">
         <button type="button" class="btn btn-sm" onclick="estMoveBalda('${mid}','${b.id}',-1)" ${i===0 ? 'disabled' : ''} aria-label="${escapeHTML(t('est.balda_up'))}">${icon('chevronUp')}</button>
         <button type="button" class="btn btn-sm" onclick="estMoveBalda('${mid}','${b.id}',1)" ${i===m.baldas.length - 1 ? 'disabled' : ''} aria-label="${escapeHTML(t('est.balda_down'))}">${icon('chevronDown')}</button>
@@ -3589,6 +3607,7 @@ async function estSidePhotoRemove(key){
   if(!key) return;
   if(!await showConfirmModal(t('photo.remove_confirm'), { danger:true, okLabel:t('photo.remove') })) return;
   await removePhoto(key);
+  if(typeof forgetPhotoMeta==='function') await forgetPhotoMeta(key);   // v11.19
   showToast(t('photo.removed'));
   estSidesRefresh(); estRefresh();
   const side = key.slice(key.lastIndexOf('_') + 1);
@@ -4966,3 +4985,437 @@ function estPullClose(silent){
   }
 }
 function estPullFicha(){ const S = estPullState; if(!S) return; const pid = S.pid; estPullClose(true); goProduct(pid); }
+
+/* =====================================================================
+   v11.19 · ESTANTERÍA
+   · Resaltar (precintadas, lo que te falta, sin foto o una plataforma).
+   · Buscar dentro de la estantería.
+   · Muebles con medidas reales (tipo Kallax, Billy, Detolf) y divisiones.
+   · Escalón detrás: la fila de atrás, más alta.
+   · Inclinar el móvil: la balda y el brillo del film se mueven contigo.
+   · Modo vitrina: recorre las baldas sola.
+   · Deshacer y rehacer varios pasos.
+   · Ordenar una balda por año, nombre, región, plataforma o color del lomo.
+   Datos (solo se añaden, en la balda; sin ellos todo queda como antes):
+   paneles [x desde la izquierda, cm] · escalon (cm).
+   ===================================================================== */
+const EST_PANEL_T = 1.8;                     // grosor de una división (cm)
+const EST_ESCALONES = [0, 4, 6, 8, 10, 12];  // cm
+/* ---------- Divisiones y escalón de una balda ---------- */
+function estPanels(m, b){ return b && Array.isArray(b.paneles) ? b.paneles.filter(x=> typeof x==='number' && x > 0 && x + EST_PANEL_T < m.ancho) : []; }
+function estLift(b){ return b && typeof b.escalon==='number' && b.escalon > 0 ? b.escalon : 0; }
+/* Lo que se dibuja en la balda además de las piezas: las divisiones y el escalón */
+function estBayExtrasHTML(m, b, L, w, h, D, s, o){
+  const wood = EST_WOODS[m.madera], lift = estLift(b) * s, P = (L.fixed || []).filter(q=> q.ref==='panel');
+  if(!lift && !P.length) return '';
+  let out = '';
+  if(o.lite){
+    if(lift) out += `<div class="est-riser-flat" style="top:${(h - lift).toFixed(1)}px;width:${w.toFixed(1)}px;height:${lift.toFixed(1)}px;background-color:${wood.e}"></div>`;
+    P.forEach(q=> out += `<div class="est-panel-flat" style="left:${(q.x * s).toFixed(1)}px;width:${Math.max(1, q.fw * s).toFixed(1)}px;height:${h.toFixed(1)}px;background-color:${wood.f}"></div>`);
+    return out;
+  }
+  if(lift){
+    const zf = D / 2;
+    out += `<div class="est-riser" style="top:${(h - lift).toFixed(1)}px;width:${w.toFixed(1)}px;height:${(D - zf).toFixed(1)}px;transform:translateZ(${(-zf).toFixed(1)}px) rotateX(-90deg);background-color:${wood.t}"></div>`;
+    out += `<div class="est-riser is-front" style="top:${(h - lift).toFixed(1)}px;width:${w.toFixed(1)}px;height:${lift.toFixed(1)}px;transform:translateZ(${(-zf).toFixed(1)}px);background-color:${wood.f}"></div>`;
+  }
+  P.forEach(q=>{
+    const pw = Math.max(1, q.fw * s), X = (q.x + q.fw / 2) * s, Y = h / 2, Z = -D / 2;
+    out += `<div class="est-obst est-panel" data-x="${X.toFixed(0)}" data-row="0" data-up="0" style="z-index:${estZ(X, o.eyeX, false, 0)};transform:translate3d(${X.toFixed(1)}px,${Y.toFixed(1)}px,${Z.toFixed(1)}px)" aria-hidden="true">`
+      + estFace(pw, h, `translateZ(${(D / 2).toFixed(1)}px)`, 'est-panel-f', `background-color:${wood.f}`, '')
+      + estFace(D, h, `rotateY(-90deg) translateZ(${(pw / 2).toFixed(1)}px)`, 'est-panel-s', `background-color:${wood.s}`, '')
+      + estFace(D, h, `rotateY(90deg) translateZ(${(pw / 2).toFixed(1)}px)`, 'est-panel-s', `background-color:${wood.s}`, '')
+      + `</div>`;
+  });
+  return out;
+}
+/* Divisiones repartidas por igual (0 = sin divisiones) */
+function estEvenPanels(W, n){ const cell = (W - n * EST_PANEL_T) / (n + 1); return Array.from({ length:n }, (_, i)=> estR1((i + 1) * cell + i * EST_PANEL_T)); }
+function estSetDivisions(mid, bid, n){
+  const m = estMueble(mid), b = m && m.baldas.find(x=> x.id===bid); if(!b) return;
+  n = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
+  const ok = estInside(()=>{ const mm = estMueble(mid), bb = mm && mm.baldas.find(x=> x.id===bid); if(!bb) return; if(n) bb.paneles = estEvenPanels(mm.ancho, n); else delete bb.paneles; }, { fit:'shelf', msg:'estx.no_room_panels' });
+  if(ok!==false){ estSave(); estDraw(); estRefreshPanel(); }
+  estDesignRefresh(mid);
+  const sel = document.getElementById('estDv_' + bid); if(sel) sel.focus({ preventScroll:true });
+}
+function estSetEscalon(mid, bid, v){
+  const m = estMueble(mid), b = m && m.baldas.find(x=> x.id===bid); if(!b) return;
+  v = Math.max(0, Math.min(30, Math.round(Number(v) || 0)));
+  const tall0 = estSurfLayout(m, bid).tall.length;
+  if(v) b.escalon = v; else delete b.escalon;
+  const tall1 = estSurfLayout(m, bid).tall.length;
+  estSave(); estDraw(); estRefreshPanel();
+  // (se deja, pero se avisa si con el escalón alguna de detrás ya no cabe de alto)
+  if(tall1 > tall0) showToast(estN('estx.esc_tall', tall1 - tall0), { replace:true, duration:5000 });
+}
+
+/* ---------- Muebles con medidas reales ---------- */
+const EST_PRESETS = [
+  { id:'medida', ancho:100, fondo:32, baldas:[22, 22, 22] },
+  { id:'kallax14', ancho:33, fondo:38, baldas:[33, 33, 33, 33], cols:1, madera:'blanco', puertas:'sin' },
+  { id:'kallax22', ancho:67.8, fondo:38, baldas:[33, 33], cols:2, madera:'blanco', puertas:'sin' },
+  { id:'kallax24', ancho:67.8, fondo:38, baldas:[33, 33, 33, 33], cols:2, madera:'blanco', puertas:'sin' },
+  { id:'kallax44', ancho:137.4, fondo:38, baldas:[33, 33, 33, 33], cols:4, madera:'blanco', puertas:'sin' },
+  { id:'billy80', ancho:76, fondo:26, baldas:[30, 30, 30, 30, 30, 30], madera:'blanco', puertas:'sin' },
+  { id:'billy40', ancho:36, fondo:26, baldas:[30, 30, 30, 30, 30, 30], madera:'blanco', puertas:'sin' },
+  { id:'detolf', ancho:40, fondo:34, baldas:[36, 36, 36, 36], madera:'negro', puertas:'cristal' },
+];
+let estNewState = { preset:'medida', name:'' };
+function estPresetMini(P){
+  const cols = P.cols || 1;
+  return `<span class="est-mini" aria-hidden="true" style="--c:${cols};--r:${P.baldas.length};--ar:${(P.ancho / (P.baldas.reduce((a, b)=> a + b, 0))).toFixed(3)}">${'<i></i>'.repeat(cols * P.baldas.length)}</span>`;
+}
+function estNewBodyHTML(){
+  const S = estNewState;
+  return `<div class="field"><label for="estNewName">${t('est.new_mueble_name')}</label><input id="estNewName" type="text" data-nosave value="${escapeHTML(S.name)}" placeholder="${escapeHTML(t('est.mueble_default'))}" oninput="estNewState.name=this.value"></div>
+    <div class="field-label" id="estNewTL">${t('estx.new_type')}</div>
+    <div class="est-presets" role="radiogroup" aria-labelledby="estNewTL">${EST_PRESETS.map(P=>{
+      const on = S.preset===P.id;
+      return `<button type="button" class="est-preset${on ? ' active' : ''}" role="radio" aria-checked="${on}" data-fk="pr-${P.id}" onclick="estNewPick('${P.id}')">${estPresetMini(P)}<span class="est-preset-t"><b>${escapeHTML(t('estx.preset.' + P.id))}</b><small>${escapeHTML(t('estx.preset_d.' + P.id).replace('{w}', fmtCm(P.ancho)).replace('{d}', fmtCm(P.fondo)))}</small></span></button>`;
+    }).join('')}</div>
+    <p class="settings-note">${t('estx.new_note')}</p>`;
+}
+function estNewPick(id){ estNewState.preset = id; updateSheetBody(estNewBodyHTML()); const b = document.querySelector(`#sheetBody [data-fk="pr-${id}"]`); if(b) b.focus({ preventScroll:true }); }
+/* «Añadir un mueble»: elige el tipo (a medida o con las medidas de uno de verdad) */
+async function estAddMueble(){
+  estNewState = { preset:'medida', name:'' };
+  openSheet({ kind:'est-new', title:t('est.add_mueble'), body:estNewBodyHTML(), focus:'[data-fk="pr-medida"]',
+    foot:`<button type="button" class="btn" onclick="closeSheet()">${t('modal.cancel')}</button><button type="button" class="btn primary" data-fk="est-new-go" onclick="estNewCreate()">${icon('plus')} ${t('estx.new_create')}</button>` });
+}
+async function estNewCreate(){
+  const S = estNewState, P = EST_PRESETS.find(x=> x.id===S.preset) || EST_PRESETS[0];
+  const E = estEnsure();
+  const name = String(S.name || '').trim() || (P.id==='medida' ? t('est.mueble_default') : t('estx.preset.' + P.id));
+  const m = estNewMueble(name);
+  m.ancho = P.ancho; m.fondo = P.fondo;
+  const panels = P.cols > 1 ? Array.from({ length:P.cols - 1 }, (_, i)=> estR1((i + 1) * 33 + i * EST_PANEL_T)) : null;
+  m.baldas = P.baldas.map(a=>{ const b = { id:estUid('b'), alto:a, placa:'', items:[] }; if(panels) b.paneles = panels.slice(); return b; });
+  const look = E.muebles[0];
+  if(look){ m.madera = look.madera; m.puertas = look.puertas; m.luz = look.luz; m.placas = look.placas; }
+  if(P.madera) m.madera = P.madera;
+  if(P.puertas) m.puertas = P.puertas;
+  E.muebles.push(m);
+  closeSheet();
+  EST.view = 'mueble'; EST.mid = m.id; EST.sel = null;
+  await estSave(true);
+  if(view.page!=='estanteria') goEstanteria(); else render();
+}
+
+/* ---------- Resaltar ---------- */
+function estHlMatch(p, mode){
+  if(!p) return false;
+  if(p.isFolder) return estFolderPieces(p.folder).some(q=> estHlMatch(q, mode));
+  if(mode==='sealed') return estSealed(p);
+  if(mode==='missing') return p.possession!=='tengo';
+  if(mode==='nophoto') return !hasPhoto(shownPhotoId(p), 'front');
+  if(String(mode).startsWith('plat:')) return p.platformId===mode.slice(5);
+  return true;
+}
+function estHlCount(mode){ const s = estPlacedSet(); return PRODUCTS.filter(p=> s.has(p.id) && estHlMatch(p, mode)).length; }
+function estHlName(mode){
+  if(!mode) return '';
+  if(String(mode).startsWith('plat:')){ const pl = getAllPlatforms().find(x=> x.id===mode.slice(5)); return pl ? pl.name : ''; }
+  return t('estx.hl.' + mode);
+}
+/* Después de pintar: lo que no es, apagado */
+function estHlApply(){
+  const st = estStageEl(); if(!st) return;
+  const mode = EST.hl || null;
+  st.classList.toggle('is-hl', !!mode);
+  st.querySelectorAll('#estScene .est-pz[data-pid], #estScene .est-sp[data-pid], #estScene .est-cv[data-pid]').forEach(el=>{
+    const dim = !!mode && !estHlMatch(estP(el.dataset.pid), mode);
+    if(el.classList.contains('is-dim')!==dim) el.classList.toggle('is-dim', dim);
+  });
+}
+function estSetHl(mode){
+  EST.hl = mode || null;
+  estHlApply(); estRefreshCtl();
+  if(isSheetKind('est-tools')) estToolsRefresh();
+}
+function estHlChipHTML(){
+  if(!EST.hl) return '';
+  return `<button type="button" class="est-hl-chip" data-fk="hl-off" onclick="estSetHl(null)" aria-label="${escapeHTML(t('estx.hl_off').replace('{s}', estHlName(EST.hl)))}">${icon('eye')}<span>${escapeHTML(estHlName(EST.hl))}</span>${icon('x')}</button>`;
+}
+
+/* ---------- Buscar, resaltar y ver (una hoja) ---------- */
+let estToolQ = '';
+function openEstTools(focus){
+  // (el foco empieza en «Resaltar», no en el buscador: así no sale el teclado al abrirla)
+  openSheet({ kind:'est-tools', title:t('estx.tools'), body:estToolsBodyHTML(), focus: focus || '.chip-row .chip.active', foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>` });
+}
+function estFindResults(){
+  const tokens = searchTokens(estToolQ); if(!tokens.length) return null;
+  const placed = estPlacedSet();
+  const inFolder = new Set(); Object.values(estFolders()).forEach(f=> f.pids.forEach(id=> inFolder.add(id)));
+  return sortGames(PRODUCTS.filter(p=> !p.isFolder && productMatchesSearch(p, tokens))).slice(0, 12).map(p=> ({ p, on: placed.has(p.id) || inFolder.has(p.id) }));
+}
+function estToolsBodyHTML(){
+  const res = estFindResults();
+  const list = res===null ? `<p class="section-sub">${t('estx.find_hint')}</p>` : !res.length ? `<p class="section-sub">${t('filter.no_results')}</p>`
+    : '<div class="est-add-list">' + res.map(({ p, on })=>{ const pv = platVisual(p.platformId);
+      return on ? `<button type="button" class="est-add-row" data-fk="find-${escapeHTML(p.id)}" onclick="estFindGo('${escapeHTML(p.id)}')"><span class="code-chip" style="--plat:${pv.color}" aria-hidden="true">${escapeHTML(pv.code || '#')}</span><span class="est-add-name">${escapeHTML(p.name)}<small>${escapeHTML(estWhereFull(p.id))}</small></span>${icon('chevronRight')}</button>`
+        : `<div class="est-add-row is-off"><span class="code-chip" style="--plat:${pv.color}" aria-hidden="true">${escapeHTML(pv.code || '#')}</span><span class="est-add-name">${escapeHTML(p.name)}<small>${escapeHTML(t('est.not_placed'))}</small></span></div>`; }).join('') + '</div>';
+  const hl = (mode, label)=>{ const on = (EST.hl || null)===mode; return `<button type="button" class="chip ${on ? 'active' : ''}" aria-pressed="${on}" data-fk="hl-${mode || 'none'}" onclick="estSetHl(${mode ? `'${mode}'` : 'null'})">${escapeHTML(label)}${mode ? ` <span class="chip-count">${estHlCount(mode).toLocaleString(numLocale())}</span>` : ''}</button>`; };
+  const placed = estPlacedSet();
+  const plats = getAllPlatforms().filter(pl=> PRODUCTS.some(p=> p.platformId===pl.id && placed.has(p.id)));
+  const cur = EST.hl && String(EST.hl).startsWith('plat:') ? EST.hl.slice(5) : '';
+  const tiltOk = estTiltSupported();
+  return `<div class="sheet-group"><div class="searchbar" role="search">${icon('search', 'ico-search')}<input type="search" id="estFindQ" value="${escapeHTML(estToolQ)}" placeholder="${escapeHTML(t('estx.find_ph'))}" aria-label="${escapeHTML(t('estx.find_ph'))}" autocomplete="off" oninput="estToolQ=this.value; clearTimeout(window._estFT); window._estFT=setTimeout(estToolsRefresh, 160)"></div>
+      <div class="est-find-res" id="estFindRes" aria-live="polite">${list}</div></div>
+    <div class="sheet-group"><div class="field-label" id="estHlL">${t('estx.hl')}</div>
+      <div class="chip-row" role="group" aria-labelledby="estHlL">${hl(null, t('estx.hl.none'))}${hl('sealed', t('estx.hl.sealed'))}${hl('missing', t('estx.hl.missing'))}${hl('nophoto', t('estx.hl.nophoto'))}</div>
+      <div class="field est-hl-plat" data-nosave><label for="estHlPlat">${t('estx.hl_plat')}</label><select id="estHlPlat" onchange="estSetHl(this.value ? 'plat:' + this.value : null)"><option value="">—</option>${plats.map(pl=> `<option value="${escapeHTML(pl.id)}" ${cur===pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}</select></div></div>
+    <div class="sheet-group"><div class="field-label">${t('estx.show')}</div>
+      <div class="quick-actions is-flush"><button type="button" class="btn btn-sm" data-fk="tour" onclick="estTourStart()">${icon('play')} ${t('estx.tour')}</button>
+      ${tiltOk ? `<button type="button" class="btn btn-sm${estTiltOn ? ' primary' : ''}" data-fk="tilt" aria-pressed="${estTiltOn}" onclick="estTiltToggle()">${icon('tilt')} ${t('estx.tilt')}</button>` : ''}</div>
+      <p class="settings-note">${t('estx.tour_note')}${tiltOk ? ' ' + t('estx.tilt_note') : ''}</p></div>`;
+}
+function estToolsRefresh(){
+  if(!isSheetKind('est-tools')) return;
+  const a = document.activeElement, hadQ = a && a.id==='estFindQ', pos = hadQ ? a.selectionStart : 0, fk = a && a.dataset ? a.dataset.fk : null, id = a && a.id;
+  const body = document.getElementById('sheetBody'), y = body ? body.scrollTop : 0;
+  updateSheetBody(estToolsBodyHTML());
+  if(body) body.scrollTop = y;
+  if(hadQ){ const q = document.getElementById('estFindQ'); if(q){ q.focus(); try{ q.setSelectionRange(pos, pos); }catch(e){} } }
+  else { const b = fk ? document.querySelector(`#sheetBody [data-fk="${CSS.escape(fk)}"]`) : id ? document.getElementById(id) : null; if(b) b.focus({ preventScroll:true }); }
+}
+/* Dónde está, con el nombre del mueble («Videojuegos · Balda 3») */
+function estWhereFull(pid){
+  const loc = estLocate(pid), w = estWhereText(pid);
+  return loc && loc.m && !loc.m.isFloor && estData().muebles.length > 1 ? (loc.m.nombre || t('est.mueble_default')) + ' · ' + w : w;
+}
+function estFindGo(pid){
+  closeSheet();
+  goEstanteria({ pid, edit: EST.mode==='editar' });
+}
+
+/* ---------- Inclinar el móvil ---------- */
+let estTiltOn = false, _estTilt = null;   // { g0, b0, dx, dy, raf }
+function estTiltSupported(){ return typeof DeviceOrientationEvent!=='undefined' && typeof matchMedia==='function' && matchMedia('(pointer: coarse)').matches; }
+async function estTiltToggle(){
+  if(estTiltOn){ estTiltSet(false); return; }
+  try{
+    if(typeof DeviceOrientationEvent.requestPermission==='function'){
+      const r = await DeviceOrientationEvent.requestPermission();
+      if(r!=='granted'){ showToast(t('estx.tilt_denied'), { replace:true, duration:5000 }); return; }
+    }
+  }catch(e){ showToast(t('estx.tilt_denied'), { replace:true, duration:5000 }); return; }
+  estTiltSet(true);
+}
+function estTiltSet(on, quiet){
+  estTiltOn = !!on;
+  if(on){ _estTilt = { g0:null, b0:null, dx:0, dy:0, raf:0, last:0 }; window.addEventListener('deviceorientation', estTiltEv); }
+  else { window.removeEventListener('deviceorientation', estTiltEv); if(_estTilt) cancelAnimationFrame(_estTilt.raf); _estTilt = null; estTiltApply(0, 0); }
+  if(isSheetKind('est-tools')) estToolsRefresh();
+  if(!quiet) showToast(t(on ? 'estx.tilt_on' : 'estx.tilt_off'), { replace:true, duration:2500 });
+}
+function estTiltEv(e){
+  const T = _estTilt; if(!T || e.gamma==null || e.beta==null) return;
+  if(view.page!=='estanteria'){ estTiltSet(false, true); return; }   // (al salir de la estantería se apaga)
+  if(view.productId) return;
+  if(T.g0===null){ T.g0 = e.gamma; T.b0 = e.beta; }
+  // (se recentra despacio: cuenta cómo lo mueves, no cómo lo sujetas)
+  T.g0 += (e.gamma - T.g0) * 0.02; T.b0 += (e.beta - T.b0) * 0.02;
+  T.dx = Math.max(-1, Math.min(1, (e.gamma - T.g0) / 25));
+  T.dy = Math.max(-1, Math.min(1, (e.beta - T.b0) / 25));
+  if(!T.raf) T.raf = requestAnimationFrame(()=>{ T.raf = 0; if(_estTilt===T) estTiltApply(T.dx, T.dy); });
+}
+function estTiltApply(dx, dy){
+  const st = estStageEl(); if(!st) return;
+  const h = dx.toFixed(2), near = st.querySelector('.est-slot.is-near');
+  // (el brillo del film: solo en la balda que miras, y a saltos de 0,05, para no repintar de más)
+  if(near && near.style.getPropertyValue('--tilt')!==h && (Math.abs(Number(h) - (Number(near.style.getPropertyValue('--tilt')) || 0)) >= 0.05 || !dx)) near.style.setProperty('--tilt', h);
+  const bay = near && near.querySelector('.est-bay'), scr = st.querySelector('#estScene .est-scroll');
+  if(!bay || !scr) return;
+  if(!bay.dataset.ey) bay.dataset.ey = String(parseFloat((bay.style.perspectiveOrigin || '').split(' ')[1]) || bay.clientHeight * 0.45);
+  const pad = Number(scr.dataset.pad) || 0, T = Number(scr.dataset.t) || 0;
+  const x = scr.scrollLeft + scr.clientWidth / 2 - pad - T + dx * scr.clientWidth * 0.35;
+  const y = Number(bay.dataset.ey) + dy * bay.clientHeight * 0.5;
+  bay.style.perspectiveOrigin = `${x.toFixed(1)}px ${y.toFixed(1)}px`;
+}
+
+/* ---------- Modo vitrina: recorre las baldas sola ---------- */
+let estTour = null;   // { list:[{ mid, sid }], i, raf, timer, lock }
+function estTourList(){
+  const out = [];
+  estData().muebles.forEach(m=> estSurfaceIds(m).forEach(sid=>{ const sf = estSurface(m, sid); if(sf && estKnownCount(sf.items)) out.push({ mid:m.id, sid }); }));
+  return out;
+}
+async function estTourStart(){
+  const list = estTourList(); if(!list.length){ showToast(t('est.nothing'), { replace:true }); return; }
+  if(isSheetOpen()) closeSheet();
+  if(EST.mode!=='ver'){ EST.mode = 'ver'; EST.sel = null; EST.multi = null; await render(); }
+  // (empieza por la balda que estás viendo, si está en la lista)
+  const cur = list.findIndex(x=> x.mid===EST.mid && x.sid===EST.bsid);
+  const T = estTour = { list, i: EST.view==='balda' && cur >= 0 ? cur - 1 : -1, raf:0, timer:0, lock:null };
+  try{ if(navigator.wakeLock && navigator.wakeLock.request) T.lock = await navigator.wakeLock.request('screen'); }catch(e){ T.lock = null; }
+  if(estTour!==T) return;
+  document.addEventListener('pointerdown', estTourStopEv, true);
+  document.addEventListener('keydown', estTourStopEv, true);
+  document.addEventListener('wheel', estTourStopEv, { capture:true, passive:true });
+  document.documentElement.classList.add('est-tour-on');
+  showToast(t('estx.tour_hint'), { replace:true, duration:3500 });
+  estTourNext();
+}
+/* Tocar la pantalla, una tecla o la rueda la para (ese toque no hace nada más) */
+function estTourStopEv(e){
+  if(!estTour) return;
+  if(e.type==='keydown' && ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
+  if(e.type!=='wheel' && !(e.target && e.target.closest && e.target.closest('.toast'))){ e.preventDefault(); e.stopPropagation(); }
+  estTourStop(true);
+}
+function estTourStop(say){
+  const T = estTour; if(!T) return; estTour = null;
+  cancelAnimationFrame(T.raf); clearTimeout(T.timer);
+  try{ if(T.lock) T.lock.release(); }catch(e){}
+  document.removeEventListener('pointerdown', estTourStopEv, true);
+  document.removeEventListener('keydown', estTourStopEv, true);
+  document.removeEventListener('wheel', estTourStopEv, { capture:true });
+  document.documentElement.classList.remove('est-tour-on');
+  if(say) showToast(t('estx.tour_stopped'), { replace:true, duration:2500 });
+  if(view.page==='estanteria') estRefreshCtl();
+}
+function estTourNext(){
+  const T = estTour; if(!T) return;
+  if(view.page!=='estanteria' || view.productId || !document.getElementById('estStage') || EST.mode!=='ver'){ estTourStop(false); return; }
+  T.i = (T.i + 1) % T.list.length;
+  const it = T.list[T.i];
+  if(!estMueble(it.mid)){ estTourStop(false); return; }
+  EST.mid = it.mid; EST.fromSala = false;
+  estEnterBalda(it.sid, null);
+  const scr = document.querySelector('#estScene .est-scroll');
+  if(!scr){ T.timer = setTimeout(estTourNext, 4000); return; }
+  scr.scrollLeft = 0;
+  const max = Math.max(0, scr.scrollWidth - scr.clientWidth);
+  if(reducedMotion() || max < 4){ if(max) scr.scrollLeft = max / 2; T.timer = setTimeout(estTourNext, 5000); return; }
+  const dur = Math.min(24000, Math.max(6000, max / 60 * 1000));   // (unos 60 px por segundo)
+  const t0 = performance.now() + 900;                              // (un momento quieta al entrar)
+  const step = (now)=>{
+    if(estTour!==T) return;
+    if(view.page!=='estanteria' || view.productId || !document.contains(scr)){ estTourStop(false); return; }
+    const k = Math.min(1, Math.max(0, (now - t0) / dur)), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    scr.scrollLeft = e * max;
+    if(k < 1) T.raf = requestAnimationFrame(step); else T.timer = setTimeout(estTourNext, 1200);
+  };
+  T.raf = requestAnimationFrame(step);
+}
+
+/* ---------- Deshacer / rehacer varios pasos ----------
+   Cada cambio guardado de la estantería es un paso (los seguidos, en menos de 0,7 s,
+   cuentan como uno). Hasta 40 pasos, mientras la app esté abierta. */
+/* Cada paso guarda la estantería y las medidas propias de las piezas (que también la cambian).
+   Si tus datos se sustituyen enteros (importar una copia, sincronizar con otro dispositivo) y la
+   estantería ha cambiado, el historial empieza de cero: así nunca se deshace lo que viene de fuera. */
+const _estHist = { past:[], future:[], cur:null, root:null, t:0, burst:false, mute:false };
+function estHistSnap(){
+  const P = OVERRIDES.products || {};
+  const med = Object.keys(P).filter(id=> P[id] && P[id].medidas!==undefined).sort().map(id=> [id, P[id].medidas]);
+  return JSON.stringify([OVERRIDES.estanterias || null, med]);
+}
+function estHistRestore(s){
+  const [E, med] = JSON.parse(s);
+  if(E===null) delete OVERRIDES.estanterias; else OVERRIDES.estanterias = E;
+  const want = new Map(med), P = OVERRIDES.products || (OVERRIDES.products = {});
+  const ids = new Set([...want.keys()].concat(Object.keys(P).filter(id=> P[id] && P[id].medidas!==undefined)));
+  let ch = false;
+  ids.forEach(id=>{
+    const cur = P[id] && P[id].medidas!==undefined ? JSON.stringify(P[id].medidas) : undefined, w = want.has(id) ? JSON.stringify(want.get(id)) : undefined;
+    if(cur===w) return; ch = true;
+    if(w===undefined){ delete P[id].medidas; if(!Object.keys(P[id]).length) delete P[id]; }
+    else { if(!P[id]) P[id] = {}; P[id].medidas = want.get(id); }
+  });
+  if(ch) buildProducts();
+}
+function estHistSync(){ estHistRecord(); }
+function estHistRecord(){
+  const H = _estHist; if(H.mute) return;
+  const s = estHistSnap();
+  if(H.cur===null || (H.root!==OVERRIDES && s!==H.cur)){ if(H.cur!==null){ H.past = []; H.future = []; } H.cur = s; H.root = OVERRIDES; H.burst = false; return; }
+  H.root = OVERRIDES;
+  if(s===H.cur) return;
+  const now = Date.now();
+  if(H.burst && now - H.t < 700 && H.past.length){
+    if(s===H.past[H.past.length - 1]){ H.past.pop(); H.burst = false; }   // (ha vuelto a como estaba)
+  } else { H.past.push(H.cur); if(H.past.length > 40) H.past.shift(); H.burst = true; }
+  H.cur = s; H.t = now; H.future = [];
+}
+async function estHistGo(d){
+  const H = _estHist;
+  const from = d < 0 ? H.past : H.future;
+  if(!from.length){ showToast(t(d < 0 ? 'estx.undo_none' : 'estx.redo_none'), { replace:true, duration:2500 }); return; }
+  (d < 0 ? H.future : H.past).push(H.cur);
+  const s = from.pop();
+  estHistRestore(s);
+  _estClean = null;
+  EST.sel = null; EST.multi = null; EST.delAsk = false;
+  if(estHas()){
+    const m = EST.mid===EST_FLOOR ? null : estData().muebles.find(x=> x.id===EST.mid);
+    if(!m && EST.mid!==EST_FLOOR){ EST.mid = null; if(EST.view==='balda') EST.view = 'mueble'; }
+    else if(m && EST.view==='balda' && !estSurface(m, EST.bsid)) EST.view = 'mueble';
+  }
+  H.mute = true;
+  try{ await estSave(true); } finally { H.mute = false; }
+  H.cur = estHistSnap(); H.root = OVERRIDES; H.t = 0; H.burst = false;
+  await renderKeepFocus('[data-fk="est-undo"]:not([disabled]), [data-fk="est-redo"]:not([disabled]), [data-fk="est-tools"]');
+  showToast(t(d < 0 ? 'estx.undone' : 'estx.redone'), { replace:true, duration:2000 });
+}
+function estHistRowHTML(){
+  const H = _estHist;
+  return `<div class="est-hist" role="group" aria-label="${escapeHTML(t('estx.history'))}">
+    <button type="button" class="btn btn-sm" data-fk="est-undo" onclick="estHistGo(-1)" ${H.past.length ? '' : 'disabled'} aria-keyshortcuts="Control+Z">${icon('undo')} ${t('estx.undo')}</button>
+    <button type="button" class="btn btn-sm" data-fk="est-redo" onclick="estHistGo(1)" ${H.future.length ? '' : 'disabled'} aria-keyshortcuts="Control+Shift+Z">${icon('redo')} ${t('estx.redo')}</button>
+    <button type="button" class="btn btn-sm" data-fk="est-tools" onclick="openEstTools()">${icon('search')} ${t('estx.tools_btn')}</button>
+  </div>`;
+}
+/* Ctrl+Z / Ctrl+Mayús+Z (o Ctrl+Y) editando la estantería */
+document.addEventListener('keydown', (e)=>{
+  if(!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const k = String(e.key).toLowerCase(); if(k!=='z' && k!=='y') return;
+  if(view.page!=='estanteria' || view.productId || EST.mode!=='editar') return;
+  const tg = e.target; if(tg && (tg.tagName==='INPUT' || tg.tagName==='TEXTAREA' || tg.tagName==='SELECT' || tg.isContentEditable)) return;
+  if(isModalOpen() || isSheetOpen() || isPhotoEditorOpen() || (typeof estInspectOpen==='function' && estInspectOpen())) return;
+  e.preventDefault();
+  estHistGo(k==='y' || e.shiftKey ? 1 : -1);
+});
+
+/* ---------- Ordenar una balda: el criterio ---------- */
+const EST_SORTS = ['anio', 'nombre', 'region', 'plataforma', 'color'];
+function openEstSortSheet(mid, sid){
+  openSheet({ kind:'est-sort', title:t('estx.sort_title'), body:`<p class="settings-note">${t('estx.sort_note')}</p><div class="est-sort-list">${EST_SORTS.map(c=> `<button type="button" class="est-add-row" data-fk="sort-${c}" onclick="closeSheet(); estSortSurface('${escapeHTML(mid)}','${escapeHTML(sid)}','${c}')">${icon('sortIcon')}<span class="est-add-name">${t('estx.sort.' + c)}<small>${t('estx.sort_d.' + c)}</small></span></button>`).join('')}</div>`, focus:'[data-fk="sort-anio"]' });
+}
+/* El tono (0–360) de un color; los grises van al final, de claro a oscuro */
+function estHueKey(c){
+  let r, g, b;
+  const m = /^#([0-9a-f]{6})$/i.exec(String(c || '')), n = /rgb\((\d+),\s*(\d+),\s*(\d+)/.exec(String(c || ''));
+  if(m){ const v = parseInt(m[1], 16); r = v >> 16 & 255; g = v >> 8 & 255; b = v & 255; } else if(n){ r = +n[1]; g = +n[2]; b = +n[3]; } else return 1e3;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 510, sat = mx===mn ? 0 : (mx - mn) / (255 - Math.abs(mx + mn - 255));
+  if(sat < 0.15) return 400 + (1 - l) * 100;
+  let h = mx===r ? (g - b) / (mx - mn) : mx===g ? 2 + (b - r) / (mx - mn) : 4 + (r - g) / (mx - mn);
+  h *= 60; if(h < 0) h += 360;
+  return h;
+}
+/* El color que se ve en su lomo: el elegido o, si no, el medio de su foto (o el de la plataforma) */
+async function estSpineColors(list){
+  const out = new Map();
+  for(const p of list){
+    const L = estLomo(p);
+    let c = L.color;
+    if(!c && p.possession==='tengo' && hasPhoto(shownPhotoId(p), 'front')){ try{ const tr = await estTrimmedPhoto(shownPhotoId(p), 'front'); if(tr && tr.avg) c = tr.avg; }catch(e){} }
+    out.set(p.id, c || platVisual(p.platformId).color);
+  }
+  return out;
+}
+function estSortList(list, crit, colors){
+  const by = (fn)=> list.slice().sort((a, b)=> fn(a, b) || cmpYearName(a, b));
+  if(crit==='nombre') return by((a, b)=> String(a.name).localeCompare(String(b.name), undefined, { numeric:true, sensitivity:'base' }));
+  if(crit==='region') return by((a, b)=> String(regionShortText(a) || '￿').localeCompare(String(regionShortText(b) || '￿')));
+  if(crit==='plataforma'){
+    const order = new Map(); let k = 0;
+    getAllCategories().forEach(c=> orderedPlatformsForCategory(c.id, getAllPlatforms().filter(pl=> pl.categoryId===c.id)).forEach(pl=> order.set(pl.id, k++)));
+    const o = (p)=> order.has(p.platformId) ? order.get(p.platformId) : 1e6;
+    return by((a, b)=> o(a) - o(b));
+  }
+  if(crit==='color' && colors) return by((a, b)=> estHueKey(colors.get(a.id)) - estHueKey(colors.get(b.id)));
+  return sortGames(list);
+}

@@ -220,13 +220,16 @@ async function confirmMoveProduct(productId){
   const newPlatformId = plat ? plat.id : null;
   const newPlatformName = plat ? plat.name : '';
   const newFolderId = (plat && folderId) ? folderId : null;
+  const fit0 = typeof estOverMap==='function' && typeof estHas==='function' && estHas() ? estOverMap() : null;   // v11.17
   p.categoryId = newCategoryId; p.platformId = newPlatformId; p.platformName = newPlatformName; p.folderId = newFolderId;
   await setProductField(productId, 'categoryId', newCategoryId);
   await setProductField(productId, 'platformId', newPlatformId);
   await setProductField(productId, 'platformName', newPlatformName);
   await setProductField(productId, 'folderId', newFolderId);
   buildProducts();
-  showToast(t('toast.moved'), { ok:true });
+  const mv = fit0 && typeof estKeepInside==='function' ? estKeepInside(fit0) : null;   // v11.17: las que ahora se salgan, a otro sitio de su balda (o al suelo)
+  if(mv) await estSave(true);
+  showToast(t('toast.moved') + (mv ? ' ' + estFitMsg(mv) : ''), { ok:true, duration: mv ? 7000 : undefined });
   render();
 }
 
@@ -266,6 +269,7 @@ async function onExtraPhotosChange(input, id){
 async function removePhotoSlot(key){
   if(!await showConfirmModal(t('photo.remove_confirm'), { danger:true, okLabel:t('photo.remove') })) return;
   await removePhoto(key);
+  if(typeof forgetPhotoMeta==='function') await forgetPhotoMeta(key);   // v11.19: su pie y sus marcas se van con ella
   showToast(t('photo.removed'));
   render();
 }
@@ -346,8 +350,10 @@ async function updateValuation(id, field, value){
     const hoy = new Date().toISOString().slice(0,10);
     if(rec) rec.edition.valuation.fechaActualizacion = hoy;
     await setEditionNested(id,'valuation','fechaActualizacion',hoy);
-    render();
   }
+  // v11.19: el valor total del día, para su evolución
+  if(numeric && typeof recordValueHistory==='function'){ recordValueHistory(); await persistOverrides(); }
+  if(field==='valorActual') render();
 }
 async function updateObjetivo(id, field, value){
   // v11.11: ya tiene pantalla (ficha de búsqueda). Antes fallaba si la pieza no traía «objetivo».

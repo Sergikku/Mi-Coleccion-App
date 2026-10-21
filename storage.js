@@ -1058,8 +1058,14 @@ async function probePhotoIndex(ids){
 function hasPhoto(id, side){ return PHOTO_INDEX.ready ? PHOTO_INDEX[side||'front'].has(id) : false; }
 function photoKeyFor(id, side){ return PHOTO_INDEX[side||'front'].get(id) || null; }
 function productIdsWithPhoto(){ return new Set(PHOTO_INDEX.front.keys()); }
-/* Todas las fotos de una pieza, en orden (delantera, trasera, extra 1…4, lomo, canto, arriba, abajo) */
-function photoSidesFor(id){ return PHOTO_SIDES.filter(s=>hasPhoto(id, s)); }
+/* Todas las fotos de una pieza, en orden (delantera, trasera, extra 1…4, lomo, canto, arriba, abajo).
+   v11.19: las extra, en el orden que les hayas dado (orderedExtraSides, en ui.js) */
+function photoSidesFor(id){
+  const all = PHOTO_SIDES.filter(s=>hasPhoto(id, s));
+  if(typeof orderedExtraSides!=='function') return all;
+  const ex = orderedExtraSides(id);
+  return all.filter(s=> s==='front' || s==='back').concat(ex, all.filter(s=> SIDE_SLOTS.includes(s)));
+}
 function extraSidesFor(id){ return EXTRA_SLOTS.filter(s=>hasPhoto(id, s)); }
 function freeExtraSlot(id){ return EXTRA_SLOTS.find(s=>!hasPhoto(id, s)) || null; }
 function sideSlotsFor(id){ return SIDE_SLOTS.filter(s=>hasPhoto(id, s)); }
@@ -1076,7 +1082,9 @@ async function savePhotoFile(key, file){
   try{
     const r = await photoDataFromFile(file);
     if(r.cancelled) return null;
-    return await storePhotoData(key, r.dataUrl);
+    const ok = await storePhotoData(key, r.dataUrl);
+    if(ok && typeof photoMarksClearKey==='function') await photoMarksClearKey(key);   // v11.19: otra foto: sus marcas ya no valen
+    return ok;
   }catch(err){ showToast(t('photo.read_failed') + ' ' + (err && err.message || ''), { replace:true, duration:6000 }); return null; }
 }
 async function storePhotoData(key, dataUrl){
@@ -1193,7 +1201,13 @@ async function getPhotoURL(id, side, size, _retry){
     return full;
   }
   if(_thumbURLs.has(key)) return _thumbURLs.get(key);
-  if(_thumbPending.has(key)) return _thumbPending.get(key);
+  if(_thumbPending.has(key)){
+    // v11.15: quien espera una miniatura que ya se está haciendo también reintenta si la foto cambió
+    // (antes recibía { retry:true } como si fuera la dirección de la imagen)
+    const o = await _thumbPending.get(key);
+    if(o && o.retry) return _retry ? null : getPhotoURL(id, side, size, true);
+    return o;
+  }
   const gen = thumbGen(key);
   const p = (async ()=>{
     const rec = await thumbDbOp('readonly', os=>os.get(key));

@@ -94,6 +94,9 @@ function buildPortableSnapshot(){
   };
   // v11.11: tu estantería 3D (si la has montado)
   if(OVERRIDES.estanterias && typeof OVERRIDES.estanterias==='object') snapshot.estanterias = JSON.parse(JSON.stringify(OVERRIDES.estanterias));
+  // v11.19: tus filtros guardados y cómo ha cambiado el valor de tu colección (si los hay)
+  if(Array.isArray(OVERRIDES.filtrosGuardados) && OVERRIDES.filtrosGuardados.length) snapshot.filtrosGuardados = JSON.parse(JSON.stringify(OVERRIDES.filtrosGuardados));
+  if(Array.isArray(OVERRIDES.valorHistorial) && OVERRIDES.valorHistorial.length) snapshot.valorHistorial = JSON.parse(JSON.stringify(OVERRIDES.valorHistorial));
   PRODUCTS.forEach(p=>{
     snapshot.customProducts.push(Object.assign({}, p));
     snapshot.products[p.id] = Object.assign({}, p);

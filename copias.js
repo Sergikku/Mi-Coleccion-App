@@ -38,6 +38,10 @@ function copiesSectionHTML(p){
     </div>`;
   if(n > 1){
     html += `<ol class="copy-list">${list.map(c=> copyRowHTML(p, c, c.id===shown.id)).join('')}</ol>`;
+    // v11.19: con fotos de al menos dos copias, se pueden ver lado a lado
+    if(typeof openCompareCopies==='function' && list.filter(c=> hasPhoto(c.photoId, 'front') || hasPhoto(c.photoId, 'back')).length >= 2){
+      html += `<button type="button" class="btn btn-sm btn-ghost copies-compare" data-fk="copy-cmp" onclick="openCompareCopies('${p.id}')">${icon('compare')} ${t('cmp.open')}</button>`;
+    }
   }
   return html + `</section>`;
 }
@@ -92,6 +96,7 @@ function copyHasData(c){
 }
 async function removeCopyPhotos(c){
   for(const side of ['front', 'back'].concat(SIDE_SLOTS)){ const k = photoKeyFor(c.photoId, side); if(k) await removePhoto(k); }   // v11.14: y las de sus lados
+  if(typeof forgetPhotoMeta==='function') for(const side of ['front', 'back'].concat(SIDE_SLOTS)) await forgetPhotoMeta('photo_' + c.photoId + '_' + side);   // v11.19: y su pie y sus marcas
 }
 async function removeLastCopy(id){
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
@@ -160,6 +165,7 @@ async function promoteCopy(id, c){
       await removePhoto(moved[side].src);
     } else if(own) await removePhoto(own);
   }
+  if(typeof photoMetaPromote==='function') await photoMetaPromote(id, c.photoId, COPY_SIDES);   // v11.19: el pie y las marcas van con sus fotos
   const arr = ensureCopyStore(id);
   const i = arr.findIndex(x=>x && x.id===c.id);
   if(i >= 0) arr.splice(i, 1);
@@ -296,6 +302,7 @@ async function removeCopyPhoto(key){
   if(!key) return;
   if(!await showConfirmModal(t('photo.remove_confirm'), { danger:true, okLabel:t('photo.remove') })) return;
   await removePhoto(key);
+  if(typeof forgetPhotoMeta==='function') await forgetPhotoMeta(key);   // v11.19
   showToast(t('photo.removed'));
   refreshCopySheet();
   render();

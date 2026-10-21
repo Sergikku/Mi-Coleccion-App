@@ -161,7 +161,7 @@ function renderDashboard(){
     <div class="hero-stats">
       <button type="button" class="hero-stat is-accent" onclick="goInventory('falta')"><span class="hs-label">${t('dash.pending')}</span><span class="hs-value">${n(g.pending)}</span></button>
       <button type="button" class="hero-stat is-gold" onclick="goInventory('sellado')"><span class="hs-label">${t('dash.sealed')}</span><span class="hs-value">${n(g.sealed)}</span></button>
-      <div class="hero-stat is-quiet" title="${escapeHTML(g.valued ? (g.lastUpdate ? t('dash.value.updated').replace('{d}', g.lastUpdate) : '') : t('dash.value.novalue'))}"><span class="hs-label">${t('dash.value')}</span><span class="hs-value">${g.valued ? fmtMoney(g.valor) : '—'}</span></div>
+      <button type="button" class="hero-stat is-quiet" onclick="openValueBulk()" title="${escapeHTML(g.valued ? (g.lastUpdate ? t('dash.value.updated').replace('{d}', g.lastUpdate) : '') : t('dash.value.novalue'))}"><span class="hs-label">${t('dash.value')}</span><span class="hs-value">${g.valued ? fmtMoney(g.valor) : '—'}</span></button>
     </div>
     ${distributionHTML(cats)}
   </section>`;
@@ -309,6 +309,7 @@ async function renderCategoryPlatforms(catId){
 /* --- Lista de piezas (plataforma o carpeta) con barra de herramientas --- */
 let productSortMode = 'year';
 function sortProductsByMode(list){
+  if(['added','value','cond','sealed'].includes(productSortMode)) return list.slice().sort(productCmp(productSortMode));   // v11.19
   if(productSortMode==='alpha') return list.slice().sort((a,b)=> compareNames(a.name, b.name));
   if(productSortMode==='have') return list.slice().sort((a,b)=>{
     const ah = a.possession==='tengo' ? 0 : 1, bh = b.possession==='tengo' ? 0 : 1;
@@ -326,6 +327,7 @@ function sortSelectorHTML(){
     <option value="year" ${productSortMode==='year'?'selected':''}>${t('sort.year')}</option>
     <option value="alpha" ${productSortMode==='alpha'?'selected':''}>${t('sort.alpha')}</option>
     <option value="have" ${productSortMode==='have'?'selected':''}>${t('sort.have')}</option>
+    ${['added','value','cond','sealed'].map(k=>`<option value="${k}" ${productSortMode===k?'selected':''}>${t('sort.' + k)}</option>`).join('')}
   </select>`;
 }
 function productListBlockHTML(allProds, ctxKey, ctxLabel){
@@ -612,7 +614,7 @@ async function renderProductDetail(prodId){
     <button type="button" class="spec-row" onclick="openFormatoSheet('${p.id}')"><span class="spec-k">${t('fmt.label')}</span><span class="spec-v">${escapeHTML(formatoLabel(formatoDe(p)))}</span></button>
     <button type="button" class="spec-row ${dd.exact ? '' : 'is-empty'}" onclick="openMedidasSheet('${p.id}')"><span class="spec-k">${t('dims.label')}</span><span class="spec-v">${(dd.exact ? '' : '≈ ') + [dd.w, dd.h, dd.d].map(fmtCm).join(' × ')} cm</span></button>
   </div>`;
-  if((p.tags||[]).length) identBody += `<div class="field-label">${t('p.tags')}</div><div class="badge-row tag-row">${p.tags.map(tg=>`<span class="vtag">${escapeHTML(tg)}</span>`).join('')}</div>`;
+  identBody += tagsEditorHTML(p);   // v11.19: también se añaden y se quitan
   // resumen a la derecha de cada sección, como en una ficha de archivo
   const nIdent = [p.year, p.nameJp, p.language, p.catalogNumber, p.productCode, p.barcode, p.releaseDateExact].filter(Boolean).length + ((p.tags||[]).length ? 1 : 0);
   let sections = disclosureHTML('identificacion', t('p.identification'), identBody, productSectionsOpen, nIdent ? fmtCount(nIdent, 'p.data_one', 'p.data_many') : '');
@@ -626,6 +628,7 @@ async function renderProductDetail(prodId){
     ${numberField(t('p.value_now')+' ('+currencySymbol()+')', p.valuation.valorActual, `updateValuation('${p.id}','valorActual',this.value)`)}
   </div>${p.valuation.fechaActualizacion ? `<div class="section-sub">${t('p.last_updated')}: ${escapeHTML(p.valuation.fechaActualizacion)}</div>` : ``}`;
   sections += disclosureHTML('valoracion', t('p.valuation'), valBody, productSectionsOpen, typeof p.valuation.valorActual==='number' ? fmtMoney(p.valuation.valorActual) : '');
+  sections += loanSectionHTML(p);   // v11.19: compra y préstamo
 
   const notasBody = editableTextarea(t('p.summary'), p.summary, `updateProductField('${p.id}','summary',this.value)`)
     + editableTextarea(t('p.notes_field'), p.notes, `updateProductField('${p.id}','notes',this.value)`);
@@ -720,13 +723,17 @@ function sidePhotosHTML(p, photoId, ctx){
    (manual, insertos, cartucho, precinto, ticket…). Tocar una la abre en el
    visor, donde se puede pasar de una foto a otra. */
 function extraPhotosHTML(p){
-  const used = extraSidesFor(p.id);
+  const used = orderedExtraSides(p.id);   // v11.19: en tu orden
   const free = freeExtraSlot(p.id);
+  const many = used.length > 1;
   const tiles = used.map(side=>{
-    const label = photoSideLabel(side);
-    return `<div class="extra-tile">
-      <button type="button" class="extra-thumb" onclick="openPhotoViewer('${p.id}','${side}')" aria-label="${escapeHTML(t('photo.show_extra').replace('{n}', label))}">${photoImgHTML(p, side, 'thumb', 'data-eager="1"')}</button>
+    const label = photoSideLabel(side), note = photoNoteOf(p.id, side), nm = photoMarksOf(p.id, side).length;
+    // v11.19: asa para cambiarla de sitio (arrastrar, o ← → con el teclado) y su pie de foto
+    return `<div class="extra-tile" data-side="${side}">
+      <button type="button" class="extra-thumb" onclick="openPhotoViewer('${p.id}','${side}')" aria-label="${escapeHTML(t('photo.show_extra').replace('{n}', label) + (note ? ': ' + note : '') + (nm ? ' · ' + t('mk.count').replace('{n}', nm) : ''))}">${photoImgHTML(p, side, 'thumb', 'data-eager="1"')}${nm ? `<span class="mk-badge" aria-hidden="true">${icon('pin')}${nm}</span>` : ''}</button>
       <button type="button" class="slot-btn slot-remove extra-remove" onclick="removePhotoSlot('${photoKeyFor(p.id, side)}')" title="${escapeHTML(t('photo.remove'))}">${icon('trash')}<span class="sr-only">${escapeHTML(t('photo.remove') + ' — ' + label)}</span></button>
+      ${many ? `<button type="button" class="slot-btn extra-grip" data-fk="xg-${side}" onpointerdown="extraDragStart(event,'${p.id}','${side}')" onkeydown="extraKey(event,'${p.id}','${side}')" title="${escapeHTML(t('photo.move_hint'))}" aria-label="${escapeHTML(t('photo.move').replace('{s}', label))}" aria-describedby="photo-extras-move">${icon('grip')}</button>` : ''}
+      <button type="button" class="extra-note${note ? '' : ' is-empty'}" data-fk="xn-${side}" onclick="editPhotoNote('${p.id}','${side}')" aria-label="${escapeHTML((note ? t('photo.note_edit') + ': ' + note : t('photo.note_add')) + ' — ' + label)}">${note ? escapeHTML(note) : `${icon('pencil')}<span>${t('photo.note_short')}</span>`}</button>
     </div>`;
   }).join('');
   // se pueden elegir varias a la vez (van a los huecos libres, por orden)
@@ -734,7 +741,7 @@ function extraPhotosHTML(p){
   return `<section class="photo-extras" id="photo-extras" aria-labelledby="photo-extras-title">
     <div class="photo-extras-head"><span class="slot-label" id="photo-extras-title">${t('photo.extras')}</span><span class="photo-extras-count">${used.length} / ${EXTRA_SLOTS.length}</span></div>
     <div class="extra-grid">${tiles}${add}</div>
-    ${used.length ? '' : `<p class="photo-note">${t('photo.extras_note')}</p>`}
+    ${used.length ? (many ? `<p class="photo-note" id="photo-extras-move">${t('photo.move_hint')}</p>` : '') : `<p class="photo-note">${t('photo.extras_note')}</p>`}
   </section>`;
 }
 function productMainPhotosHTML(p, anyPhoto){
@@ -765,7 +772,7 @@ function photoSlotHTML(p, side){
   }
   const btn = (inner, text)=> `${inner}<span class="sr-only">${text}</span>`;
   return `<div class="photo-slot" data-side="${side}">
-    <button type="button" class="slot-thumb" onclick="showPhotoSide('${p.id}','${side}')" aria-label="${escapeHTML(t(side==='back' ? 'photo.show_back' : 'photo.show_front'))}">${photoImgHTML(p, side, 'thumb', 'data-eager="1"')}</button>
+    <button type="button" class="slot-thumb" onclick="showPhotoSide('${p.id}','${side}')" aria-label="${escapeHTML(t(side==='back' ? 'photo.show_back' : 'photo.show_front') + (photoMarksOf(p.id, side).length ? ' · ' + t('mk.count').replace('{n}', photoMarksOf(p.id, side).length) : ''))}">${photoImgHTML(p, side, 'thumb', 'data-eager="1"')}${(()=>{ const nm = photoMarksOf(p.id, side).length; return nm ? `<span class="mk-badge" aria-hidden="true">${icon('pin')}${nm}</span>` : ''; })()}</button>
     <div class="slot-body"><span class="slot-label">${label}</span>
       <span class="slot-actions">${photoPickerHTML('slot-btn', key, btn(icon('camera'), t('photo.replace')), t('photo.replace') + ' — ' + label).replace('<label ', `<label title="${escapeHTML(t('photo.replace'))}" `)}
         <button type="button" class="slot-btn slot-remove" onclick="removePhotoSlot('${photoKeyFor(p.id, side) || key}')" title="${escapeHTML(t('photo.remove'))}">${btn(icon('trash'), t('photo.remove') + ' — ' + label)}</button></span>
@@ -824,6 +831,7 @@ function inventoryFilteredEditions(stateOverride){
   if(st.filter==='sinconfirmar') list = list.filter(p=>p.existence!=='confirmado');
   if(st.filter==='sellado') list = list.filter(p=>p.sealed || shownSealed(p));   // v11.11: también si la mejor copia lo está
   if(st.filter==='repetidas') list = list.filter(p=>copyCount(p) > 1);
+  if(st.filter==='prestadas') list = list.filter(isLoaned);   // v11.19
   if(st.cat) list = list.filter(p=>p.categoryId===st.cat);
   if(st.plat) list = list.filter(p=>p.platformId===st.plat);
   if(st.region==='none') list = list.filter(p=>regionKeysFor(p).length===0);
@@ -843,6 +851,7 @@ function inventoryFilteredEditions(stateOverride){
     }
     if(st.sort==='nombre') return compareNames(a.product.name, b.product.name);
     if(st.sort==='plataforma') return compareNames(a.product.platformName, b.product.platformName);
+    if(INV_SORT_NEW[st.sort]) return productCmp(st.sort)(a.product, b.product);   // v11.19
     return 0;
   });
   return eds;
@@ -860,14 +869,18 @@ function activeFiltersHTML(){
   return `<div class="active-filters" aria-label="${t('filter.active')}">${chips.join('')}<button type="button" class="link-btn" onclick="clearInvFilters()">${t('filter.clear_all')}</button></div>`;
 }
 function renderInventarioResults(){
-  const eds = inventoryFilteredEditions();
+  let eds = inventoryFilteredEditions();
   const total = eds.length;
-  const shown = eds.slice(0, invState.limit);
   const vw = uiPref('invView', 'list');
+  const grp = invGroupMode();
+  if(grp) eds = invGroupSort(eds, grp);   // v11.19: por grupos (dentro, en el orden elegido)
+  const shown = eds.slice(0, invState.limit);
   registerListContext(eds.map(x=>x.product.id), t('inv.title'));
+  _invOrder = eds.map(x=>x.product);
+  const selecting = !!invState.sel;
   // v11.2: el número de resultados y, a su derecha, cómo verlos (lista, portadas, muro)
   let html = `<div class="toolbar results-bar"><span class="result-count" role="status">${fmtCount(total,'count.result_one','count.result_many')}</span>
-    <div class="toolbar-right">${invState.filter==='falta' && total>0 ? `<button class="btn btn-sm" onclick="printMissingList()">${icon('printer')} ${t('inv.print_missing')}</button>` : ''}${viewToggleHTML(vw, "setInvView('{v}')", true)}</div></div>`;
+    <div class="toolbar-right">${invState.filter==='falta' && total>0 ? `<button class="btn btn-sm" onclick="printMissingList()">${icon('printer')} ${t('inv.print_missing')}</button>` : ''}${total && vw!=='wall' ? `<button type="button" class="btn btn-sm${selecting ? ' primary' : ''}" data-fk="inv-pick" aria-pressed="${selecting}" onclick="invPickMode(${selecting ? 'false' : 'true'})">${icon('multi')} ${t(selecting ? 'bulk.done' : 'bulk.pick')}</button>` : ''}${viewToggleHTML(vw, "setInvView('{v}')", true)}</div></div>`;
   if(!total){
     const anyFilter = invState.search || invState.filter!=='todos' || advancedFilterCount();
     return html + emptyStateHTML({ icon:'search', title: anyFilter ? t('filter.no_results') : t('inv.empty.title'), text: anyFilter ? t('filter.no_results_text') : t('inv.empty'),
@@ -875,13 +888,18 @@ function renderInventarioResults(){
              : (getAllCategories().length ? `<button class="btn primary" onclick="openQuickAdd()">${icon('plus')} ${t('fab.add_product')}</button>` : '') });
   }
   if(invState.filter==='repetidas') html += repeatedSummaryHTML(eds.map(x=>x.product));   // v11.11
-  if(vw==='wall') return html + wallHTML(eds, total);
-  html += vw==='grid'
-    ? `<div class="title-grid">${shown.map(x=>productCardHTML(x.product)).join('')}</div>`
-    : `<div class="item-list">${shown.map(x=>productRowHTML(x.product, { showId:true, copies: invState.filter==='repetidas' })).join('')}</div>`;
-  if(total > invState.limit){
-    html += `<button class="btn load-more" onclick="invState.limit+=60; render();">${t('inv.load_more').replace('{n}', total - invState.limit)}</button>`;
+  if(vw==='wall') return html + wallHTML(eds, total, grp);
+  const item = (p)=> vw==='grid' ? productCardHTML(p) : productRowHTML(p, { showId:true, copies: invState.filter==='repetidas' });
+  const wrap = (items)=> vw==='grid' ? `<div class="title-grid">${items.map(item).join('')}</div>` : `<div class="item-list">${items.map(item).join('')}</div>`;
+  let body = '';
+  if(grp) body = invGroupsHTML(eds, grp, wrap);
+  else {
+    body = wrap(shown.map(x=>x.product));
+    if(total > invState.limit) body += `<button class="btn load-more" onclick="invState.limit+=60; render();">${t('inv.load_more').replace('{n}', total - invState.limit)}</button>`;
   }
+  html += invIndexHTML(grp);   // (al lado de la lista; se queda a la vista al bajar)
+  html += `<div class="inv-body${selecting ? ' is-selecting' : ''}">${body}</div>`;
+  if(selecting) html += invBulkBarHTML();
   return html;
 }
 /* v11.1: vista "Muro" — solo las fotos, agrupadas por año (o por plataforma
@@ -899,10 +917,11 @@ function wallTileHTML(p){
     ${n > 1 ? `<span class="qty-badge is-small${copiesOf(p).some(c=>c.paraCambio) ? ' is-trade' : ''}" aria-hidden="true">×${n}</span>` : ''}
   </button>`;
 }
-function wallHTML(eds, total){
+function wallHTML(eds, total, grp){
   const lim = Math.max(invState.limit, 120);
   const shown = eds.slice(0, lim).map(x=>x.product);
-  const groupKey = invState.sort==='anio' ? (p=>{ const y = parseInt(p.year,10); return isNaN(y) ? '—' : String(y); })
+  const groupKey = grp ? (p=> invGroupLabel(grp, invGroupKey(grp, p)).name)   // v11.19
+                 : invState.sort==='anio' ? (p=>{ const y = parseInt(p.year,10); return isNaN(y) ? '—' : String(y); })
                  : invState.sort==='plataforma' ? (p=>p.platformName || '—') : null;
   let html = '';
   if(groupKey){
@@ -930,18 +949,21 @@ function renderInventario(){
   const nAdv = advancedFilterCount();
   let html = screenHeadHTML({ kicker:t('inv.kicker'), title:t('inv.title') });
   html += searchbarHTML({ placeholder:t('inv.search.ph_short'), value:invState.search, oninput:'invSearch(this.value)', scan:'icon' });
+  html += savedFiltersHTML();   // v11.19: tus filtros guardados
   html += `<div class="chip-scroll" role="group" aria-label="${t('filter.quick')}">
-    ${chip(t('inv.chip.all'),'todos')}${chip(t('inv.chip.have'),'tengo')}${chip(t('inv.chip.missing'),'falta')}${chip(t('inv.chip.unconfirmed'),'sinconfirmar')}${chip(t('inv.chip.sealed'),'sellado')}${invState.filter==='repetidas' || repeatedStats().pieces ? chip(t('inv.chip.dups'),'repetidas') : ''}
+    ${chip(t('inv.chip.all'),'todos')}${chip(t('inv.chip.have'),'tengo')}${chip(t('inv.chip.missing'),'falta')}${chip(t('inv.chip.unconfirmed'),'sinconfirmar')}${chip(t('inv.chip.sealed'),'sellado')}${invState.filter==='repetidas' || repeatedStats().pieces ? chip(t('inv.chip.dups'),'repetidas') : ''}${invState.filter==='prestadas' || PRODUCTS.some(isLoaned) ? chip(t('inv.chip.loaned'),'prestadas') : ''}
   </div>`;
   html += `<div class="toolbar inv-toolbar">
-    <button type="button" class="btn btn-sm filter-btn" onclick="openFilterSheet()" aria-haspopup="dialog">${icon('filter')} ${t('filter.title')}${nAdv ? ` <span class="count-dot">${nAdv}</span>` : ''}</button>
+    <span class="inv-toolbar-left"><button type="button" class="btn btn-sm filter-btn" onclick="openFilterSheet()" aria-haspopup="dialog">${icon('filter')} ${t('filter.title')}${nAdv ? ` <span class="count-dot">${nAdv}</span>` : ''}</button>${sfCanSave() ? `<button type="button" class="btn btn-sm" data-fk="sf-save" onclick="sfSave()">${icon('bookmark')} ${t('sf.save')}</button>` : ''}</span>
     <div class="toolbar-right">
       <label class="sr-only" for="invSortSel">${t('sort.label')}</label>
       <select id="invSortSel" class="select-compact" onchange="invSort(this.value)">
         <option value="anio" ${invState.sort==='anio'?'selected':''}>${t('inv.sort.year')}</option>
         <option value="nombre" ${invState.sort==='nombre'?'selected':''}>${t('inv.sort.name')}</option>
         <option value="plataforma" ${invState.sort==='plataforma'?'selected':''}>${t('inv.sort.platform')}</option>
+        ${Object.keys(INV_SORT_NEW).map(k=>`<option value="${k}" ${invState.sort===k?'selected':''}>${t('sort.' + INV_SORT_NEW[k])}</option>`).join('')}
       </select>
+      ${invGroupSelectHTML()}
     </div>
   </div>`;
   html += activeFiltersHTML();
@@ -963,6 +985,7 @@ async function refreshInventoryResults(){
   if(mySeq !== invResultsSeq) return;   // llegó otra búsqueda más reciente
   el.innerHTML = html;
   hydratePhotos(el);
+  invPickPaint(el);   // v11.19
 }
 function invFilter(v){ invState.filter=v; invState.limit=60; render(); }
 function invSort(v){ invState.sort=v; render(); }
@@ -1078,6 +1101,7 @@ function renderEstadisticas(){
     <div class="metric"><div class="metric-label">${t('dash.sealed')}</div><div class="metric-value">${g.sealed.toLocaleString(numLocale())}</div></div>
   </div>`;
   html += barRowHTML(t('stats.global'), g.have, g.total, g.pct, true);
+  html += valueSectionHTML();   // v11.19: el valor y su evolución
   // v11.1: por categoría, a la vista (tengo / me falta)
   html += `<section class="vit-section">${sectionTitleHTML(t('stats.by_category'))}<div class="stack-list">${cats.filter(c=>c.total).map(c=>`
     <button type="button" class="stack-row" onclick="goCategory('${c.id}')">
@@ -1127,22 +1151,50 @@ function renderInvestigacion(){
   html += `</div>`;
   return html;
 }
+/* v11.19: la galería se filtra (precintadas, sin trasera, con marcas, plataforma) y
+   se ordena (año o últimas altas); tocar una foto la abre a pantalla completa y se
+   pasa a la siguiente deslizando. Arriba, «Sesión de fotos» e «Importar varias». */
+let galState = { f:'all', plat:'', sort:'year' };
+function galleryAll(){ return PRODUCTS.filter(p=> hasPhoto(p.id,'front') || hasPhoto(shownPhotoId(p),'front')); }   // v11.11: también si solo tiene foto su mejor copia
+const GAL_FILTERS = { all:()=> true, sealed:(p)=> shownSealed(p), noback:(p)=> !hasPhoto(shownPhotoId(p), 'back'), marks:(p)=> !!(p.marcas && typeof p.marcas==='object' && Object.keys(p.marcas).length) };
+function galleryList(){
+  const f = GAL_FILTERS[galState.f] || GAL_FILTERS.all;
+  const list = galleryAll().filter(p=> f(p) && (!galState.plat || p.platformId===galState.plat));
+  return galState.sort==='added' ? list.sort(productCmp('added')) : sortGames(list);
+}
+function galSet(k, v){ galState[k] = v; galleryLimit = 60; renderKeepFocus(); }
+function galleryToolsHTML(){
+  return `<div class="gal-actions">
+    <button type="button" class="btn btn-sm" data-fk="ps-open" onclick="openPhotoSession()">${icon('camera')} ${t('ps.title')}</button>
+    <label class="btn btn-sm photo-picker" data-fk="bi-open">${icon('upload')} ${t('bi.open')}<input type="file" accept="image/*" multiple class="sr-only" aria-label="${escapeHTML(t('bi.open'))}" onchange="bulkImportFiles(this)"></label>
+  </div>`;
+}
 function renderGallery(){
-  const withPhoto = sortGames(PRODUCTS.filter(p=>hasPhoto(p.id,'front') || hasPhoto(shownPhotoId(p),'front')));   // v11.11: también si solo tiene foto su mejor copia
-  let html = screenHeadHTML({ kicker:t('gallery.kicker'), title:t('gallery.title'), sub: withPhoto.length ? fmtCount(withPhoto.length,'count.photo_one','count.photo_many') : '' });
-  if(withPhoto.length===0){
-    return html + emptyStateHTML({ icon:'camera', title:t('gallery.empty'), text:t('gallery.empty.sub') });
+  const all = galleryAll();
+  let html = screenHeadHTML({ kicker:t('gallery.kicker'), title:t('gallery.title'), sub: all.length ? fmtCount(all.length,'count.photo_one','count.photo_many') : '' });
+  if(all.length===0){
+    return html + emptyStateHTML({ icon:'camera', title:t('gallery.empty'), text:t('gallery.empty.sub') }) + galleryToolsHTML();
   }
-  registerListContext(withPhoto.map(p=>p.id), t('gallery.title'));
-  const shown = withPhoto.slice(0, galleryLimit);
+  const list = galleryList();
+  registerListContext(list.map(p=>p.id), t('gallery.title'));
+  const n = (k)=> all.filter(GAL_FILTERS[k]).length;
+  const chip = (k, label)=> `<button type="button" class="chip ${galState.f===k ? 'active' : ''}" aria-pressed="${galState.f===k}" data-fk="gal-${k}" onclick="galSet('f','${k}')">${escapeHTML(label)} <span class="chip-count">${n(k).toLocaleString(numLocale())}</span></button>`;
+  const plats = getAllPlatforms().filter(pl=> all.some(p=> p.platformId===pl.id));
+  html += galleryToolsHTML()
+    + `<div class="chip-row gal-chips" role="group" aria-label="${escapeHTML(t('filter.title'))}">${chip('all', t('gal.f.all'))}${chip('sealed', t('gal.f.sealed'))}${chip('noback', t('gal.f.noback'))}${n('marks') ? chip('marks', t('gal.f.marks')) : ''}</div>
+    <div class="toolbar gal-toolbar"><span class="result-count" role="status">${list.length!==all.length ? fmtCount(list.length,'count.photo_one','count.photo_many') : ''}</span>
+      <div class="toolbar-right"><label class="sr-only" for="galPlat">${t('filter.platform')}</label><select id="galPlat" class="select-compact" onchange="galSet('plat', this.value)"><option value="">${t('val.platform_all')}</option>${plats.map(pl=>`<option value="${escapeHTML(pl.id)}" ${galState.plat===pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}</select>
+      <label class="sr-only" for="galSort">${t('sort.label')}</label><select id="galSort" class="select-compact" onchange="galSet('sort', this.value)"><option value="year" ${galState.sort==='year' ? 'selected' : ''}>${t('sort.year')}</option><option value="added" ${galState.sort==='added' ? 'selected' : ''}>${t('sort.added')}</option></select></div></div>`;
+  if(!list.length) return html + `<p class="section-sub">${t('filter.no_results')}</p>`;
+  const shown = list.slice(0, galleryLimit);
   html += `<div class="gallery-grid">`;
-  shown.forEach(p=>{
+  shown.forEach((p, i)=>{
     const ph = shownPhotoId(p);
-    html += `<button type="button" class="gallery-cell" onclick="goProduct('${p.id}')" aria-label="${escapeHTML(p.name)}">${photoImgHTML(p,'front','thumb','', hasPhoto(ph,'front') ? ph : p.id)}</button>`;
+    html += `<button type="button" class="gallery-cell" data-fk="gal-c${i}" onclick="openGalleryViewer(${i})" aria-label="${escapeHTML(p.name + ' — ' + t('photo.enlarge'))}">${photoImgHTML(p,'front','thumb','', hasPhoto(ph,'front') ? ph : p.id)}</button>`;
   });
   html += `</div>`;
-  if(withPhoto.length > galleryLimit){
-    html += `<button class="btn load-more" onclick="galleryLimit+=60; render();">${t('inv.load_more').replace('{n}', withPhoto.length - galleryLimit)}</button>`;
+  if(list.length > galleryLimit){
+    html += `<button class="btn load-more" onclick="galleryLimit+=60; render();">${t('inv.load_more').replace('{n}', list.length - galleryLimit)}</button>`;
   }
   return html;
 }
@@ -1225,4 +1277,554 @@ function storageStatusHTML(){
   const btn = st==='denied' ? `<div class="note-actions"><button class="btn btn-sm" onclick="requestPersistentStorage()">${t('storage.request')}</button></div>` : '';
   return `<div class="note ${cls}" id="storage-status"><b>${t('storage.title')}:</b> ${text}${usage}
     <br><b>${t('backup.last')}:</b> ${escapeHTML(lastBackupText())}${btn}</div>`;
+}
+
+/* =====================================================================
+   v11.19 · LISTADOS
+   Más formas de ordenar, agrupar en secciones plegables, índice lateral,
+   filtros guardados, elegir varias (cambios en bloque), préstamos y compra,
+   y el valor (en serie y su evolución).
+   ===================================================================== */
+/* ---------- Ordenar ---------- */
+const INV_SORT_NEW = { alta:'added', valor:'value', estado:'cond', precintadas:'sealed' };
+let _addedRank = null;
+/* El orden en que la añadiste (la lista de tus piezas va en ese orden): mayor = más reciente */
+function addedRankOf(p){
+  const cps = OVERRIDES.customProducts || [];
+  if(!_addedRank || _addedRank.ref!==cps || _addedRank.n!==cps.length){ const m = new Map(); cps.forEach((cp, i)=>{ if(cp && cp.id) m.set(cp.id, i); }); _addedRank = { ref:cps, n:cps.length, m }; }
+  const m = _addedRank.m; if(m.has(p.id)) return m.get(p.id);
+  const base = String(p.id).replace(/__e\d+$/, ''); return m.has(base) ? m.get(base) : -1;
+}
+function valueNow(p){ const v = p.valuation && p.valuation.valorActual; return typeof v==='number' && isFinite(v) ? v : null; }
+function valuePaid(p){ const v = p.valuation && p.valuation.valorAdquisicion; return typeof v==='number' && isFinite(v) ? v : null; }
+function condNow(p){ return p.possession==='tengo' ? copyCond(shownCopy(p)) : null; }
+function cmpYearName(a, b){
+  const ya = parseInt(a.year, 10), yb = parseInt(b.year, 10);
+  return ((isNaN(ya) ? 9999 : ya) - (isNaN(yb) ? 9999 : yb)) || compareNames(a.name, b.name);
+}
+function cmpNullsLast(a, b){ return a===null && b===null ? 0 : a===null ? 1 : b===null ? -1 : b - a; }   // (de mayor a menor)
+function productCmp(mode){
+  switch(INV_SORT_NEW[mode] || mode){
+    case 'added': return (a, b)=> (addedRankOf(b) - addedRankOf(a)) || cmpYearName(a, b);
+    case 'value': return (a, b)=> cmpNullsLast(valueNow(a), valueNow(b)) || cmpYearName(a, b);
+    case 'cond': return (a, b)=> cmpNullsLast(condNow(a), condNow(b)) || cmpYearName(a, b);
+    case 'sealed': return (a, b)=> ((shownSealed(b) ? 1 : 0) - (shownSealed(a) ? 1 : 0)) || cmpYearName(a, b);
+    default: return cmpYearName;
+  }
+}
+
+/* ---------- Agrupar (Inventario) ---------- */
+const INV_GROUPS = ['plataforma', 'anio', 'region', 'estado'];
+const INV_STATES = ['sealed', 'tengo', 'en_camino', 'reservado', 'no', 'vendido', 'perdido'];
+let invCollapsed = new Set();
+let _invOrder = [];
+function invGroupMode(){ const g = uiPref('invGroup', ''); return INV_GROUPS.includes(g) ? g : ''; }
+async function setInvGroup(v){ invCollapsed = new Set(); invState.limit = 60; await setUiPref('invGroup', INV_GROUPS.includes(v) ? v : ''); render(); }
+function invGroupSelectHTML(){
+  const g = invGroupMode();
+  return `<label class="sr-only" for="invGroupSel">${t('grp.label')}</label>
+    <select id="invGroupSel" class="select-compact" onchange="setInvGroup(this.value)" aria-label="${escapeHTML(t('grp.label'))}">
+      <option value="" ${g ? '' : 'selected'}>${t('grp.none')}</option>${INV_GROUPS.map(k=>`<option value="${k}" ${g===k ? 'selected' : ''}>${t('grp.' + k)}</option>`).join('')}
+    </select>`;
+}
+function invGroupKey(mode, p){
+  if(mode==='plataforma') return p.platformId || '—';
+  if(mode==='anio'){ const y = parseInt(p.year, 10); return isNaN(y) ? '—' : String(y); }
+  if(mode==='region') return productRegionCodes(p)[0] || 'none';
+  if(mode==='estado') return p.possession==='tengo' ? (shownSealed(p) ? 'sealed' : 'tengo') : (INV_STATES.includes(p.possession) ? p.possession : 'no');
+  return '';
+}
+function invGroupLabel(mode, k){
+  if(mode==='plataforma'){ const pl = getAllPlatforms().find(x=>x.id===k); const pv = pl ? platVisual(pl.id) : null;
+    return { name: pl ? pl.name : t('grp.no_platform'), short: pl ? (pv.code || pl.name.slice(0, 4)) : '—', color: pv ? pv.color : '' }; }
+  if(mode==='anio') return { name: k==='—' ? t('grp.no_year') : k, short: k==='—' ? '—' : k };
+  if(mode==='region') return { name: k==='none' ? t('filter.no_region') : (REGION_OPTIONS.some(o=>o[0]===k) ? t('region.' + k) : k), short: k==='none' ? '—' : (REGION_CODES[k] || k) };
+  if(mode==='estado') return { name: t('grp.st.' + k), short: t('grp.st.' + k) };
+  return { name:k, short:k };
+}
+/* El orden de los grupos */
+function invGroupRanker(mode){
+  if(mode==='plataforma'){ const m = new Map(); let i = 0; getAllCategories().forEach(c=> orderedPlatformsForCategory(c.id, getAllPlatforms().filter(p=>p.categoryId===c.id)).forEach(p=> m.set(p.id, i++))); return (k)=> m.has(k) ? m.get(k) : 1e6; }
+  if(mode==='anio') return (k)=> k==='—' ? 1e6 : Number(k);
+  if(mode==='region') return (k)=>{ const i = REGION_OPTIONS.findIndex(o=>o[0]===k); return k==='none' ? 1e6 : i >= 0 ? i : 1e3; };
+  if(mode==='estado') return (k)=> INV_STATES.indexOf(k);
+  return ()=> 0;
+}
+function invGroupSort(eds, mode){
+  const rank = invGroupRanker(mode), memo = new Map();
+  const r = (x)=>{ const k = invGroupKey(mode, x.product); if(!memo.has(k)) memo.set(k, rank(k)); return memo.get(k); };
+  // (estable: dentro de cada grupo se queda el orden elegido)
+  return eds.map((x, i)=> ({ x, i, r:r(x), k:invGroupKey(mode, x.product) })).sort((a, b)=> (a.r - b.r) || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0) || (a.i - b.i)).map(o=> o.x);
+}
+function invGroupsHTML(eds, mode, wrap){
+  const groups = [];
+  eds.forEach(x=>{ const k = invGroupKey(mode, x.product), g = groups[groups.length - 1]; if(g && g.k===k) g.items.push(x.product); else groups.push({ k, items:[x.product] }); });
+  let budget = invState.limit, hidden = 0;
+  const all = groups.length > 1 ? `<div class="grp-tools"><button type="button" class="link-btn" data-fk="grp-open" onclick="invGroupsAll(true)">${t('grp.expand_all')}</button><button type="button" class="link-btn" data-fk="grp-close" onclick="invGroupsAll(false)">${t('grp.collapse_all')}</button></div>` : '';
+  const html = groups.map((g, gi)=>{
+    const lb = invGroupLabel(mode, g.k), open = !invCollapsed.has(g.k);
+    let inner = '';
+    if(open){ const take = g.items.slice(0, Math.max(0, budget)); budget -= take.length; hidden += g.items.length - take.length; if(take.length) inner = wrap(take); }
+    return `<section class="inv-group" data-grp="${escapeHTML(g.k)}"${lb.color ? ` style="--plat:${lb.color}"` : ''}>
+      <h3 class="grp-h"><button type="button" class="grp-head" id="grp-${gi}" aria-expanded="${open}" onclick="invToggleGroup(this)">${icon('chevronRight', 'grp-chev')}<span class="grp-name">${escapeHTML(lb.name)}</span><span class="grp-count">${g.items.length.toLocaleString(numLocale())}</span></button></h3>
+      ${inner}</section>`;
+  }).join('');
+  return all + html + (hidden ? `<button class="btn load-more" onclick="invState.limit+=60; render();">${t('inv.load_more').replace('{n}', hidden)}</button>` : '');
+}
+function invToggleGroup(btn){
+  const sec = btn.closest('.inv-group'); if(!sec) return;
+  const k = sec.dataset.grp;
+  if(invCollapsed.has(k)) invCollapsed.delete(k); else invCollapsed.add(k);
+  refreshInventoryResults().then(()=>{ const b = document.querySelector(`#inv-results .inv-group[data-grp="${CSS.escape(k)}"] .grp-head`); if(b) b.focus({ preventScroll:true }); });
+}
+function invGroupsAll(open){
+  const mode = invGroupMode(); if(!mode) return;
+  invCollapsed = open ? new Set() : new Set(inventoryFilteredEditions().map(x=> invGroupKey(mode, x.product)));
+  refreshInventoryResults().then(()=>{ const b = document.querySelector(`#inv-results [data-fk="${open ? 'grp-open' : 'grp-close'}"]`); if(b) b.focus({ preventScroll:true }); });
+}
+
+/* ---------- Índice lateral (saltar a una letra, un año, una plataforma o un grupo) ---------- */
+function invIndexEntries(mode){
+  const order = _invOrder; if(order.length < 40) return [];
+  let keyOf, labelOf = (k)=> k;
+  if(mode){ keyOf = (p)=> invGroupKey(mode, p); labelOf = (k)=> invGroupLabel(mode, k).short; }
+  else if(invState.sort==='nombre') keyOf = (p)=>{ const c = normText(p.name || '').trim().charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : '#'; };
+  else if(invState.sort==='anio'){
+    const years = new Set(order.map(p=> parseInt(p.year, 10)).filter(y=> !isNaN(y)));
+    const dec = years.size > 22;
+    keyOf = (p)=>{ const y = parseInt(p.year, 10); return isNaN(y) ? '—' : dec ? String(Math.floor(y / 10) * 10) : String(y); };
+    if(dec) labelOf = (k)=> k==='—' ? k : "'" + k.slice(2) + 's';
+  }
+  else if(invState.sort==='plataforma') keyOf = (p)=> p.platformId || '—', labelOf = (k)=>{ const pl = getAllPlatforms().find(x=>x.id===k); return pl ? (platVisual(pl.id).code || pl.name.slice(0, 4)) : '—'; };
+  else return [];
+  const out = [], seen = new Set();
+  order.forEach((p, i)=>{ const k = keyOf(p); if(!seen.has(k)){ seen.add(k); out.push({ k, i, label:labelOf(k) }); } });
+  return out.length >= 3 ? out : [];
+}
+function invIndexHTML(mode){
+  if(uiPref('invView', 'list')==='wall') return '';
+  const e = invIndexEntries(mode); if(!e.length) return '';
+  // (para el dedo; con el teclado o el lector de pantalla se llega igual con «Agrupar» y el orden)
+  return `<nav class="inv-index" aria-hidden="true" style="--n:${e.length}" onpointerdown="invIndexDown(event)">${e.map(x=>`<span class="ix" data-i="${x.i}" data-g="${escapeHTML(mode ? x.k : '')}">${escapeHTML(x.label)}</span>`).join('')}</nav>`;
+}
+let _invIdxLast = null;
+function invIndexDown(ev){
+  const nav = ev.currentTarget; if(!nav) return;
+  ev.preventDefault();
+  try{ nav.setPointerCapture(ev.pointerId); }catch(e){}
+  nav.classList.add('is-active');
+  const at = (x, y)=>{ const r = nav.getBoundingClientRect(); const b = document.elementFromPoint(r.left + r.width / 2, Math.min(r.bottom - 2, Math.max(r.top + 2, y))); return b && b.closest && b.closest('.inv-index .ix'); };
+  const go = (b)=>{ if(!b || b===_invIdxLast) return; _invIdxLast = b; invJump(Number(b.dataset.i), b.dataset.g || ''); };
+  go(at(ev.clientX, ev.clientY));
+  const move = (e)=> go(at(e.clientX, e.clientY));
+  const up = ()=>{ nav.removeEventListener('pointermove', move); nav.removeEventListener('pointerup', up); nav.removeEventListener('pointercancel', up); _invIdxLast = null; const n2 = document.querySelector('#inv-results .inv-index'); if(n2) n2.classList.remove('is-active'); };
+  nav.addEventListener('pointermove', move); nav.addEventListener('pointerup', up); nav.addEventListener('pointercancel', up);
+}
+function invJump(i, g){
+  const p = _invOrder[i]; if(!p) return;
+  let redraw = false;
+  if(g && invCollapsed.has(g)){ invCollapsed.delete(g); redraw = true; }
+  if(i >= invState.limit){ invState.limit = i + 40; redraw = true; }
+  const scrollTo = ()=>{
+    const el = g ? document.querySelector(`#inv-results .inv-group[data-grp="${CSS.escape(g)}"]`) : document.querySelector(`#inv-results .inv-body [data-pid="${CSS.escape(p.id)}"]`);
+    if(!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 76;
+    window.scrollTo({ top: Math.max(0, top), behavior:'auto' });
+  };
+  if(redraw){
+    // (se rehace solo la lista, sin perder el índice que tienes bajo el dedo)
+    const box = document.getElementById('inv-results'); if(!box) return;
+    const html = renderInventarioResults();
+    const tmp = document.createElement('div'); tmp.innerHTML = html;
+    const body = tmp.querySelector('.inv-body'), old = box.querySelector('.inv-body');
+    if(body && old){ old.replaceWith(body); hydratePhotos(body); } else { box.innerHTML = html; hydratePhotos(box); }
+    invPickPaint(box);
+  }
+  scrollTo();
+}
+
+/* ---------- Filtros guardados ---------- */
+const SF_KEYS = ['search', 'filter', 'sort', 'cat', 'plat', 'region', 'flags', 'photo', 'complete'];
+const SF_DEFAULT = { search:'', filter:'todos', sort:'anio', cat:'', plat:'', region:'', flags:[], photo:'', complete:'' };
+function sfNorm(s){ const o = {}; SF_KEYS.forEach(k=>{ const v = s && s[k]; o[k] = k==='flags' ? (Array.isArray(v) ? v.slice().sort() : []) : (typeof v==='string' ? (k==='search' ? v.trim() : v) : SF_DEFAULT[k]); }); return o; }
+function sfState(){ return sfNorm(invState); }
+function sfSame(a, b){ return JSON.stringify(sfNorm(a))===JSON.stringify(sfNorm(b)); }
+function savedFilters(){ return Array.isArray(OVERRIDES.filtrosGuardados) ? OVERRIDES.filtrosGuardados.filter(f=> f && typeof f.id==='string' && f.s && typeof f.s==='object') : []; }
+function sfCanSave(){ const s = sfState(); return !sfSame(s, SF_DEFAULT) && !savedFilters().some(f=> sfSame(f.s, s)); }
+function sfAutoName(s){
+  const parts = [];
+  if(s.search) parts.push('«' + s.search + '»');
+  const qf = { tengo:'inv.chip.have', falta:'inv.chip.missing', sinconfirmar:'inv.chip.unconfirmed', sellado:'inv.chip.sealed', repetidas:'inv.chip.dups', prestadas:'inv.chip.loaned' }[s.filter];
+  if(qf) parts.push(t(qf));
+  if(s.cat){ const c = getAllCategories().find(x=>x.id===s.cat); if(c) parts.push(c.name); }
+  if(s.plat){ const pl = getAllPlatforms().find(x=>x.id===s.plat); if(pl) parts.push(pl.name); }
+  if(s.region) parts.push(s.region==='none' ? t('filter.no_region') : (REGION_CODES[s.region] || s.region));
+  (s.flags || []).forEach(f=>{ const k = INV_FLAG_KEYS.find(x=>x[0]===f); if(k) parts.push(t(k[1])); });
+  if(s.photo) parts.push(t(s.photo==='with' ? 'filter.with_photo' : 'filter.without_photo'));
+  if(s.complete) parts.push(t(s.complete==='yes' ? 'filter.complete_yes' : 'filter.complete_no'));
+  return (parts.join(' · ') || t('sf.default_name')).slice(0, 40);
+}
+function savedFiltersHTML(){
+  const list = savedFilters(); if(!list.length) return '';
+  const cur = sfState(), edit = !!invState.sfEdit;
+  return `<div class="chip-scroll saved-filters${edit ? ' is-editing' : ''}" role="group" aria-label="${escapeHTML(t('sf.title'))}">
+    ${list.map(f=>{ const on = sfSame(f.s, cur); const id = escapeHTML(f.id), nm = escapeHTML(f.nombre || t('sf.default_name'));
+      return edit ? `<button type="button" class="chip chip-remove" data-fk="sf-${id}" onclick="sfDelete('${id}')" aria-label="${escapeHTML(t('sf.remove_x').replace('{n}', f.nombre || ''))}">${icon('bookmark')} ${nm}<span class="chip-x">${icon('x')}</span></button>`
+        : `<button type="button" class="chip chip-saved${on ? ' active' : ''}" aria-pressed="${on}" data-fk="sf-${id}" onclick="sfApply('${id}')">${icon('bookmark')} ${nm}</button>`; }).join('')}
+    <button type="button" class="link-btn sf-edit" data-fk="sf-edit" onclick="invState.sfEdit=!invState.sfEdit; render()">${t(edit ? 'sf.done' : 'sf.edit')}</button>
+  </div>`;
+}
+async function sfSave(){
+  const s = sfState();
+  const name = await showPromptModal(t('sf.name_q'), sfAutoName(s));
+  if(!name || !String(name).trim()) return;
+  const list = savedFilters().slice();
+  list.push({ id:'sf' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), nombre:String(name).trim().slice(0, 40), s });
+  OVERRIDES.filtrosGuardados = list;
+  await persistOverrides();
+  showToast(t('sf.saved'), { ok:true, replace:true });
+  render();
+}
+function sfApply(id){
+  const f = savedFilters().find(x=>x.id===id); if(!f) return;
+  const s = sfNorm(f.s);
+  invState = Object.assign({}, invState, s, { flags:s.flags.slice(), limit:60 });
+  render();
+}
+async function sfDelete(id){
+  const list = savedFilters(), i = list.findIndex(x=>x.id===id); if(i < 0) return;
+  const gone = list[i];
+  OVERRIDES.filtrosGuardados = list.filter(x=>x.id!==id);
+  if(!OVERRIDES.filtrosGuardados.length) invState.sfEdit = false;
+  await persistOverrides();
+  render();
+  showToast(t('sf.removed'), { replace:true, action:{ label:t('common.undo'), fn: async ()=>{
+    const cur = savedFilters().slice(); if(cur.some(x=>x.id===gone.id)) return;
+    cur.splice(Math.min(i, cur.length), 0, gone); OVERRIDES.filtrosGuardados = cur; await persistOverrides(); render();
+  } } });
+}
+
+/* ---------- Elegir varias (Inventario) y cambiarlas de golpe ---------- */
+function invPickMode(on){
+  invState.sel = on ? new Set() : null;
+  invState.bulkMsg = '';
+  refreshInventoryResults().then(()=>{ const b = document.querySelector('#inv-results [data-fk="inv-pick"]'); if(b) b.focus({ preventScroll:true }); });
+}
+/* Con «Elegir varias», tocar una pieza la elige (no abre su ficha) */
+function invPickClick(e){
+  if(!invState.sel || view.page!=='inventario' || view.productId) return false;
+  const it = e.target.closest && e.target.closest('#inv-results .inv-body [data-pid]'); if(!it) return false;
+  e.preventDefault(); e.stopPropagation();
+  invPickToggle(it.dataset.pid);
+  return true;
+}
+function invPickToggle(id){
+  const s = invState.sel; if(!s) return;
+  if(s.has(id)) s.delete(id); else s.add(id);
+  document.querySelectorAll(`#inv-results .inv-body [data-pid="${CSS.escape(id)}"]`).forEach(el=>{ el.classList.toggle('is-picked', s.has(id)); });
+  invBulkBarRefresh();
+}
+/* (solo las que siguen en la lista: si un filtro esconde alguna elegida, no se cambia sin verla) */
+function invPickedIds(){ if(!invState.sel) return []; const shown = new Set(_invOrder.map(p=> p.id)); return [...invState.sel].filter(id=> PRODUCTS_BY_ID[id] && shown.has(id)); }
+function invBulkBarHTML(){
+  const n = invPickedIds().length, all = _invOrder.length;
+  return `<div class="bulk-bar" role="region" aria-label="${escapeHTML(t('bulk.pick'))}">
+    <span class="bulk-n" role="status" aria-live="polite">${escapeHTML(n ? (n===1 ? t('bulk.n1') : t('bulk.n').replace('{n}', n.toLocaleString(numLocale()))) : t('bulk.none_hint'))}</span>
+    <span class="bulk-acts">
+      <button type="button" class="btn btn-sm" data-fk="bulk-all" onclick="invBulkSelectAll(${n >= all ? 'false' : 'true'})">${escapeHTML(n >= all ? t('bulk.clear') : t('bulk.all').replace('{n}', all.toLocaleString(numLocale())))}</button>
+      <button type="button" class="btn btn-sm primary" data-fk="bulk-go" onclick="openInvBulkSheet()" ${n ? '' : 'disabled'}>${icon('pencil')} ${t('bulk.actions')}</button>
+    </span>
+  </div>`;
+}
+function invBulkBarRefresh(){
+  const bar = document.querySelector('#inv-results .bulk-bar'); if(!bar) return;
+  const a = document.activeElement, fk = a && bar.contains(a) && a.dataset ? a.dataset.fk : null;
+  bar.outerHTML = invBulkBarHTML();
+  if(fk){ const b = document.querySelector(`#inv-results .bulk-bar [data-fk="${fk}"]`); if(b && !b.disabled) b.focus({ preventScroll:true }); }
+}
+function invBulkSelectAll(on){
+  if(!invState.sel) return;
+  if(on) _invOrder.forEach(p=> invState.sel.add(p.id)); else invState.sel.clear();
+  // (se marcan las que se ven; las demás quedan elegidas aunque aún no se hayan pintado)
+  document.querySelectorAll('#inv-results .inv-body [data-pid]').forEach(el=>{ const y = invState.sel.has(el.dataset.pid); el.classList.toggle('is-picked', y); });
+  invBulkBarRefresh();
+}
+/* Al pintar la lista, las elegidas se marcan */
+function invPickPaint(root){
+  if(!invState.sel) return;
+  (root || document).querySelectorAll('#inv-results .inv-body [data-pid]').forEach(el=>{ const y = invState.sel.has(el.dataset.pid); el.classList.toggle('is-picked', y); });
+}
+/* La hoja de cambios en bloque */
+let bulkMove = { cat:'', plat:'', folder:'' };
+function openInvBulkSheet(){
+  const ids = invPickedIds(); if(!ids.length) return;
+  const p0 = PRODUCTS_BY_ID[ids[0]];
+  bulkMove = { cat:p0.categoryId, plat:p0.platformId || '', folder:'' };
+  openSheet({ kind:'inv-bulk', title:t('bulk.title').replace('{n}', ids.length.toLocaleString(numLocale())), body:invBulkBodyHTML() });
+}
+function invBulkBodyHTML(){
+  const ids = invPickedIds();
+  const st = (v, key)=> `<button type="button" class="chip" data-fk="bs-${v}" onclick="invBulkPossession('${v}')">${t(key)}</button>`;
+  const tags = [...new Set(ids.flatMap(id=> (PRODUCTS_BY_ID[id].tags || [])))].sort(compareNames);
+  return `<div class="sheet-group"><div class="field-label" id="bkStLbl">${t('bulk.state')}</div>
+      <div class="chip-row" role="group" aria-labelledby="bkStLbl">${st('tengo', 'poss.have')}${st('no', 'poss.no')}${st('en_camino', 'poss.incoming')}${st('reservado', 'poss.reserved')}${st('vendido', 'poss.sold')}${st('perdido', 'poss.lost')}</div>
+      <div class="chip-row"><button type="button" class="chip" data-fk="bs-seal" onclick="invBulkSealed(true)">${icon('shield')} ${t('bulk.sealed_yes')}</button><button type="button" class="chip" data-fk="bs-noseal" onclick="invBulkSealed(false)">${t('bulk.sealed_no')}</button></div></div>
+    <div class="sheet-group"><div class="field-label">${t('bulk.move')}</div>
+      <div class="field-grid" data-nosave>
+        <div class="field"><label for="bkCat">${t('p.move_category')}</label><select id="bkCat" onchange="bulkMove.cat=this.value; bulkMove.plat=''; bulkMove.folder=''; invBulkRefresh()">${getAllCategories().map(c=>`<option value="${c.id}" ${c.id===bulkMove.cat ? 'selected' : ''}>${escapeHTML(c.name)}</option>`).join('')}</select></div>
+        <div class="field"><label for="bkPlat">${t('p.move_platform')}</label><select id="bkPlat" onchange="bulkMove.plat=this.value; bulkMove.folder=''; invBulkRefresh()">${(()=>{ const pl = getAllPlatforms().filter(x=>x.categoryId===bulkMove.cat); if(pl.length && !pl.some(x=>x.id===bulkMove.plat)) bulkMove.plat = pl[0].id; return pl.length ? pl.map(x=>`<option value="${x.id}" ${x.id===bulkMove.plat ? 'selected' : ''}>${escapeHTML(x.name)}</option>`).join('') : `<option value="">${t('p.move_no_platforms')}</option>`; })()}</select></div>
+        <div class="field"><label for="bkFolder">${t('p.move_folder')}</label><select id="bkFolder" onchange="bulkMove.folder=this.value">${moveToolFolderOptions(bulkMove.plat, bulkMove.folder)}</select></div>
+      </div>
+      <button type="button" class="btn btn-sm" data-fk="bs-move" onclick="invBulkMove()" ${bulkMove.plat ? '' : 'disabled'}>${icon('shuffle')} ${t('bulk.move_btn')}</button></div>
+    <div class="sheet-group"><div class="field-label">${t('bulk.tags')}</div>
+      <div class="bulk-tag-add" data-nosave><label class="sr-only" for="bkTag">${t('bulk.tag_ph')}</label><input id="bkTag" class="input" type="text" maxlength="40" placeholder="${escapeHTML(t('bulk.tag_ph'))}" onkeydown="if(event.key==='Enter'){ event.preventDefault(); invBulkTagAdd(); }"><button type="button" class="btn btn-sm" data-fk="bs-tag" onclick="invBulkTagAdd()">${icon('tag')} ${t('bulk.tag_add')}</button></div>
+      ${tags.length ? `<div class="chip-row">${tags.map(tg=>`<button type="button" class="chip chip-remove" onclick="invBulkTagRemove(this.dataset.tag)" data-tag="${escapeHTML(tg)}" aria-label="${escapeHTML(t('bulk.tag_rm').replace('{t}', tg))}">${escapeHTML(tg)}<span class="chip-x">${icon('x')}</span></button>`).join('')}</div>` : ''}</div>
+    <div class="sheet-group"><div class="field-label">${t('bulk.value')}</div>
+      <div class="field-grid" data-nosave>
+        <div class="field"><label for="bkValNow">${t('p.value_now')} (${currencySymbol()})</label><input id="bkValNow" type="number" inputmode="decimal" step="0.01" min="0"></div>
+        <div class="field"><label for="bkValPaid">${t('p.value_bought')} (${currencySymbol()})</label><input id="bkValPaid" type="number" inputmode="decimal" step="0.01" min="0"></div>
+      </div>
+      <button type="button" class="btn btn-sm" data-fk="bs-val" onclick="invBulkValue()">${icon('coins')} ${t('bulk.value_apply')}</button></div>`;
+}
+function invBulkRefresh(){ if(isSheetKind('inv-bulk')){ const a = document.activeElement, id = a && a.id; updateSheetBody(invBulkBodyHTML()); if(id){ const b = document.getElementById(id); if(b) b.focus(); } } }
+/* Copia de lo que se va a cambiar (para «Deshacer») */
+function bulkSnap(ids, withShelf){
+  return { prod: ids.map(id=> [id, OVERRIDES.products[id] ? JSON.stringify(OVERRIDES.products[id]) : null]),
+    est: withShelf && OVERRIDES.estanterias ? JSON.stringify(OVERRIDES.estanterias) : null, vh: JSON.stringify(OVERRIDES.valorHistorial===undefined ? null : OVERRIDES.valorHistorial) };
+}
+async function bulkRestore(snap){
+  snap.prod.forEach(([id, js])=>{ if(js===null) delete OVERRIDES.products[id]; else OVERRIDES.products[id] = JSON.parse(js); });
+  if(snap.est!==null){ OVERRIDES.estanterias = JSON.parse(snap.est); if(typeof _estClean!=='undefined') _estClean = null; }
+  const vh = JSON.parse(snap.vh); if(vh===null) delete OVERRIDES.valorHistorial; else OVERRIDES.valorHistorial = vh;
+  await persistOverrides(); buildProducts(); render();
+}
+async function bulkFinish(ids, snap, extra){
+  await persistOverrides(); buildProducts();
+  closeSheet(); await renderKeepFocus('[data-fk="bulk-go"]');
+  { const b = document.querySelector('#inv-results [data-fk="bulk-go"]:not([disabled])') || document.querySelector('#inv-results [data-fk="inv-pick"]'); if(b && !document.activeElement.closest('#inv-results')) b.focus({ preventScroll:true }); }
+  const n = ids.length;
+  showToast((n===1 ? t('bulk.done_n1') : t('bulk.done_n').replace('{n}', n.toLocaleString(numLocale()))) + (extra ? ' ' + extra : ''), { ok:true, replace:true, duration:7000, action:{ label:t('common.undo'), fn: ()=> bulkRestore(snap) } });
+}
+function bulkOv(id){ if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {}; return OVERRIDES.products[id]; }
+function setPossessionOv(p, v){
+  const o = bulkOv(p.id); o.possession = v;
+  if(checklistHasTengoKey(p.categoryId)){ o.components = Object.assign({}, p.components || {}, o.components || {}); o.components.tengo = (v==='tengo'); }
+}
+async function invBulkPossession(v){
+  const ids = invPickedIds(); if(!ids.length) return;
+  const snap = bulkSnap(ids, false);
+  ids.forEach(id=> setPossessionOv(PRODUCTS_BY_ID[id], v));
+  await bulkFinish(ids, snap);
+}
+async function invBulkSealed(on){
+  const ids = invPickedIds(); if(!ids.length) return;
+  const snap = bulkSnap(ids, false);
+  ids.forEach(id=>{ const p = PRODUCTS_BY_ID[id]; bulkOv(id).sealed = !!on; if(on && p.possession!=='tengo') setPossessionOv(p, 'tengo'); });
+  await bulkFinish(ids, snap);
+}
+async function invBulkMove(){
+  const ids = invPickedIds(); if(!ids.length) return;
+  const plat = getAllPlatforms().find(x=>x.id===bulkMove.plat); if(!plat) return;
+  const folder = bulkMove.folder && foldersForPlatform(plat.id).some(f=>f.id===bulkMove.folder) ? bulkMove.folder : null;
+  const snap = bulkSnap(ids, true);
+  const fit0 = typeof estOverMap==='function' && typeof estHas==='function' && estHas() ? estOverMap() : null;
+  ids.forEach(id=>{ const o = bulkOv(id); o.categoryId = plat.categoryId; o.platformId = plat.id; o.platformName = plat.name; o.folderId = folder; });
+  buildProducts();
+  const mv = fit0 && typeof estKeepInside==='function' ? estKeepInside(fit0) : null;   // (como al mover una: lo que ya no quepa en su balda, a otro sitio)
+  if(mv && typeof estSave==='function') await estSave(true);
+  await bulkFinish(ids, snap, mv ? estFitMsg(mv) : '');
+}
+async function invBulkTagAdd(){
+  const inp = document.getElementById('bkTag'); const tag = inp ? inp.value.trim().slice(0, 40) : '';
+  if(!tag){ if(inp) inp.focus(); return; }
+  const ids = invPickedIds(); if(!ids.length) return;
+  const snap = bulkSnap(ids, false);
+  ids.forEach(id=>{ const p = PRODUCTS_BY_ID[id]; const cur = (p.tags || []).slice(); if(!cur.some(x=> normText(x)===normText(tag))) cur.push(tag); bulkOv(id).tags = cur; });
+  await bulkFinish(ids, snap);
+}
+async function invBulkTagRemove(tag){
+  const ids = invPickedIds(); if(!ids.length || !tag) return;
+  const snap = bulkSnap(ids, false);
+  ids.forEach(id=>{ const p = PRODUCTS_BY_ID[id]; if((p.tags || []).includes(tag)) bulkOv(id).tags = p.tags.filter(x=> x!==tag); });
+  await bulkFinish(ids, snap);
+}
+function readMoney(id){ const el = document.getElementById(id); if(!el || el.value.trim()==='') return undefined; const v = Number(String(el.value).replace(',', '.')); return isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : NaN; }
+async function invBulkValue(){
+  const now = readMoney('bkValNow'), paid = readMoney('bkValPaid');
+  if(Number.isNaN(now) || Number.isNaN(paid)){ const bad = Number.isNaN(now) ? 'bkValNow' : 'bkValPaid'; const el = document.getElementById(bad); if(el){ el.setAttribute('aria-invalid', 'true'); el.focus(); } return; }
+  if(now===undefined && paid===undefined){ const el = document.getElementById('bkValNow'); if(el) el.focus(); return; }
+  const ids = invPickedIds(); if(!ids.length) return;
+  const snap = bulkSnap(ids, false);
+  const hoy = new Date().toISOString().slice(0, 10);
+  ids.forEach(id=>{ const p = PRODUCTS_BY_ID[id], o = bulkOv(id); o.valuation = Object.assign({}, p.valuation || {}, o.valuation || {});
+    if(now!==undefined){ o.valuation.valorActual = now; o.valuation.fechaActualizacion = hoy; }
+    if(paid!==undefined) o.valuation.valorAdquisicion = paid; });
+  buildProducts(); recordValueHistory();
+  await bulkFinish(ids, snap);
+}
+
+/* ---------- Deslizar una fila: «Lo tengo» / «En camino» (con «Deshacer») ---------- */
+async function swipeAction(id, dir){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  let next;
+  if(dir==='left') next = p.possession==='tengo' ? 'no' : 'tengo';
+  else { if(p.possession==='tengo'){ showToast(t('swipe.already'), { replace:true }); return; } next = p.possession==='en_camino' ? 'no' : 'en_camino'; }
+  const snap = bulkSnap([id], false);
+  setPossessionOv(p, next);
+  await persistOverrides(); buildProducts();
+  if(view.page==='inventario' && !view.productId) await refreshInventoryResults(); else render();
+  const label = next==='tengo' ? t('swipe.have') : next==='en_camino' ? t('swipe.coming') : t('swipe.missing');
+  showToast(t('swipe.done').replace('{n}', p.name).replace('{s}', label), { ok: next==='tengo', replace:true, duration:6000, action:{ label:t('common.undo'), fn: ()=> bulkRestore(snap) } });
+}
+
+/* ---------- Préstamos y compra (en la ficha) ---------- */
+function isLoaned(p){ return !!(p && p.prestamo && typeof p.prestamo==='object' && String(p.prestamo.a || '').trim()); }
+function loanSectionHTML(p){
+  const L = p.prestamo && typeof p.prestamo==='object' ? p.prestamo : {}, C = p.compra && typeof p.compra==='object' ? p.compra : {};
+  const body = `<div class="field-grid">
+      ${editableField('date', t('loan.bought_date'), C.fecha || '', `updatePurchase('${p.id}','fecha',this.value)`)}
+      ${editableField('text', t('loan.store'), C.tienda || '', `updatePurchase('${p.id}','tienda',this.value)`, '', 'maxlength="80"')}
+    </div><p class="section-sub">${t('loan.paid_note')}</p>
+    <div class="field-grid">
+      ${editableField('text', t('loan.to'), L.a || '', `updateLoan('${p.id}','a',this.value)`, '', 'maxlength="60"')}
+      ${editableField('date', t('loan.since'), L.desde || '', `updateLoan('${p.id}','desde',this.value)`)}
+    </div>${isLoaned(p) ? `<button type="button" class="btn btn-sm" data-fk="loan-back" onclick="loanReturned('${p.id}')">${icon('check')} ${t('loan.returned')}</button>` : ''}`;
+  const meta = isLoaned(p) ? t('loan.sum').replace('{a}', L.a) : (C.fecha ? t('loan.bought_sum').replace('{d}', C.fecha) : (C.tienda || ''));
+  return disclosureHTML('prestamo', t('loan.title'), body, productSectionsOpen, escapeHTML(meta));
+}
+async function updateLoan(id, field, value){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const cur = Object.assign({ a:'', desde:'' }, p.prestamo && typeof p.prestamo==='object' ? p.prestamo : {});
+  cur[field] = String(value || '').trim();
+  if(field==='a' && cur.a && !cur.desde) cur.desde = new Date().toISOString().slice(0, 10);
+  const v = cur.a ? { a:cur.a, desde:cur.desde } : null;
+  p.prestamo = v; await setProductField(id, 'prestamo', v);
+  renderKeepFocus();
+}
+async function loanReturned(id){
+  const p = PRODUCTS_BY_ID[id]; if(!p || !isLoaned(p)) return;
+  const was = p.prestamo;
+  p.prestamo = null; await setProductField(id, 'prestamo', null);
+  await renderKeepFocus(`[onchange^="updateLoan('${id}','a'"]`);   // (el botón ya no está: el foco va a «Prestada a»)
+  showToast(t('loan.back_done'), { ok:true, replace:true, action:{ label:t('common.undo'), fn: async ()=>{ const q = PRODUCTS_BY_ID[id]; if(!q) return; q.prestamo = was; await setProductField(id, 'prestamo', was); render(); } } });
+}
+async function updatePurchase(id, field, value){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const cur = Object.assign({ fecha:'', tienda:'' }, p.compra && typeof p.compra==='object' ? p.compra : {});
+  cur[field] = String(value || '').trim();
+  const v = cur.fecha || cur.tienda ? { fecha:cur.fecha, tienda:cur.tienda } : null;
+  p.compra = v; await setProductField(id, 'compra', v);
+}
+/* Etiquetas en la ficha: añadir y quitar */
+function tagsEditorHTML(p){
+  const tags = p.tags || [];
+  return `<div class="field-label">${t('p.tags')}</div><div class="badge-row tag-row">${tags.map(tg=>`<span class="vtag is-editable">${escapeHTML(tg)}<button type="button" class="vtag-x" onclick="removeTag('${p.id}', this.dataset.tag)" data-tag="${escapeHTML(tg)}" aria-label="${escapeHTML(t('p.tag_rm').replace('{t}', tg))}">${icon('x')}</button></span>`).join('')}
+    <button type="button" class="chip chip-add-tag" data-fk="tag-add" onclick="addTagPrompt('${p.id}')">${icon('plus')} ${t('p.tags_add')}</button></div>`;
+}
+async function addTagPrompt(id){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const v = await showPromptModal(t('p.tags_add'), ''); const tag = String(v || '').trim().slice(0, 40);
+  if(!tag) return;
+  const cur = (p.tags || []).slice(); if(!cur.some(x=> normText(x)===normText(tag))) cur.push(tag);
+  p.tags = cur; await setProductField(id, 'tags', cur); renderKeepFocus();
+}
+async function removeTag(id, tag){
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const cur = (p.tags || []).filter(x=> x!==tag);
+  p.tags = cur; await setProductField(id, 'tags', cur);
+  await render(); const b = document.querySelector('#panel [data-fk="tag-add"]'); if(b) b.focus({ preventScroll:true });
+}
+
+/* ---------- El valor: su evolución y valorar en serie ---------- */
+/* Un punto por día con el valor total (se guarda al cambiar algún valor) */
+function recordValueHistory(){
+  const g = computeGlobalStats();
+  const list = Array.isArray(OVERRIDES.valorHistorial) ? OVERRIDES.valorHistorial.filter(x=> x && typeof x.f==='string' && typeof x.v==='number') : [];
+  if(!g.valued && !list.length) return;
+  const hoy = new Date().toISOString().slice(0, 10), e = { f:hoy, v: Math.round(g.valor * 100) / 100, n:g.valued };
+  const last = list[list.length - 1];
+  if(last && last.f===hoy) list[list.length - 1] = e;
+  else if(!last || last.v!==e.v || last.n!==e.n) list.push(e);
+  OVERRIDES.valorHistorial = list.slice(-730);
+}
+function valueTotals(){
+  let now = 0, paid = 0, nNow = 0, nPaid = 0, both = 0, nowBoth = 0, paidBoth = 0;
+  allEditionsForStats().forEach(({ product:p })=>{
+    if(p.possession!=='tengo') return;
+    const a = valueNow(p), b = valuePaid(p);
+    if(a!==null){ now += a; nNow++; } if(b!==null){ paid += b; nPaid++; }
+    if(a!==null && b!==null){ both++; nowBoth += a; paidBoth += b; }
+  });
+  return { now, paid, nNow, nPaid, both, diff: nowBoth - paidBoth };
+}
+function valueChartSVG(list){
+  const pts = list.filter(x=> x && typeof x.v==='number').slice(-120);
+  if(pts.length < 2) return '';
+  const W = 320, H = 120, P = 8;
+  const vs = pts.map(x=>x.v), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const t0 = Date.parse(pts[0].f), t1 = Date.parse(pts[pts.length - 1].f), ts = (t1 - t0) || 1;
+  const xy = pts.map(x=> [P + (Date.parse(x.f) - t0) / ts * (W - 2 * P), H - P - (x.v - lo) / span * (H - 2 * P)]);
+  const d = xy.map((q, i)=> (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+  const area = d + ` L${xy[xy.length - 1][0].toFixed(1)} ${H - P} L${xy[0][0].toFixed(1)} ${H - P} Z`;
+  const label = t('val.chart_label') + ': ' + pts.map(x=> x.f + ' ' + fmtMoney(x.v)).filter((_, i, a)=> i===0 || i===a.length - 1).join(' → ');
+  return `<figure class="val-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHTML(label)}" preserveAspectRatio="none"><path class="vc-area" d="${area}"/><path class="vc-line" d="${d}"/>${xy.map(q=>`<circle class="vc-dot" cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="2.2"/>`).join('')}</svg>
+    <figcaption><span>${escapeHTML(pts[0].f)} · ${escapeHTML(fmtMoney(pts[0].v))}</span><span>${escapeHTML(pts[pts.length - 1].f)} · ${escapeHTML(fmtMoney(pts[pts.length - 1].v))}</span></figcaption></figure>`;
+}
+function valueSectionHTML(){
+  const v = valueTotals(), have = allEditionsForStats().filter(x=>x.edition.possession==='tengo').length;
+  const hist = Array.isArray(OVERRIDES.valorHistorial) ? OVERRIDES.valorHistorial : [];
+  const chart = valueChartSVG(hist);
+  const btn = `<button type="button" class="btn btn-sm" data-fk="val-bulk" onclick="openValueBulk()">${icon('coins')} ${t('val.bulk')}</button>`;
+  if(!v.nNow && !v.nPaid) return `<section class="vit-section">${sectionTitleHTML(t('val.title'))}<p class="section-sub">${t('val.empty')}</p>${btn}</section>`;
+  return `<section class="vit-section">${sectionTitleHTML(t('val.title'), t('val.pieces').replace('{n}', v.nNow).replace('{t}', have))}
+    <div class="metric-grid val-metrics">
+      <div class="metric"><div class="metric-label">${t('val.now')}</div><div class="metric-value">${fmtMoney(v.now)}</div></div>
+      <div class="metric"><div class="metric-label">${t('val.paid')}</div><div class="metric-value">${v.nPaid ? fmtMoney(v.paid) : '—'}</div></div>
+      ${v.both ? `<div class="metric"><div class="metric-label">${t('val.diff')}</div><div class="metric-value ${v.diff >= 0 ? 'is-up' : 'is-down'}">${(v.diff >= 0 ? '+' : '−') + fmtMoney(Math.abs(v.diff))}</div><div class="metric-sub">${t('val.diff_note').replace('{n}', v.both)}</div></div>` : ''}
+    </div>
+    ${chart || `<p class="section-sub">${t('val.chart_one')}</p>`}
+    ${btn}</section>`;
+}
+/* Valorar en serie: una lista de tus piezas con su valor, para rellenarlo seguido */
+let vbState = { only:true, plat:'', limit:40 };
+function openValueBulk(){
+  vbState = { only:true, plat:'', limit:40 };
+  openSheet({ kind:'val-bulk', title:t('val.bulk_title'), body:valueBulkBodyHTML(), foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>`, onClose: ()=> render() });
+}
+function valueBulkList(){
+  return sortGames(PRODUCTS.filter(p=> p.possession==='tengo' && (!vbState.plat || p.platformId===vbState.plat) && (!vbState.only || valueNow(p)===null)));
+}
+function valueBulkBodyHTML(){
+  const list = valueBulkList(), shown = list.slice(0, vbState.limit);
+  const plats = getAllPlatforms().filter(pl=> PRODUCTS.some(p=> p.platformId===pl.id && p.possession==='tengo'));
+  const cs = currencySymbol();
+  return `<div class="chip-row" role="group" aria-label="${escapeHTML(t('val.bulk_title'))}"><button type="button" class="chip ${vbState.only ? 'active' : ''}" aria-pressed="${vbState.only}" data-fk="vb-only" onclick="vbState.only=true; vbState.limit=40; vbRefresh()">${t('val.only_missing')}</button><button type="button" class="chip ${vbState.only ? '' : 'active'}" aria-pressed="${!vbState.only}" data-fk="vb-all" onclick="vbState.only=false; vbState.limit=40; vbRefresh()">${t('val.all')}</button></div>
+    <div class="field" data-nosave><label for="vbPlat">${t('filter.platform')}</label><select id="vbPlat" onchange="vbState.plat=this.value; vbState.limit=40; vbRefresh()"><option value="">${t('val.platform_all')}</option>${plats.map(pl=>`<option value="${pl.id}" ${vbState.plat===pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}</select></div>
+    ${shown.length ? `<div class="vb-list" data-nosave>${shown.map(p=>{ const id = escapeHTML(p.id), now = valueNow(p), paid = valuePaid(p);
+      return `<div class="vb-row"><div class="vb-name"><b>${escapeHTML(p.name)}</b><small>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))}</small></div>
+        <label class="vb-in"><span>${t('val.now')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${now===null ? '' : now}" aria-label="${escapeHTML(t('val.now') + ' — ' + p.name)}" onchange="vbSet('${id}','valorActual',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label>
+        <label class="vb-in"><span>${t('val.paid_short')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${paid===null ? '' : paid}" aria-label="${escapeHTML(t('p.value_bought') + ' — ' + p.name)}" onchange="vbSet('${id}','valorAdquisicion',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label></div>`; }).join('')}</div>`
+      : `<p class="section-sub">${t(vbState.only ? 'val.none_left' : 'val.empty_sel')}</p>`}
+    ${list.length > shown.length ? `<button type="button" class="btn btn-sm load-more" data-fk="vb-more" onclick="vbState.limit+=40; vbRefresh()">${t('val.more').replace('{n}', list.length - shown.length)}</button>` : ''}`;
+}
+function vbRefresh(){
+  if(!isSheetKind('val-bulk')) return;
+  const a = document.activeElement, fk = a && a.dataset ? a.dataset.fk : null, id = a && a.id;
+  const body = document.getElementById('sheetBody'), y = body ? body.scrollTop : 0;
+  updateSheetBody(valueBulkBodyHTML());
+  if(body) body.scrollTop = y;
+  const b = fk ? document.querySelector(`#sheetBody [data-fk="${fk}"]`) : id ? document.getElementById(id) : null; if(b) b.focus({ preventScroll:true });
+}
+async function vbSet(id, field, input){
+  if(input.validity && input.validity.badInput){ input.setAttribute('aria-invalid', 'true'); return; }   // (lo escrito no es un número: no se borra lo que había)
+  const raw = String(input.value || '').trim();
+  const v = raw==='' ? null : Number(raw.replace(',', '.'));
+  if(raw!=='' && (!isFinite(v) || v < 0)){ input.setAttribute('aria-invalid', 'true'); return; }
+  input.removeAttribute('aria-invalid');
+  const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  p.valuation = Object.assign({}, p.valuation || {}); p.valuation[field] = v===null ? null : Math.round(v * 100) / 100;
+  await setEditionNested(id, 'valuation', field, p.valuation[field]);
+  if(field==='valorActual'){ const hoy = new Date().toISOString().slice(0, 10); p.valuation.fechaActualizacion = hoy; await setEditionNested(id, 'valuation', 'fechaActualizacion', hoy); }
+  recordValueHistory(); await persistOverrides();
+  input.closest('.vb-row') && input.closest('.vb-row').classList.add('is-saved');
 }

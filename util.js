@@ -2,7 +2,7 @@
    Utilidades sin estado: escapado de HTML, normalización para búsquedas, orden natural, iconos SVG, slug, fechas y descargas. */
 
 /* Versión visible de la app (esquina y Ajustes). Mantener igual que CACHE_NAME de sw.js. */
-const APP_VERSION = '11.18.1';
+const APP_VERSION = '11.19.0';
 
 /* Iconos propios en línea (nada de emoji) — heredan el color del texto
    que los rodea, así encajan igual en modo claro y oscuro. v11: un único
@@ -97,6 +97,19 @@ const ICON_PATHS = {
   doors: '<rect x="4" y="3.5" width="16" height="17" rx="1"/><path d="M12 3.5v17M10 12h.01M14 12h.01"/>',
   multi: '<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M4 15.5V5.5A1.5 1.5 0 0 1 5.5 4h10"/><path d="m11.5 14.5 2 2 4-4"/>',
   pipette: '<path d="M14.5 4.5l5 5L10 19H5v-5l9.5-9.5z"/><path d="M12.5 6.5l5 5"/><path d="M17 2.5l4.5 4.5"/>',
+  // v11.19
+  bookmark: '<path d="M6.5 3.5h11a1 1 0 0 1 1 1V21l-6.5-4.5L5.5 21V4.5a1 1 0 0 1 1-1Z"/>',
+  redo: '<path d="M20 12a8 8 0 1 1-2.35-5.65L20 8.7"/><path d="M20 3.5v5.2h-5.2"/>',
+  play: '<path d="M7 4.5v15l12.5-7.5Z" fill="currentColor" stroke="none"/>',
+  tilt: '<rect x="7" y="3" width="10" height="18" rx="2" transform="rotate(-14 12 12)"/><path d="M2.5 9.5a10 10 0 0 0 0 5M21.5 9.5a10 10 0 0 1 0 5"/>',
+  pin: '<path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/>',
+  compare: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 2.5v19"/>',
+  tag: '<path d="M3.5 12.6V4.5a1 1 0 0 1 1-1h8.1l8 8a1.4 1.4 0 0 1 0 2l-6.1 6.1a1.4 1.4 0 0 1-2 0Z"/><circle cx="8" cy="8" r="1.4"/>',
+  loan: '<path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/>',
+  coins: '<ellipse cx="12" cy="6.5" rx="7" ry="3"/><path d="M5 6.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5M5 11.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>',
+  next: '<path d="M5 12h13M13 6l6 6-6 6"/>',
+  group: '<path d="M4 5h16M4 12h16M4 19h16"/><path d="M7 8.5h10M7 15.5h10" opacity=".55"/>',
+  grip: '<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>',
 };
 function icon(name, extraClass){
   const d = ICON_PATHS[name];

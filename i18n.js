@@ -2725,6 +2725,251 @@ I18N.es['ayuda.shelf.body'] += '<br><br><b>Precintadas</b>: las que tienes preci
 I18N.en['ayuda.shelf.body'] += '<br><br><b>Sealed items</b>: the ones you have sealed wear a thin plastic wrap, with a shine that moves as you slide the shelf or turn them. <b>Still to place</b>: <b>Add items</b> and “Place the ones left” only list what you have; what you’re missing is only added if you tick <b>Leave gaps for what you’re missing</b>.';
 I18N.de['ayuda.shelf.body'] += '<br><br><b>Versiegelt</b>: Was du versiegelt hast, trägt eine dünne Plastikfolie, mit einem Glanz, der sich beim Verschieben des Fachs oder beim Drehen bewegt. <b>Noch einzuräumen</b>: Unter <b>Stücke hinzufügen</b> und „Die übrigen einräumen“ steht nur, was du hast; Fehlendes kommt nur hinzu, wenn du <b>Platz für Fehlendes lassen</b> ankreuzt.';
 I18N.ja['ayuda.shelf.body'] += '<br><br><b>未開封</b>：未開封のものには薄いフィルムがかかり、段をスライドしたり回したりすると光沢が動きます。<b>未配置</b>：<b>アイテムを追加</b>と「残りを配置」には持っているものだけが表示されます。持っていないものは<b>持っていないものの場所を空ける</b>にチェックしたときだけ追加されます。';
+/* ---------- v11.19 · Listados ---------- */
+Object.assign(I18N.es, {
+  'sort.added':'Últimas altas', 'sort.value':'Mayor valor', 'sort.cond':'Mejor estado', 'sort.sealed':'Precintadas',
+  'grp.label':'Agrupar', 'grp.none':'Sin agrupar', 'grp.plataforma':'Por plataforma', 'grp.anio':'Por año', 'grp.region':'Por región', 'grp.estado':'Por estado',
+  'grp.no_year':'Sin año', 'grp.no_platform':'Sin plataforma', 'grp.expand_all':'Desplegar todo', 'grp.collapse_all':'Plegar todo',
+  'grp.st.sealed':'Precintadas', 'grp.st.tengo':'Las tienes', 'grp.st.en_camino':'En camino', 'grp.st.reservado':'Reservadas', 'grp.st.no':'Te faltan', 'grp.st.vendido':'Vendidas', 'grp.st.perdido':'Perdidas',
+  'sf.title':'Tus filtros', 'sf.save':'Guardar filtro', 'sf.name_q':'Nombre del filtro', 'sf.saved':'Filtro guardado: lo tienes arriba, junto al buscador.', 'sf.removed':'Filtro quitado',
+  'sf.edit':'Editar', 'sf.done':'Listo', 'sf.remove_x':'Quitar el filtro «{n}»', 'sf.default_name':'Mi filtro',
+  'inv.chip.loaned':'Prestadas',
+  'bulk.pick':'Elegir varias', 'bulk.done':'Listo', 'bulk.n':'{n} elegidas', 'bulk.n1':'1 elegida', 'bulk.none_hint':'Toca las piezas para elegirlas', 'bulk.all':'Todas ({n})', 'bulk.clear':'Ninguna',
+  'bulk.actions':'Cambiar', 'bulk.title':'Cambiar {n} piezas', 'bulk.state':'Estado', 'bulk.sealed_yes':'Precintadas', 'bulk.sealed_no':'Sin precintar',
+  'bulk.move':'Moverlas a', 'bulk.move_btn':'Moverlas aquí', 'bulk.tags':'Etiquetas', 'bulk.tag_ph':'Etiqueta nueva', 'bulk.tag_add':'Añadir a todas', 'bulk.tag_rm':'Quitar «{t}» de todas',
+  'bulk.value':'Valor', 'bulk.value_apply':'Poner a todas', 'bulk.done_n':'{n} piezas cambiadas.', 'bulk.done_n1':'1 pieza cambiada.',
+  'swipe.have':'Lo tengo', 'swipe.missing':'Me falta', 'swipe.coming':'En camino', 'swipe.done':'«{n}»: {s}', 'swipe.already':'Ya la tienes: «En camino» es para lo que te falta.',
+  'loan.title':'Compra y préstamo', 'loan.bought_date':'Fecha de compra', 'loan.store':'Tienda o vendedor', 'loan.to':'Prestada a', 'loan.since':'Desde', 'loan.returned':'Me la han devuelto',
+  'loan.badge':'Prestada', 'loan.sum':'Prestada a {a}', 'loan.bought_sum':'Comprada el {d}', 'loan.paid_note':'Lo que pagaste va en «Valoración».', 'loan.back_done':'Devuelta: ya no está prestada.',
+  'p.tags_add':'Añadir etiqueta', 'p.tag_rm':'Quitar la etiqueta «{t}»',
+  'val.title':'Valor de tu colección', 'val.now':'Valor actual', 'val.paid':'Lo que pagaste', 'val.paid_short':'Pagado', 'val.diff':'Diferencia', 'val.diff_note':'en las {n} con los dos valores',
+  'val.pieces':'{n} de {t} con valor', 'val.bulk':'Valorar en serie', 'val.bulk_title':'Valorar en serie', 'val.only_missing':'Sin valor', 'val.all':'Todas', 'val.platform_all':'Todas las plataformas',
+  'val.chart_one':'El gráfico de cómo cambia aparece en cuanto el valor cambie otro día.', 'val.chart_label':'Evolución del valor de tu colección', 'val.empty':'Aún no has puesto valor a ninguna pieza. «Valorar en serie» te deja hacerlo seguido.',
+  'val.empty_sel':'No hay piezas que tengas en esta plataforma.', 'val.none_left':'Ya tienen valor todas las de esta selección.', 'val.more':'Ver {n} más',
+});
+Object.assign(I18N.en, {
+  'sort.added':'Recently added', 'sort.value':'Highest value first', 'sort.cond':'Best condition', 'sort.sealed':'Sealed first',
+  'grp.label':'Group', 'grp.none':'No grouping', 'grp.plataforma':'By platform', 'grp.anio':'By year', 'grp.region':'By region', 'grp.estado':'By status',
+  'grp.no_year':'No year', 'grp.no_platform':'No platform', 'grp.expand_all':'Expand all', 'grp.collapse_all':'Collapse all',
+  'grp.st.sealed':'Sealed', 'grp.st.tengo':'You have', 'grp.st.en_camino':'On the way', 'grp.st.reservado':'Reserved', 'grp.st.no':'Missing', 'grp.st.vendido':'Sold', 'grp.st.perdido':'Lost',
+  'sf.title':'Your filters', 'sf.save':'Save filter', 'sf.name_q':'Filter name', 'sf.saved':'Filter saved: it’s at the top, next to the search.', 'sf.removed':'Filter removed',
+  'sf.edit':'Edit', 'sf.done':'Done', 'sf.remove_x':'Remove the filter “{n}”', 'sf.default_name':'My filter',
+  'inv.chip.loaned':'Lent out',
+  'bulk.pick':'Select several', 'bulk.done':'Done', 'bulk.n':'{n} selected', 'bulk.n1':'1 selected', 'bulk.none_hint':'Tap items to select them', 'bulk.all':'All ({n})', 'bulk.clear':'None',
+  'bulk.actions':'Change', 'bulk.title':'Change {n} items', 'bulk.state':'Status', 'bulk.sealed_yes':'Sealed', 'bulk.sealed_no':'Not sealed',
+  'bulk.move':'Move them to', 'bulk.move_btn':'Move them here', 'bulk.tags':'Tags', 'bulk.tag_ph':'New tag', 'bulk.tag_add':'Add to all', 'bulk.tag_rm':'Remove “{t}” from all',
+  'bulk.value':'Value', 'bulk.value_apply':'Set for all', 'bulk.done_n':'{n} items changed.', 'bulk.done_n1':'1 item changed.',
+  'swipe.have':'I have it', 'swipe.missing':'Missing', 'swipe.coming':'On the way', 'swipe.done':'“{n}”: {s}', 'swipe.already':'You already have it: “On the way” is for what you’re missing.',
+  'loan.title':'Purchase and loan', 'loan.bought_date':'Purchase date', 'loan.store':'Shop or seller', 'loan.to':'Lent to', 'loan.since':'Since', 'loan.returned':'I got it back',
+  'loan.badge':'Lent out', 'loan.sum':'Lent to {a}', 'loan.bought_sum':'Bought on {d}', 'loan.paid_note':'What you paid goes in “Valuation”.', 'loan.back_done':'Returned: no longer lent out.',
+  'p.tags_add':'Add tag', 'p.tag_rm':'Remove the tag “{t}”',
+  'val.title':'Your collection’s value', 'val.now':'Current value', 'val.paid':'What you paid', 'val.paid_short':'Paid', 'val.diff':'Difference', 'val.diff_note':'on the {n} with both values',
+  'val.pieces':'{n} of {t} valued', 'val.bulk':'Value in a row', 'val.bulk_title':'Value in a row', 'val.only_missing':'No value', 'val.all':'All', 'val.platform_all':'All platforms',
+  'val.chart_one':'The chart of how it changes appears as soon as the value changes on another day.', 'val.chart_label':'How your collection’s value has changed', 'val.empty':'You haven’t valued any item yet. “Value in a row” lets you do it one after another.',
+  'val.empty_sel':'You don’t have any items on this platform.', 'val.none_left':'Everything in this selection already has a value.', 'val.more':'Show {n} more',
+});
+Object.assign(I18N.de, {
+  'sort.added':'Zuletzt erfasst', 'sort.value':'Höchster Wert', 'sort.cond':'Bester Zustand', 'sort.sealed':'Versiegelt zuerst',
+  'grp.label':'Gruppieren', 'grp.none':'Nicht gruppieren', 'grp.plataforma':'Nach Plattform', 'grp.anio':'Nach Jahr', 'grp.region':'Nach Region', 'grp.estado':'Nach Status',
+  'grp.no_year':'Ohne Jahr', 'grp.no_platform':'Ohne Plattform', 'grp.expand_all':'Alle aufklappen', 'grp.collapse_all':'Alle zuklappen',
+  'grp.st.sealed':'Versiegelt', 'grp.st.tengo':'Vorhanden', 'grp.st.en_camino':'Unterwegs', 'grp.st.reservado':'Reserviert', 'grp.st.no':'Fehlen', 'grp.st.vendido':'Verkauft', 'grp.st.perdido':'Verloren',
+  'sf.title':'Deine Filter', 'sf.save':'Filter speichern', 'sf.name_q':'Name des Filters', 'sf.saved':'Filter gespeichert: Er steht oben neben der Suche.', 'sf.removed':'Filter entfernt',
+  'sf.edit':'Bearbeiten', 'sf.done':'Fertig', 'sf.remove_x':'Filter „{n}“ entfernen', 'sf.default_name':'Mein Filter',
+  'inv.chip.loaned':'Verliehen',
+  'bulk.pick':'Mehrere wählen', 'bulk.done':'Fertig', 'bulk.n':'{n} gewählt', 'bulk.n1':'1 gewählt', 'bulk.none_hint':'Tippe Stücke an, um sie zu wählen', 'bulk.all':'Alle ({n})', 'bulk.clear':'Keine',
+  'bulk.actions':'Ändern', 'bulk.title':'{n} Stücke ändern', 'bulk.state':'Status', 'bulk.sealed_yes':'Versiegelt', 'bulk.sealed_no':'Nicht versiegelt',
+  'bulk.move':'Verschieben nach', 'bulk.move_btn':'Hierher verschieben', 'bulk.tags':'Schlagwörter', 'bulk.tag_ph':'Neues Schlagwort', 'bulk.tag_add':'Allen hinzufügen', 'bulk.tag_rm':'„{t}“ bei allen entfernen',
+  'bulk.value':'Wert', 'bulk.value_apply':'Für alle setzen', 'bulk.done_n':'{n} Stücke geändert.', 'bulk.done_n1':'1 Stück geändert.',
+  'swipe.have':'Habe ich', 'swipe.missing':'Fehlt', 'swipe.coming':'Unterwegs', 'swipe.done':'„{n}“: {s}', 'swipe.already':'Du hast es schon: „Unterwegs“ ist für Fehlendes.',
+  'loan.title':'Kauf und Verleih', 'loan.bought_date':'Kaufdatum', 'loan.store':'Laden oder Verkäufer', 'loan.to':'Verliehen an', 'loan.since':'Seit', 'loan.returned':'Ich habe es zurück',
+  'loan.badge':'Verliehen', 'loan.sum':'Verliehen an {a}', 'loan.bought_sum':'Gekauft am {d}', 'loan.paid_note':'Was du bezahlt hast, steht unter „Bewertung“.', 'loan.back_done':'Zurück: nicht mehr verliehen.',
+  'p.tags_add':'Schlagwort hinzufügen', 'p.tag_rm':'Schlagwort „{t}“ entfernen',
+  'val.title':'Wert deiner Sammlung', 'val.now':'Aktueller Wert', 'val.paid':'Was du bezahlt hast', 'val.paid_short':'Bezahlt', 'val.diff':'Differenz', 'val.diff_note':'bei den {n} mit beiden Werten',
+  'val.pieces':'{n} von {t} bewertet', 'val.bulk':'Nacheinander bewerten', 'val.bulk_title':'Nacheinander bewerten', 'val.only_missing':'Ohne Wert', 'val.all':'Alle', 'val.platform_all':'Alle Plattformen',
+  'val.chart_one':'Das Diagramm zur Entwicklung erscheint, sobald sich der Wert an einem anderen Tag ändert.', 'val.chart_label':'Entwicklung des Werts deiner Sammlung', 'val.empty':'Du hast noch kein Stück bewertet. Mit „Nacheinander bewerten“ geht es zügig.',
+  'val.empty_sel':'Auf dieser Plattform hast du keine Stücke.', 'val.none_left':'Alle in dieser Auswahl haben schon einen Wert.', 'val.more':'{n} weitere zeigen',
+});
+Object.assign(I18N.ja, {
+  'sort.added':'追加が新しい順', 'sort.value':'価値が高い順', 'sort.cond':'状態が良い順', 'sort.sealed':'未開封を先に',
+  'grp.label':'グループ', 'grp.none':'グループなし', 'grp.plataforma':'プラットフォーム別', 'grp.anio':'年別', 'grp.region':'地域別', 'grp.estado':'状態別',
+  'grp.no_year':'年なし', 'grp.no_platform':'プラットフォームなし', 'grp.expand_all':'すべて開く', 'grp.collapse_all':'すべて閉じる',
+  'grp.st.sealed':'未開封', 'grp.st.tengo':'所持', 'grp.st.en_camino':'配送中', 'grp.st.reservado':'予約済み', 'grp.st.no':'未所持', 'grp.st.vendido':'売却済み', 'grp.st.perdido':'紛失',
+  'sf.title':'保存したフィルター', 'sf.save':'フィルターを保存', 'sf.name_q':'フィルター名', 'sf.saved':'フィルターを保存しました：検索欄の横にあります。', 'sf.removed':'フィルターを削除しました',
+  'sf.edit':'編集', 'sf.done':'完了', 'sf.remove_x':'フィルター「{n}」を削除', 'sf.default_name':'マイフィルター',
+  'inv.chip.loaned':'貸出中',
+  'bulk.pick':'複数選択', 'bulk.done':'完了', 'bulk.n':'{n}点を選択', 'bulk.n1':'1点を選択', 'bulk.none_hint':'アイテムをタップして選択', 'bulk.all':'すべて（{n}）', 'bulk.clear':'選択解除',
+  'bulk.actions':'変更', 'bulk.title':'{n}点を変更', 'bulk.state':'状態', 'bulk.sealed_yes':'未開封', 'bulk.sealed_no':'開封済み',
+  'bulk.move':'移動先', 'bulk.move_btn':'ここへ移動', 'bulk.tags':'タグ', 'bulk.tag_ph':'新しいタグ', 'bulk.tag_add':'すべてに追加', 'bulk.tag_rm':'すべてから「{t}」を削除',
+  'bulk.value':'価値', 'bulk.value_apply':'すべてに設定', 'bulk.done_n':'{n}点を変更しました。', 'bulk.done_n1':'1点を変更しました。',
+  'swipe.have':'持っている', 'swipe.missing':'未所持', 'swipe.coming':'配送中', 'swipe.done':'「{n}」：{s}', 'swipe.already':'すでに持っています：「配送中」は未所持のもの用です。',
+  'loan.title':'購入と貸出', 'loan.bought_date':'購入日', 'loan.store':'店・出品者', 'loan.to':'貸出先', 'loan.since':'貸出日', 'loan.returned':'返ってきた',
+  'loan.badge':'貸出中', 'loan.sum':'{a}に貸出中', 'loan.bought_sum':'{d}に購入', 'loan.paid_note':'支払った金額は「評価」に入力します。', 'loan.back_done':'返却済み：貸出中ではなくなりました。',
+  'p.tags_add':'タグを追加', 'p.tag_rm':'タグ「{t}」を削除',
+  'val.title':'コレクションの価値', 'val.now':'現在の価値', 'val.paid':'支払った金額', 'val.paid_short':'支払額', 'val.diff':'差額', 'val.diff_note':'両方の値がある{n}点',
+  'val.pieces':'{t}点中{n}点に価値あり', 'val.bulk':'まとめて評価', 'val.bulk_title':'まとめて評価', 'val.only_missing':'価値なし', 'val.all':'すべて', 'val.platform_all':'すべてのプラットフォーム',
+  'val.chart_one':'別の日に価値が変わると、推移のグラフが表示されます。', 'val.chart_label':'コレクションの価値の推移', 'val.empty':'まだ価値を入力したアイテムがありません。「まとめて評価」で続けて入力できます。',
+  'val.empty_sel':'このプラットフォームに所持アイテムはありません。', 'val.none_left':'この選択のアイテムはすべて価値が入力済みです。', 'val.more':'さらに{n}点を表示',
+});
+/* ---------- v11.19 · Imágenes ---------- */
+Object.assign(I18N.es, {
+  'photo.note_q':'Pie de foto ({s})', 'photo.note_add':'Añadir pie de foto', 'photo.note_edit':'Cambiar el pie de foto', 'photo.note_short':'Pie',
+  'photo.move':'Cambiar de sitio: {s}', 'photo.move_hint':'Para cambiar el orden, arrastra el asa o usa ← → sobre ella.',
+  'mk.title':'Marcas', 'mk.hint':'Toca la foto donde está el defecto para marcarlo.', 'mk.note_q':'¿Qué hay aquí? (por ejemplo, «esquina aplastada»)', 'mk.edit_q':'Marca {n}',
+  'mk.pin':'Marca {n}', 'mk.no_note':'Sin nota', 'mk.edit':'Cambiar la marca {n}', 'mk.remove':'Quitar la marca {n}', 'mk.removed':'Marca quitada.', 'mk.add_center':'Marca en el centro', 'mk.count':'{n} marcas',
+  'gal.prev':'Pieza anterior', 'gal.next':'Pieza siguiente', 'gal.open':'Ver ficha', 'gal.f.all':'Todas', 'gal.f.sealed':'Precintadas', 'gal.f.noback':'Sin trasera', 'gal.f.marks':'Con marcas',
+  'ps.title':'Sesión de fotos', 'ps.intro':'Te enseña una a una las piezas a las que les falta la foto que elijas. Haz la foto, se guarda y pasa sola a la siguiente.',
+  'ps.what':'Qué foto', 'ps.both':'Delantera y trasera', 'ps.who':'De qué piezas', 'ps.who_have':'Las que tienes', 'ps.who_all':'Todas',
+  'ps.start':'Empezar: {n} fotos', 'ps.start1':'Empezar: 1 foto', 'ps.none':'No falta ninguna', 'ps.end_title':'Sesión terminada', 'ps.end':'{n} guardadas · {s} saltadas',
+  'ps.pos':'{i} de {n}', 'ps.finish':'Terminar la sesión', 'ps.need':'Falta: {s}', 'ps.has':'Fotos que ya tiene', 'ps.shoot':'Hacer la foto', 'ps.pick':'Elegir una foto',
+  'ps.skip':'Saltar', 'ps.count':'{n} guardadas · {s} saltadas', 'ps.saved1':'1 foto guardada.', 'ps.saved_n':'{n} fotos guardadas.',
+  'cmp.open':'Comparar copias', 'cmp.title':'Comparar copias', 'cmp.which':'Qué copia', 'cmp.hint':'Toca un punto para acercar las dos fotos en el mismo sitio.', 'cmp.hint_zoomed':'Toca otra vez para alejarlas.',
+  'bi.open':'Importar varias', 'bi.title':'Importar varias fotos', 'bi.working':'Leyendo {i} de {n}…', 'bi.finished':'Listo: {n} colocadas · {r} por asignar',
+  'bi.done_t':'Colocadas en su pieza', 'bi.pending_t':'Por asignar', 'bi.no_reader':'Este navegador no lee códigos de barras: elige tú la pieza de cada foto.',
+  'bi.choose':'Elegir su pieza', 'bi.drop':'Descartar esta foto', 'bi.search_ph':'Busca la pieza…', 'bi.goes_to':'irá a: {s}', 'bi.type_name':'Escribe el nombre de la pieza.', 'bi.tap_photo':'Toca una foto para elegir su pieza.',
+  'bi.why.nocode':'No se ve ningún código', 'bi.why.noreader':'Sin lector de códigos', 'bi.why.several':'Hay varios códigos en la foto', 'bi.why.unknown':'Código {code}: ninguna pieza lo tiene',
+  'bi.why.many':'Código {code}: lo tienen varias piezas', 'bi.why.full':'Código {code}: esa pieza ya tiene todas sus fotos', 'bi.why.fail':'No se pudo guardar',
+});
+Object.assign(I18N.en, {
+  'photo.note_q':'Caption ({s})', 'photo.note_add':'Add a caption', 'photo.note_edit':'Change the caption', 'photo.note_short':'Caption',
+  'photo.move':'Move: {s}', 'photo.move_hint':'To change the order, drag the handle or use ← → on it.',
+  'mk.title':'Marks', 'mk.hint':'Tap the photo where the flaw is to mark it.', 'mk.note_q':'What’s here? (for example, “crushed corner”)', 'mk.edit_q':'Mark {n}',
+  'mk.pin':'Mark {n}', 'mk.no_note':'No note', 'mk.edit':'Change mark {n}', 'mk.remove':'Remove mark {n}', 'mk.removed':'Mark removed.', 'mk.add_center':'Mark in the centre', 'mk.count':'{n} marks',
+  'gal.prev':'Previous item', 'gal.next':'Next item', 'gal.open':'Open item', 'gal.f.all':'All', 'gal.f.sealed':'Sealed', 'gal.f.noback':'No back photo', 'gal.f.marks':'With marks',
+  'ps.title':'Photo session', 'ps.intro':'Shows you, one by one, the items missing the photo you choose. Take the photo, it’s saved and the next one comes up.',
+  'ps.what':'Which photo', 'ps.both':'Front and back', 'ps.who':'Which items', 'ps.who_have':'The ones you have', 'ps.who_all':'All',
+  'ps.start':'Start: {n} photos', 'ps.start1':'Start: 1 photo', 'ps.none':'Nothing missing', 'ps.end_title':'Session finished', 'ps.end':'{n} saved · {s} skipped',
+  'ps.pos':'{i} of {n}', 'ps.finish':'End the session', 'ps.need':'Missing: {s}', 'ps.has':'Photos it already has', 'ps.shoot':'Take the photo', 'ps.pick':'Choose a photo',
+  'ps.skip':'Skip', 'ps.count':'{n} saved · {s} skipped', 'ps.saved1':'1 photo saved.', 'ps.saved_n':'{n} photos saved.',
+  'cmp.open':'Compare copies', 'cmp.title':'Compare copies', 'cmp.which':'Which copy', 'cmp.hint':'Tap a spot to zoom both photos in on the same place.', 'cmp.hint_zoomed':'Tap again to zoom out.',
+  'bi.open':'Import several', 'bi.title':'Import several photos', 'bi.working':'Reading {i} of {n}…', 'bi.finished':'Done: {n} placed · {r} to assign',
+  'bi.done_t':'Placed on their item', 'bi.pending_t':'To assign', 'bi.no_reader':'This browser can’t read barcodes: choose the item for each photo yourself.',
+  'bi.choose':'Choose its item', 'bi.drop':'Discard this photo', 'bi.search_ph':'Search for the item…', 'bi.goes_to':'goes to: {s}', 'bi.type_name':'Type the item’s name.', 'bi.tap_photo':'Tap a photo to choose its item.',
+  'bi.why.nocode':'No barcode visible', 'bi.why.noreader':'No barcode reader', 'bi.why.several':'Several barcodes in the photo', 'bi.why.unknown':'Barcode {code}: no item has it',
+  'bi.why.many':'Barcode {code}: several items have it', 'bi.why.full':'Barcode {code}: that item already has all its photos', 'bi.why.fail':'Couldn’t be saved',
+});
+Object.assign(I18N.de, {
+  'photo.note_q':'Bildunterschrift ({s})', 'photo.note_add':'Bildunterschrift hinzufügen', 'photo.note_edit':'Bildunterschrift ändern', 'photo.note_short':'Text',
+  'photo.move':'Verschieben: {s}', 'photo.move_hint':'Zum Umsortieren den Griff ziehen oder darauf ← → benutzen.',
+  'mk.title':'Markierungen', 'mk.hint':'Tippe auf die Stelle mit dem Mangel, um sie zu markieren.', 'mk.note_q':'Was ist hier? (zum Beispiel „Ecke eingedrückt“)', 'mk.edit_q':'Markierung {n}',
+  'mk.pin':'Markierung {n}', 'mk.no_note':'Ohne Notiz', 'mk.edit':'Markierung {n} ändern', 'mk.remove':'Markierung {n} entfernen', 'mk.removed':'Markierung entfernt.', 'mk.add_center':'Markierung in der Mitte', 'mk.count':'{n} Markierungen',
+  'gal.prev':'Vorheriges Stück', 'gal.next':'Nächstes Stück', 'gal.open':'Stück öffnen', 'gal.f.all':'Alle', 'gal.f.sealed':'Versiegelt', 'gal.f.noback':'Ohne Rückseite', 'gal.f.marks':'Mit Markierungen',
+  'ps.title':'Foto-Session', 'ps.intro':'Zeigt dir nacheinander die Stücke, denen das gewählte Foto fehlt. Mach das Foto, es wird gespeichert und das nächste kommt.',
+  'ps.what':'Welches Foto', 'ps.both':'Vorder- und Rückseite', 'ps.who':'Welche Stücke', 'ps.who_have':'Die du hast', 'ps.who_all':'Alle',
+  'ps.start':'Starten: {n} Fotos', 'ps.start1':'Starten: 1 Foto', 'ps.none':'Es fehlt keins', 'ps.end_title':'Session beendet', 'ps.end':'{n} gespeichert · {s} übersprungen',
+  'ps.pos':'{i} von {n}', 'ps.finish':'Session beenden', 'ps.need':'Fehlt: {s}', 'ps.has':'Fotos, die es schon hat', 'ps.shoot':'Foto aufnehmen', 'ps.pick':'Foto auswählen',
+  'ps.skip':'Überspringen', 'ps.count':'{n} gespeichert · {s} übersprungen', 'ps.saved1':'1 Foto gespeichert.', 'ps.saved_n':'{n} Fotos gespeichert.',
+  'cmp.open':'Exemplare vergleichen', 'cmp.title':'Exemplare vergleichen', 'cmp.which':'Welches Exemplar', 'cmp.hint':'Tippe auf eine Stelle, um beide Fotos dort zu vergrößern.', 'cmp.hint_zoomed':'Nochmal tippen zum Verkleinern.',
+  'bi.open':'Mehrere importieren', 'bi.title':'Mehrere Fotos importieren', 'bi.working':'Lese {i} von {n} …', 'bi.finished':'Fertig: {n} zugeordnet · {r} offen',
+  'bi.done_t':'Ihrem Stück zugeordnet', 'bi.pending_t':'Noch zuzuordnen', 'bi.no_reader':'Dieser Browser kann keine Barcodes lesen: Wähle das Stück zu jedem Foto selbst.',
+  'bi.choose':'Stück wählen', 'bi.drop':'Dieses Foto verwerfen', 'bi.search_ph':'Stück suchen …', 'bi.goes_to':'kommt zu: {s}', 'bi.type_name':'Gib den Namen des Stücks ein.', 'bi.tap_photo':'Tippe ein Foto an, um sein Stück zu wählen.',
+  'bi.why.nocode':'Kein Barcode zu sehen', 'bi.why.noreader':'Kein Barcode-Leser', 'bi.why.several':'Mehrere Barcodes im Foto', 'bi.why.unknown':'Barcode {code}: kein Stück hat ihn',
+  'bi.why.many':'Barcode {code}: mehrere Stücke haben ihn', 'bi.why.full':'Barcode {code}: Das Stück hat schon alle Fotos', 'bi.why.fail':'Konnte nicht gespeichert werden',
+});
+Object.assign(I18N.ja, {
+  'photo.note_q':'写真のメモ（{s}）', 'photo.note_add':'写真にメモを追加', 'photo.note_edit':'写真のメモを変更', 'photo.note_short':'メモ',
+  'photo.move':'移動：{s}', 'photo.move_hint':'順番を変えるには、つまみをドラッグするか、つまみの上で ← → を使います。',
+  'mk.title':'マーク', 'mk.hint':'傷のある場所をタップしてマークします。', 'mk.note_q':'ここには何がありますか？（例：「角のつぶれ」）', 'mk.edit_q':'マーク {n}',
+  'mk.pin':'マーク {n}', 'mk.no_note':'メモなし', 'mk.edit':'マーク {n} を変更', 'mk.remove':'マーク {n} を削除', 'mk.removed':'マークを削除しました。', 'mk.add_center':'中央にマーク', 'mk.count':'マーク {n} 件',
+  'gal.prev':'前のアイテム', 'gal.next':'次のアイテム', 'gal.open':'詳細を開く', 'gal.f.all':'すべて', 'gal.f.sealed':'未開封', 'gal.f.noback':'裏面なし', 'gal.f.marks':'マークあり',
+  'ps.title':'撮影セッション', 'ps.intro':'選んだ写真がないアイテムを1つずつ表示します。撮影すると保存され、次のアイテムに進みます。',
+  'ps.what':'どの写真', 'ps.both':'表と裏', 'ps.who':'どのアイテム', 'ps.who_have':'所持しているもの', 'ps.who_all':'すべて',
+  'ps.start':'開始：{n}枚', 'ps.start1':'開始：1枚', 'ps.none':'不足はありません', 'ps.end_title':'セッション終了', 'ps.end':'保存 {n} · スキップ {s}',
+  'ps.pos':'{i} / {n}', 'ps.finish':'セッションを終了', 'ps.need':'不足：{s}', 'ps.has':'すでにある写真', 'ps.shoot':'撮影する', 'ps.pick':'写真を選ぶ',
+  'ps.skip':'スキップ', 'ps.count':'保存 {n} · スキップ {s}', 'ps.saved1':'写真を1枚保存しました。', 'ps.saved_n':'写真を{n}枚保存しました。',
+  'cmp.open':'コピーを比較', 'cmp.title':'コピーを比較', 'cmp.which':'どのコピー', 'cmp.hint':'1か所をタップすると、両方の写真の同じ場所を拡大します。', 'cmp.hint_zoomed':'もう一度タップすると戻ります。',
+  'bi.open':'まとめて取り込む', 'bi.title':'写真をまとめて取り込む', 'bi.working':'{n}枚中{i}枚目を読み取り中…', 'bi.finished':'完了：割り当て {n} · 未割り当て {r}',
+  'bi.done_t':'アイテムに割り当て済み', 'bi.pending_t':'未割り当て', 'bi.no_reader':'このブラウザーはバーコードを読み取れません。各写真のアイテムを選んでください。',
+  'bi.choose':'アイテムを選ぶ', 'bi.drop':'この写真を破棄', 'bi.search_ph':'アイテムを検索…', 'bi.goes_to':'追加先：{s}', 'bi.type_name':'アイテム名を入力してください。', 'bi.tap_photo':'写真をタップしてアイテムを選びます。',
+  'bi.why.nocode':'バーコードが見えません', 'bi.why.noreader':'バーコードリーダーなし', 'bi.why.several':'写真に複数のバーコードがあります', 'bi.why.unknown':'バーコード {code}：該当するアイテムなし',
+  'bi.why.many':'バーコード {code}：複数のアイテムが該当', 'bi.why.full':'バーコード {code}：写真の枠がすべて使用済み', 'bi.why.fail':'保存できませんでした',
+});
+/* ---------- v11.19 · Estantería ---------- */
+Object.assign(I18N.es, {
+  'estx.tools':'Buscar, resaltar y más', 'estx.tools_btn':'Buscar y resaltar', 'estx.find_ph':'Busca una pieza en la estantería…', 'estx.find_hint':'Escribe para buscar: te lleva a su balda.',
+  'estx.hl':'Resaltar', 'estx.hl.none':'Nada', 'estx.hl.sealed':'Precintadas', 'estx.hl.missing':'Lo que te falta', 'estx.hl.nophoto':'Sin foto', 'estx.hl_plat':'O una plataforma', 'estx.hl_off':'Dejar de resaltar: {s}',
+  'estx.show':'Para enseñarla', 'estx.tour':'Modo vitrina', 'estx.tour_note':'El modo vitrina recorre las baldas solo; toca la pantalla para pararlo.', 'estx.tour_hint':'Modo vitrina: toca la pantalla para pararlo.', 'estx.tour_stopped':'Modo vitrina parado.',
+  'estx.tilt':'Inclinar el móvil', 'estx.tilt_note':'Al inclinar el móvil, la balda y el brillo del film se mueven contigo.', 'estx.tilt_on':'Inclina el móvil para mirar la balda.', 'estx.tilt_off':'Inclinar el móvil: desactivado.', 'estx.tilt_denied':'El navegador no deja usar la inclinación del móvil.',
+  'estx.history':'Historial de cambios', 'estx.undo':'Deshacer', 'estx.redo':'Rehacer', 'estx.undone':'Deshecho.', 'estx.redone':'Rehecho.', 'estx.undo_none':'No hay nada que deshacer.', 'estx.redo_none':'No hay nada que rehacer.',
+  'estx.sort_title':'Ordenar la balda', 'estx.sort_note':'Por delante y de izquierda a derecha; lo que no quepa, detrás o encima (dentro de la balda). Se puede deshacer.',
+  'estx.sort.anio':'Por año', 'estx.sort.nombre':'Por nombre', 'estx.sort.region':'Por región', 'estx.sort.plataforma':'Por plataforma', 'estx.sort.color':'Por color del lomo',
+  'estx.sort_d.anio':'Como siempre: año de salida y nombre', 'estx.sort_d.nombre':'De la A a la Z', 'estx.sort_d.region':'Agrupadas por región, y por año', 'estx.sort_d.plataforma':'En el orden de tus plataformas, y por año', 'estx.sort_d.color':'Un degradado de colores, como un arcoíris',
+  'estx.divisions':'Divisiones', 'estx.div_0':'Sin divisiones', 'estx.div_1':'1 división', 'estx.div_n':'{n} divisiones', 'estx.no_room_panels':'Con esas divisiones no caben las piezas de la balda.',
+  'estx.escalon':'Escalón detrás', 'estx.esc_0':'Sin escalón',
+  'estx.new_type':'Tipo de mueble', 'estx.new_create':'Añadir', 'estx.new_note':'Las medidas son las útiles por dentro (lo que cabe). Luego se cambian en «Diseñar».',
+  'estx.preset.medida':'A medida', 'estx.preset.kallax14':'Tipo Kallax 1×4', 'estx.preset.kallax22':'Tipo Kallax 2×2', 'estx.preset.kallax24':'Tipo Kallax 2×4', 'estx.preset.kallax44':'Tipo Kallax 4×4', 'estx.preset.billy80':'Tipo Billy 80', 'estx.preset.billy40':'Tipo Billy 40', 'estx.preset.detolf':'Tipo Detolf (vitrina)',
+  'estx.preset_d.medida':'3 baldas · {w} × {d} cm (como siempre)', 'estx.preset_d.kallax14':'4 huecos de 33 × 33 cm · {d} de fondo', 'estx.preset_d.kallax22':'4 huecos de 33 × 33 cm · {d} de fondo', 'estx.preset_d.kallax24':'8 huecos de 33 × 33 cm · {d} de fondo', 'estx.preset_d.kallax44':'16 huecos de 33 × 33 cm · {d} de fondo',
+  'estx.preset_d.billy80':'6 baldas de {w} cm · {d} de fondo', 'estx.preset_d.billy40':'6 baldas de {w} cm · {d} de fondo', 'estx.preset_d.detolf':'4 baldas de cristal · {w} × {d} cm',
+});
+Object.assign(I18N.en, {
+  'estx.tools':'Search, highlight and more', 'estx.tools_btn':'Search and highlight', 'estx.find_ph':'Search for an item on the shelves…', 'estx.find_hint':'Type to search: it takes you to its shelf.',
+  'estx.hl':'Highlight', 'estx.hl.none':'Nothing', 'estx.hl.sealed':'Sealed', 'estx.hl.missing':'What you’re missing', 'estx.hl.nophoto':'No photo', 'estx.hl_plat':'Or a platform', 'estx.hl_off':'Stop highlighting: {s}',
+  'estx.show':'To show it off', 'estx.tour':'Showcase mode', 'estx.tour_note':'Showcase mode goes through the shelves by itself; tap the screen to stop it.', 'estx.tour_hint':'Showcase mode: tap the screen to stop it.', 'estx.tour_stopped':'Showcase mode stopped.',
+  'estx.tilt':'Tilt the phone', 'estx.tilt_note':'When you tilt the phone, the shelf and the wrap’s shine move with you.', 'estx.tilt_on':'Tilt the phone to look around the shelf.', 'estx.tilt_off':'Tilt the phone: off.', 'estx.tilt_denied':'The browser doesn’t allow using the phone’s tilt.',
+  'estx.history':'Change history', 'estx.undo':'Undo', 'estx.redo':'Redo', 'estx.undone':'Undone.', 'estx.redone':'Redone.', 'estx.undo_none':'Nothing to undo.', 'estx.redo_none':'Nothing to redo.',
+  'estx.sort_title':'Sort the shelf', 'estx.sort_note':'At the front, left to right; whatever doesn’t fit goes behind or on top (inside the shelf). It can be undone.',
+  'estx.sort.anio':'By year', 'estx.sort.nombre':'By name', 'estx.sort.region':'By region', 'estx.sort.plataforma':'By platform', 'estx.sort.color':'By spine colour',
+  'estx.sort_d.anio':'As always: release year and name', 'estx.sort_d.nombre':'From A to Z', 'estx.sort_d.region':'Grouped by region, then by year', 'estx.sort_d.plataforma':'In the order of your platforms, then by year', 'estx.sort_d.color':'A colour gradient, like a rainbow',
+  'estx.divisions':'Dividers', 'estx.div_0':'No dividers', 'estx.div_1':'1 divider', 'estx.div_n':'{n} dividers', 'estx.no_room_panels':'With those dividers the items on this shelf don’t fit.',
+  'estx.escalon':'Riser at the back', 'estx.esc_0':'No riser',
+  'estx.new_type':'Type of unit', 'estx.new_create':'Add', 'estx.new_note':'Sizes are the usable inside space (what fits). You can change them later in “Design”.',
+  'estx.preset.medida':'Custom', 'estx.preset.kallax14':'Kallax-style 1×4', 'estx.preset.kallax22':'Kallax-style 2×2', 'estx.preset.kallax24':'Kallax-style 2×4', 'estx.preset.kallax44':'Kallax-style 4×4', 'estx.preset.billy80':'Billy-style 80', 'estx.preset.billy40':'Billy-style 40', 'estx.preset.detolf':'Detolf-style (display case)',
+  'estx.preset_d.medida':'3 shelves · {w} × {d} cm (as always)', 'estx.preset_d.kallax14':'4 cubes of 33 × 33 cm · {d} deep', 'estx.preset_d.kallax22':'4 cubes of 33 × 33 cm · {d} deep', 'estx.preset_d.kallax24':'8 cubes of 33 × 33 cm · {d} deep', 'estx.preset_d.kallax44':'16 cubes of 33 × 33 cm · {d} deep',
+  'estx.preset_d.billy80':'6 shelves of {w} cm · {d} deep', 'estx.preset_d.billy40':'6 shelves of {w} cm · {d} deep', 'estx.preset_d.detolf':'4 glass shelves · {w} × {d} cm',
+});
+Object.assign(I18N.de, {
+  'estx.tools':'Suchen, hervorheben und mehr', 'estx.tools_btn':'Suchen und hervorheben', 'estx.find_ph':'Ein Stück im Regal suchen …', 'estx.find_hint':'Tippe, um zu suchen: Es bringt dich zu seinem Fach.',
+  'estx.hl':'Hervorheben', 'estx.hl.none':'Nichts', 'estx.hl.sealed':'Versiegelt', 'estx.hl.missing':'Was dir fehlt', 'estx.hl.nophoto':'Ohne Foto', 'estx.hl_plat':'Oder eine Plattform', 'estx.hl_off':'Nicht mehr hervorheben: {s}',
+  'estx.show':'Zum Vorzeigen', 'estx.tour':'Vitrinenmodus', 'estx.tour_note':'Der Vitrinenmodus geht die Fächer von selbst durch; tippe auf den Bildschirm, um ihn anzuhalten.', 'estx.tour_hint':'Vitrinenmodus: Tippe auf den Bildschirm, um ihn anzuhalten.', 'estx.tour_stopped':'Vitrinenmodus angehalten.',
+  'estx.tilt':'Handy neigen', 'estx.tilt_note':'Wenn du das Handy neigst, bewegen sich das Fach und der Glanz der Folie mit.', 'estx.tilt_on':'Neige das Handy, um dich im Fach umzusehen.', 'estx.tilt_off':'Handy neigen: aus.', 'estx.tilt_denied':'Der Browser erlaubt die Neigung des Handys nicht.',
+  'estx.history':'Änderungsverlauf', 'estx.undo':'Rückgängig', 'estx.redo':'Wiederholen', 'estx.undone':'Rückgängig gemacht.', 'estx.redone':'Wiederholt.', 'estx.undo_none':'Nichts rückgängig zu machen.', 'estx.redo_none':'Nichts zu wiederholen.',
+  'estx.sort_title':'Fach sortieren', 'estx.sort_note':'Vorne, von links nach rechts; was nicht passt, kommt nach hinten oder obendrauf (im Fach). Lässt sich rückgängig machen.',
+  'estx.sort.anio':'Nach Jahr', 'estx.sort.nombre':'Nach Name', 'estx.sort.region':'Nach Region', 'estx.sort.plataforma':'Nach Plattform', 'estx.sort.color':'Nach Rückenfarbe',
+  'estx.sort_d.anio':'Wie immer: Erscheinungsjahr und Name', 'estx.sort_d.nombre':'Von A bis Z', 'estx.sort_d.region':'Nach Region gruppiert, dann nach Jahr', 'estx.sort_d.plataforma':'In der Reihenfolge deiner Plattformen, dann nach Jahr', 'estx.sort_d.color':'Ein Farbverlauf, wie ein Regenbogen',
+  'estx.divisions':'Trennwände', 'estx.div_0':'Ohne Trennwände', 'estx.div_1':'1 Trennwand', 'estx.div_n':'{n} Trennwände', 'estx.no_room_panels':'Mit diesen Trennwänden passen die Stücke des Fachs nicht hinein.',
+  'estx.escalon':'Podest hinten', 'estx.esc_0':'Ohne Podest',
+  'estx.new_type':'Art des Möbels', 'estx.new_create':'Hinzufügen', 'estx.new_note':'Die Maße sind der nutzbare Innenraum (was hineinpasst). Später unter „Gestalten“ änderbar.',
+  'estx.preset.medida':'Nach Maß', 'estx.preset.kallax14':'Wie Kallax 1×4', 'estx.preset.kallax22':'Wie Kallax 2×2', 'estx.preset.kallax24':'Wie Kallax 2×4', 'estx.preset.kallax44':'Wie Kallax 4×4', 'estx.preset.billy80':'Wie Billy 80', 'estx.preset.billy40':'Wie Billy 40', 'estx.preset.detolf':'Wie Detolf (Vitrine)',
+  'estx.preset_d.medida':'3 Fächer · {w} × {d} cm (wie immer)', 'estx.preset_d.kallax14':'4 Fächer zu 33 × 33 cm · {d} tief', 'estx.preset_d.kallax22':'4 Fächer zu 33 × 33 cm · {d} tief', 'estx.preset_d.kallax24':'8 Fächer zu 33 × 33 cm · {d} tief', 'estx.preset_d.kallax44':'16 Fächer zu 33 × 33 cm · {d} tief',
+  'estx.preset_d.billy80':'6 Böden zu {w} cm · {d} tief', 'estx.preset_d.billy40':'6 Böden zu {w} cm · {d} tief', 'estx.preset_d.detolf':'4 Glasböden · {w} × {d} cm',
+});
+Object.assign(I18N.ja, {
+  'estx.tools':'検索・ハイライトなど', 'estx.tools_btn':'検索とハイライト', 'estx.find_ph':'棚のアイテムを検索…', 'estx.find_hint':'入力して検索すると、その段に移動します。',
+  'estx.hl':'ハイライト', 'estx.hl.none':'なし', 'estx.hl.sealed':'未開封', 'estx.hl.missing':'未所持', 'estx.hl.nophoto':'写真なし', 'estx.hl_plat':'またはプラットフォーム', 'estx.hl_off':'ハイライトを解除：{s}',
+  'estx.show':'見せるために', 'estx.tour':'ショーケースモード', 'estx.tour_note':'ショーケースモードは段を自動で順に表示します。画面をタップすると止まります。', 'estx.tour_hint':'ショーケースモード：画面をタップすると止まります。', 'estx.tour_stopped':'ショーケースモードを停止しました。',
+  'estx.tilt':'スマホを傾ける', 'estx.tilt_note':'スマホを傾けると、段とフィルムの光沢が一緒に動きます。', 'estx.tilt_on':'スマホを傾けて段を見回せます。', 'estx.tilt_off':'スマホを傾ける：オフ', 'estx.tilt_denied':'ブラウザーが傾きの使用を許可していません。',
+  'estx.history':'変更履歴', 'estx.undo':'元に戻す', 'estx.redo':'やり直す', 'estx.undone':'元に戻しました。', 'estx.redone':'やり直しました。', 'estx.undo_none':'元に戻す操作はありません。', 'estx.redo_none':'やり直す操作はありません。',
+  'estx.sort_title':'段を並べ替え', 'estx.sort_note':'前列に左から右へ並べ、入らないものは段の中で奥か上に置きます。元に戻せます。',
+  'estx.sort.anio':'年順', 'estx.sort.nombre':'名前順', 'estx.sort.region':'地域順', 'estx.sort.plataforma':'プラットフォーム順', 'estx.sort.color':'背表紙の色順',
+  'estx.sort_d.anio':'いつもどおり：発売年と名前', 'estx.sort_d.nombre':'AからZへ', 'estx.sort_d.region':'地域ごと、次に年順', 'estx.sort_d.plataforma':'プラットフォームの並び順、次に年順', 'estx.sort_d.color':'虹のような色のグラデーション',
+  'estx.divisions':'仕切り', 'estx.div_0':'仕切りなし', 'estx.div_1':'仕切り1枚', 'estx.div_n':'仕切り{n}枚', 'estx.no_room_panels':'その仕切りでは、この段のアイテムが入りません。',
+  'estx.escalon':'奥のひな壇', 'estx.esc_0':'ひな壇なし',
+  'estx.new_type':'家具の種類', 'estx.new_create':'追加', 'estx.new_note':'寸法は内側の有効寸法（入る大きさ）です。あとで「デザイン」で変更できます。',
+  'estx.preset.medida':'オーダー', 'estx.preset.kallax14':'Kallax風 1×4', 'estx.preset.kallax22':'Kallax風 2×2', 'estx.preset.kallax24':'Kallax風 2×4', 'estx.preset.kallax44':'Kallax風 4×4', 'estx.preset.billy80':'Billy風 80', 'estx.preset.billy40':'Billy風 40', 'estx.preset.detolf':'Detolf風（ガラスケース）',
+  'estx.preset_d.medida':'3段 · {w} × {d} cm（いつもどおり）', 'estx.preset_d.kallax14':'33 × 33 cmのマス4つ · 奥行{d}', 'estx.preset_d.kallax22':'33 × 33 cmのマス4つ · 奥行{d}', 'estx.preset_d.kallax24':'33 × 33 cmのマス8つ · 奥行{d}', 'estx.preset_d.kallax44':'33 × 33 cmのマス16 · 奥行{d}',
+  'estx.preset_d.billy80':'{w} cmの棚板6枚 · 奥行{d}', 'estx.preset_d.billy40':'{w} cmの棚板6枚 · 奥行{d}', 'estx.preset_d.detolf':'ガラス棚4段 · {w} × {d} cm',
+});
+/* ---------- v11.19 · Ayuda ---------- */
+I18N.es['ayuda.order.body'] += '<br><br><b>Más órdenes</b>: también por <b>últimas altas</b>, <b>mayor valor</b>, <b>mejor estado</b> o <b>precintadas</b> primero.';
+I18N.es['ayuda.search.body'] += '<br><br><b>En el Inventario</b> (v11.19):<br>• <b>Agrupar</b>: por plataforma, año, región o estado, en secciones que se pliegan; a la derecha, un índice (A–Z, años o plataformas) para saltar.<br>• <b>Guardar filtro</b>: la búsqueda y los filtros de ahora quedan como un botón arriba, para volver a ellos de un toque.<br>• <b>Elegir varias</b>: tócalas y, con <b>Cambiar</b>, ponles de golpe estado, precinto, plataforma, etiquetas o valor (con «Deshacer»).<br>• <b>Deslizar una fila</b>: a la izquierda, «Lo tengo» / «Me falta»; a la derecha, «En camino». Con «Deshacer».<br>• <b>Prestadas</b>: en la ficha, «Compra y préstamo» guarda a quién se la has dejado y desde cuándo, y cuándo y dónde la compraste.<br>• <b>Valor</b>: en Estadísticas, «Valorar en serie» para poner el valor de muchas seguidas, y un gráfico de cómo cambia el total.';
+I18N.es['ayuda.photos.body'] += '<br><br><b>Novedades de la v11.19</b>:<br>• <b>Galería</b>: filtra (precintadas, sin trasera, con marcas, plataforma) y toca una foto para verla en grande; desliza para pasar a la siguiente pieza.<br>• <b>Sesión de fotos</b>: te enseña una a una las piezas a las que les falta una foto; haz la foto y pasa sola a la siguiente.<br>• <b>Importar varias</b>: elige muchas fotos y cada una va a su pieza por su código de barras (las que no se leen quedan para que elijas tú).<br>• <b>Pie de foto</b> y <b>orden</b> de las fotos extra (arrastra el asa o usa ← →).<br>• <b>Marcas</b>: en el visor, toca «Marcas» y luego la foto para señalar un defecto con su nota.<br>• <b>Comparar copias</b>: con fotos de dos copias, se ven lado a lado y se acercan a la vez.';
+I18N.es['ayuda.shelf.body'] += '<br><br><b>Novedades de la v11.19</b>:<br>• <b>Buscar y resaltar</b> (la lupa): busca una pieza y te lleva a su balda; o resalta las precintadas, lo que te falta, lo que no tiene foto o una plataforma.<br>• <b>Muebles con medidas reales</b>: al añadir un mueble, elige uno tipo Kallax, Billy o Detolf. En «Diseñar», cada balda puede tener <b>divisiones</b> y un <b>escalón</b> detrás para que la fila de atrás se vea.<br>• <b>Deshacer y rehacer</b> varios pasos (también Ctrl+Z).<br>• <b>Ordenar</b> una balda por año, nombre, región, plataforma o color del lomo.<br>• <b>Modo vitrina</b>: recorre las baldas solo; <b>Inclinar el móvil</b> mueve la vista y el brillo del film.';
+I18N.en['ayuda.order.body'] += '<br><br><b>More orders</b>: also by <b>recently added</b>, <b>highest value</b>, <b>best condition</b> or <b>sealed</b> first.';
+I18N.en['ayuda.search.body'] += '<br><br><b>In the Inventory</b> (v11.19):<br>• <b>Group</b>: by platform, year, region or status, in sections that fold away; on the right, an index (A–Z, years or platforms) to jump.<br>• <b>Save filter</b>: the current search and filters become a button at the top, one tap away.<br>• <b>Select several</b>: tap them and, with <b>Change</b>, set their status, seal, platform, tags or value in one go (with “Undo”).<br>• <b>Swipe a row</b>: left for “I have it” / “Missing”; right for “On the way”. With “Undo”.<br>• <b>Lent out</b>: in the item page, “Purchase and loan” keeps who has it and since when, and when and where you bought it.<br>• <b>Value</b>: in Statistics, “Value in a row” to price many in a row, and a chart of how the total changes.';
+I18N.en['ayuda.photos.body'] += '<br><br><b>New in v11.19</b>:<br>• <b>Gallery</b>: filter (sealed, no back photo, with marks, platform) and tap a photo to see it full screen; swipe to go to the next item.<br>• <b>Photo session</b>: shows you, one by one, the items missing a photo; take it and the next one comes up.<br>• <b>Import several</b>: pick many photos and each goes to its item by its barcode (the unreadable ones wait for you to choose).<br>• <b>Captions</b> and <b>order</b> for extra photos (drag the handle or use ← →).<br>• <b>Marks</b>: in the viewer, tap “Marks” and then the photo to point out a flaw with a note.<br>• <b>Compare copies</b>: with photos of two copies, see them side by side and zoom both at once.';
+I18N.en['ayuda.shelf.body'] += '<br><br><b>New in v11.19</b>:<br>• <b>Search and highlight</b> (the magnifier): find an item and go to its shelf; or highlight the sealed ones, what you’re missing, what has no photo, or a platform.<br>• <b>Real-size units</b>: when adding a unit, choose a Kallax-, Billy- or Detolf-style one. In “Design”, each shelf can have <b>dividers</b> and a <b>riser</b> at the back so the back row shows.<br>• <b>Undo and redo</b> several steps (also Ctrl+Z).<br>• <b>Sort</b> a shelf by year, name, region, platform or spine colour.<br>• <b>Showcase mode</b> goes through the shelves by itself; <b>Tilt the phone</b> moves the view and the wrap’s shine.';
+I18N.de['ayuda.order.body'] += '<br><br><b>Weitere Sortierungen</b>: auch nach <b>zuletzt erfasst</b>, <b>höchstem Wert</b>, <b>bestem Zustand</b> oder <b>versiegelt</b> zuerst.';
+I18N.de['ayuda.search.body'] += '<br><br><b>Im Inventar</b> (v11.19):<br>• <b>Gruppieren</b>: nach Plattform, Jahr, Region oder Status, in einklappbaren Abschnitten; rechts ein Index (A–Z, Jahre oder Plattformen) zum Springen.<br>• <b>Filter speichern</b>: Die aktuelle Suche und die Filter werden zu einem Knopf oben.<br>• <b>Mehrere wählen</b>: antippen und mit <b>Ändern</b> auf einmal Status, Siegel, Plattform, Schlagwörter oder Wert setzen (mit „Rückgängig“).<br>• <b>Zeile wischen</b>: nach links „Habe ich“ / „Fehlt“; nach rechts „Unterwegs“. Mit „Rückgängig“.<br>• <b>Verliehen</b>: Auf der Stückseite speichert „Kauf und Verleih“, wer es hat und seit wann, und wann und wo du es gekauft hast.<br>• <b>Wert</b>: In der Statistik „Nacheinander bewerten“ und ein Diagramm, wie sich die Summe ändert.';
+I18N.de['ayuda.photos.body'] += '<br><br><b>Neu in v11.19</b>:<br>• <b>Galerie</b>: filtern (versiegelt, ohne Rückseite, mit Markierungen, Plattform) und ein Foto antippen, um es groß zu sehen; wischen für das nächste Stück.<br>• <b>Foto-Session</b>: zeigt dir nacheinander die Stücke, denen ein Foto fehlt; Foto machen, und das nächste kommt.<br>• <b>Mehrere importieren</b>: viele Fotos wählen, jedes kommt über seinen Barcode zu seinem Stück (nicht lesbare wartet auf dich).<br>• <b>Bildunterschrift</b> und <b>Reihenfolge</b> der Zusatzfotos (Griff ziehen oder ← →).<br>• <b>Markierungen</b>: Im Betrachter „Markierungen“ und dann das Foto antippen, um einen Mangel mit Notiz zu markieren.<br>• <b>Exemplare vergleichen</b>: Mit Fotos von zwei Exemplaren nebeneinander, beide zugleich vergrößert.';
+I18N.de['ayuda.shelf.body'] += '<br><br><b>Neu in v11.19</b>:<br>• <b>Suchen und hervorheben</b> (die Lupe): ein Stück finden und zu seinem Fach gehen; oder Versiegeltes, Fehlendes, Stücke ohne Foto oder eine Plattform hervorheben.<br>• <b>Möbel mit echten Maßen</b>: Beim Hinzufügen eins wie Kallax, Billy oder Detolf wählen. Unter „Gestalten“ kann jedes Fach <b>Trennwände</b> und hinten ein <b>Podest</b> haben, damit die hintere Reihe zu sehen ist.<br>• <b>Rückgängig und Wiederholen</b> über mehrere Schritte (auch Strg+Z).<br>• Ein Fach <b>sortieren</b> nach Jahr, Name, Region, Plattform oder Rückenfarbe.<br>• Der <b>Vitrinenmodus</b> geht die Fächer von selbst durch; <b>Handy neigen</b> bewegt die Ansicht und den Glanz der Folie.';
+I18N.ja['ayuda.order.body'] += '<br><br><b>並び順の追加</b>：<b>追加が新しい順</b>、<b>価値が高い順</b>、<b>状態が良い順</b>、<b>未開封を先に</b>も選べます。';
+I18N.ja['ayuda.search.body'] += '<br><br><b>在庫一覧</b>（v11.19）：<br>• <b>グループ</b>：プラットフォーム・年・地域・状態ごとに折りたためるセクションで表示。右側の索引（A–Z、年、プラットフォーム）でジャンプできます。<br>• <b>フィルターを保存</b>：今の検索とフィルターを上部のボタンとして保存します。<br>• <b>複数選択</b>：タップして選び、<b>変更</b>で状態・未開封・プラットフォーム・タグ・価値をまとめて設定（「元に戻す」付き）。<br>• <b>行をスワイプ</b>：左で「持っている／未所持」、右で「配送中」。「元に戻す」付き。<br>• <b>貸出中</b>：詳細の「購入と貸出」に、貸した相手と日付、購入日と購入先を記録できます。<br>• <b>価値</b>：統計の「まとめて評価」で続けて入力でき、合計の推移グラフも表示されます。';
+I18N.ja['ayuda.photos.body'] += '<br><br><b>v11.19の新機能</b>：<br>• <b>ギャラリー</b>：絞り込み（未開封、裏面なし、マークあり、プラットフォーム）。写真をタップすると全画面で表示し、スワイプで次のアイテムへ。<br>• <b>撮影セッション</b>：写真が足りないアイテムを1つずつ表示し、撮影すると次へ進みます。<br>• <b>まとめて取り込む</b>：たくさんの写真を選ぶと、バーコードでそれぞれのアイテムに割り当てます（読めないものは自分で選べます）。<br>• 追加写真の<b>メモ</b>と<b>並び順</b>（つまみをドラッグ、または ← →）。<br>• <b>マーク</b>：ビューアーで「マーク」をタップし、写真をタップして傷にメモを付けます。<br>• <b>コピーを比較</b>：2つのコピーの写真を並べて表示し、同時に拡大できます。';
+I18N.ja['ayuda.shelf.body'] += '<br><br><b>v11.19の新機能</b>：<br>• <b>検索とハイライト</b>（虫眼鏡）：アイテムを探してその段へ移動。未開封、未所持、写真なし、プラットフォームをハイライトできます。<br>• <b>実寸の家具</b>：家具を追加するときに Kallax風・Billy風・Detolf風を選べます。「デザイン」で段ごとに<b>仕切り</b>や、奥の列が見える<b>ひな壇</b>を付けられます。<br>• 複数ステップの<b>元に戻す・やり直す</b>（Ctrl+Z も可）。<br>• 段を年・名前・地域・プラットフォーム・背表紙の色で<b>並べ替え</b>。<br>• <b>ショーケースモード</b>で段を自動表示。<b>スマホを傾ける</b>と視点とフィルムの光沢が動きます。';
+/* ---------- v11.19 · Revisión ---------- */
+Object.assign(I18N.es, { 'mk.cleared':'La foto ha cambiado: sus marcas se han quitado (ya no estarían en su sitio).', 'bi.bg':'Sigue importando en segundo plano; te aviso al terminar.', 'bi.bg_done':'Importación terminada: {n} colocadas · {r} sin asignar (vuelve a importarlas para elegir su pieza).', 'estx.esc_tall':'Con este escalón, {n} piezas de detrás ya no caben de alto.', 'estx.esc_tall1':'Con este escalón, 1 pieza de detrás ya no cabe de alto.' });
+Object.assign(I18N.en, { 'mk.cleared':'The photo changed: its marks were removed (they wouldn’t be in the right place).', 'bi.bg':'Still importing in the background; I’ll let you know when it’s done.', 'bi.bg_done':'Import finished: {n} placed · {r} unassigned (import them again to choose their item).', 'estx.esc_tall':'With this riser, {n} items at the back no longer fit in height.', 'estx.esc_tall1':'With this riser, 1 item at the back no longer fits in height.' });
+Object.assign(I18N.de, { 'mk.cleared':'Das Foto hat sich geändert: Seine Markierungen wurden entfernt (sie wären nicht mehr an der richtigen Stelle).', 'bi.bg':'Der Import läuft im Hintergrund weiter; du bekommst Bescheid, wenn er fertig ist.', 'bi.bg_done':'Import fertig: {n} zugeordnet · {r} offen (importiere sie erneut, um ihr Stück zu wählen).', 'estx.esc_tall':'Mit diesem Podest passen {n} Stücke hinten nicht mehr in der Höhe.', 'estx.esc_tall1':'Mit diesem Podest passt 1 Stück hinten nicht mehr in der Höhe.' });
+Object.assign(I18N.ja, { 'mk.cleared':'写真が変わったため、マークを削除しました（位置が合わなくなるため）。', 'bi.bg':'バックグラウンドで取り込みを続けます。終わったらお知らせします。', 'bi.bg_done':'取り込み完了：割り当て {n} · 未割り当て {r}（アイテムを選ぶにはもう一度取り込んでください）。', 'estx.esc_tall':'このひな壇では、奥のアイテム{n}点が高さに収まりません。', 'estx.esc_tall1':'このひな壇では、奥のアイテム1点が高さに収まりません。' });
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;
