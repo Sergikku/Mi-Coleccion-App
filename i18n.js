@@ -2970,6 +2970,60 @@ Object.assign(I18N.es, { 'mk.cleared':'La foto ha cambiado: sus marcas se han qu
 Object.assign(I18N.en, { 'mk.cleared':'The photo changed: its marks were removed (they wouldn’t be in the right place).', 'bi.bg':'Still importing in the background; I’ll let you know when it’s done.', 'bi.bg_done':'Import finished: {n} placed · {r} unassigned (import them again to choose their item).', 'estx.esc_tall':'With this riser, {n} items at the back no longer fit in height.', 'estx.esc_tall1':'With this riser, 1 item at the back no longer fits in height.' });
 Object.assign(I18N.de, { 'mk.cleared':'Das Foto hat sich geändert: Seine Markierungen wurden entfernt (sie wären nicht mehr an der richtigen Stelle).', 'bi.bg':'Der Import läuft im Hintergrund weiter; du bekommst Bescheid, wenn er fertig ist.', 'bi.bg_done':'Import fertig: {n} zugeordnet · {r} offen (importiere sie erneut, um ihr Stück zu wählen).', 'estx.esc_tall':'Mit diesem Podest passen {n} Stücke hinten nicht mehr in der Höhe.', 'estx.esc_tall1':'Mit diesem Podest passt 1 Stück hinten nicht mehr in der Höhe.' });
 Object.assign(I18N.ja, { 'mk.cleared':'写真が変わったため、マークを削除しました（位置が合わなくなるため）。', 'bi.bg':'バックグラウンドで取り込みを続けます。終わったらお知らせします。', 'bi.bg_done':'取り込み完了：割り当て {n} · 未割り当て {r}（アイテムを選ぶにはもう一度取り込んでください）。', 'estx.esc_tall':'このひな壇では、奥のアイテム{n}点が高さに収まりません。', 'estx.esc_tall1':'このひな壇では、奥のアイテム1点が高さに収まりません。' });
+/* ---------- v11.20 · Valorar en serie: buscador y dónde lo compraste ---------- */
+Object.assign(I18N.es, {
+  'vb.search_ph':'Buscar una pieza', 'vb.no_store':'Sin sitio', 'vb.store':'Dónde lo compré', 'vb.store_ph':'Elige o escribe',
+  'vb.count':'{n} piezas', 'vb.count1':'1 pieza', 'vb.no_match':'Ninguna pieza coincide con la búsqueda.', 'vb.try_all':'Prueba con «Todas».',
+  'vb.none_left_store':'Todas tienen ya dónde las compraste.',
+  'stores.title':'Mis sitios', 'stores.physical':'Tienda física', 'stores.sub':'Los sitios que te salen al rellenar dónde compraste una pieza. Si escribes uno nuevo en una pieza, se añade solo.',
+  'stores.new':'Sitio nuevo', 'stores.add':'Añadir', 'stores.used':'En {n} piezas', 'stores.used1':'En 1 pieza',
+  'stores.rename':'Renombrar «{s}»', 'stores.remove':'Quitar «{s}»', 'stores.empty':'No tienes ningún sitio. Añade uno arriba.',
+  'stores.exists':'«{s}» ya está en tu lista.', 'stores.added':'«{s}» añadido a tus sitios.', 'stores.rename_q':'Nuevo nombre para «{s}»',
+  'stores.rename_also':'«{a}» está en {n} piezas. También se cambiará a «{b}» en ellas.', 'stores.rename_also1':'«{a}» está en 1 pieza. También se cambiará a «{b}» en ella.', 'stores.rename_ok':'Renombrar',
+  'stores.renamed':'Renombrado a «{s}», también en {n} piezas.', 'stores.renamed1':'Renombrado a «{s}», también en 1 pieza.', 'stores.renamed0':'Renombrado a «{s}».',
+  'stores.removed':'«{s}» quitado de tus sitios.', 'stores.removed_note':'Las piezas que lo tienen no cambian.',
+});
+Object.assign(I18N.en, {
+  'vb.search_ph':'Search for an item', 'vb.no_store':'No shop', 'vb.store':'Where I bought it', 'vb.store_ph':'Pick or type',
+  'vb.count':'{n} items', 'vb.count1':'1 item', 'vb.no_match':'No item matches the search.', 'vb.try_all':'Try “All”.',
+  'vb.none_left_store':'They all already have where you bought them.',
+  'stores.title':'My shops', 'stores.physical':'Physical shop', 'stores.sub':'The places suggested when you fill in where you bought an item. If you type a new one on an item, it’s added automatically.',
+  'stores.new':'New shop', 'stores.add':'Add', 'stores.used':'On {n} items', 'stores.used1':'On 1 item',
+  'stores.rename':'Rename “{s}”', 'stores.remove':'Remove “{s}”', 'stores.empty':'You have no shops. Add one above.',
+  'stores.exists':'“{s}” is already in your list.', 'stores.added':'“{s}” added to your shops.', 'stores.rename_q':'New name for “{s}”',
+  'stores.rename_also':'“{a}” is on {n} items. It will change to “{b}” on them too.', 'stores.rename_also1':'“{a}” is on 1 item. It will change to “{b}” on it too.', 'stores.rename_ok':'Rename',
+  'stores.renamed':'Renamed to “{s}”, also on {n} items.', 'stores.renamed1':'Renamed to “{s}”, also on 1 item.', 'stores.renamed0':'Renamed to “{s}”.',
+  'stores.removed':'“{s}” removed from your shops.', 'stores.removed_note':'Items that have it don’t change.',
+});
+Object.assign(I18N.de, {
+  'vb.search_ph':'Ein Stück suchen', 'vb.no_store':'Ohne Laden', 'vb.store':'Wo ich es gekauft habe', 'vb.store_ph':'Wählen oder tippen',
+  'vb.count':'{n} Stücke', 'vb.count1':'1 Stück', 'vb.no_match':'Kein Stück passt zur Suche.', 'vb.try_all':'Versuch es mit „Alle“.',
+  'vb.none_left_store':'Bei allen steht schon, wo du sie gekauft hast.',
+  'stores.title':'Meine Läden', 'stores.physical':'Ladengeschäft', 'stores.sub':'Die Orte, die vorgeschlagen werden, wenn du einträgst, wo du ein Stück gekauft hast. Tippst du bei einem Stück einen neuen ein, wird er automatisch hinzugefügt.',
+  'stores.new':'Neuer Laden', 'stores.add':'Hinzufügen', 'stores.used':'Bei {n} Stücken', 'stores.used1':'Bei 1 Stück',
+  'stores.rename':'„{s}“ umbenennen', 'stores.remove':'„{s}“ entfernen', 'stores.empty':'Du hast keine Läden. Füge oben einen hinzu.',
+  'stores.exists':'„{s}“ ist schon in deiner Liste.', 'stores.added':'„{s}“ zu deinen Läden hinzugefügt.', 'stores.rename_q':'Neuer Name für „{s}“',
+  'stores.rename_also':'„{a}“ steht bei {n} Stücken. Dort wird es auch zu „{b}“.', 'stores.rename_also1':'„{a}“ steht bei 1 Stück. Dort wird es auch zu „{b}“.', 'stores.rename_ok':'Umbenennen',
+  'stores.renamed':'Umbenannt in „{s}“, auch bei {n} Stücken.', 'stores.renamed1':'Umbenannt in „{s}“, auch bei 1 Stück.', 'stores.renamed0':'Umbenannt in „{s}“.',
+  'stores.removed':'„{s}“ aus deinen Läden entfernt.', 'stores.removed_note':'Stücke, bei denen er steht, ändern sich nicht.',
+});
+Object.assign(I18N.ja, {
+  'vb.search_ph':'アイテムを検索', 'vb.no_store':'購入先なし', 'vb.store':'購入先', 'vb.store_ph':'選ぶか入力',
+  'vb.count':'{n}点', 'vb.count1':'1点', 'vb.no_match':'検索に一致するアイテムはありません。', 'vb.try_all':'「すべて」で試してください。',
+  'vb.none_left_store':'すべてのアイテムに購入先が入っています。',
+  'stores.title':'購入先リスト', 'stores.physical':'実店舗', 'stores.sub':'アイテムの購入先を入力するときに候補として表示されます。アイテムに新しい購入先を入力すると、自動で追加されます。',
+  'stores.new':'新しい購入先', 'stores.add':'追加', 'stores.used':'{n}点で使用', 'stores.used1':'1点で使用',
+  'stores.rename':'「{s}」の名前を変更', 'stores.remove':'「{s}」を削除', 'stores.empty':'購入先がありません。上で追加してください。',
+  'stores.exists':'「{s}」はすでにリストにあります。', 'stores.added':'「{s}」を購入先リストに追加しました。', 'stores.rename_q':'「{s}」の新しい名前',
+  'stores.rename_also':'「{a}」は{n}点のアイテムで使われています。それらも「{b}」に変わります。', 'stores.rename_also1':'「{a}」は1点のアイテムで使われています。それも「{b}」に変わります。', 'stores.rename_ok':'名前を変更',
+  'stores.renamed':'「{s}」に変更しました（{n}点のアイテムも）。', 'stores.renamed1':'「{s}」に変更しました（1点のアイテムも）。', 'stores.renamed0':'「{s}」に変更しました。',
+  'stores.removed':'「{s}」を購入先リストから削除しました。', 'stores.removed_note':'それを使っているアイテムは変わりません。',
+});
+/* ---------- v11.20 · Ayuda ---------- */
+I18N.es['ayuda.search.body'] += '<br><br><b>Valorar en serie</b> (v11.20):<br>• Tiene <b>buscador</b>, que busca igual que el Inventario.<br>• Cada fila lleva <b>Dónde lo compré</b>: elige un sitio de la lista o escribe uno nuevo, y se añade a tu lista. Es el mismo dato que «Tienda o vendedor» de la ficha.<br>• Con el filtro <b>Sin sitio</b> ves solo las que aún no lo tienen.<br>• En <b>Mis sitios</b> añades, renombras o quitas sitios. Al renombrar uno, también se cambia en las piezas que lo tienen (con «Deshacer»).';
+I18N.en['ayuda.search.body'] += '<br><br><b>Value in a row</b> (v11.20):<br>• It has a <b>search box</b> that works like the Inventory one.<br>• Each row has <b>Where I bought it</b>: pick a place from the list or type a new one, and it’s added to your list. It’s the same as “Shop or seller” on the item page.<br>• The <b>No shop</b> filter shows only the ones that don’t have it yet.<br>• In <b>My shops</b> you add, rename or remove places. Renaming one also changes it on the items that have it (with “Undo”).';
+I18N.de['ayuda.search.body'] += '<br><br><b>Nacheinander bewerten</b> (v11.20):<br>• Es hat eine <b>Suche</b>, die wie die im Inventar funktioniert.<br>• Jede Zeile hat <b>Wo ich es gekauft habe</b>: einen Ort aus der Liste wählen oder einen neuen eintippen, der dann in deine Liste kommt. Es ist dasselbe wie „Laden oder Verkäufer“ auf der Stückseite.<br>• Der Filter <b>Ohne Laden</b> zeigt nur die, bei denen er noch fehlt.<br>• Unter <b>Meine Läden</b> fügst du Orte hinzu, benennst sie um oder entfernst sie. Beim Umbenennen ändert er sich auch bei den Stücken, bei denen er steht (mit „Rückgängig“).';
+I18N.ja['ayuda.search.body'] += '<br><br><b>まとめて評価</b>（v11.20）：<br>• 在庫一覧と同じように使える<b>検索</b>があります。<br>• 各行に<b>購入先</b>があります。リストから選ぶか新しく入力すると、リストに追加されます。アイテムページの「店・出品者」と同じ項目です。<br>• <b>購入先なし</b>で、まだ入力していないものだけを表示します。<br>• <b>購入先リスト</b>で追加・名前の変更・削除ができます。名前を変えると、それを使っているアイテムでも変わります（「元に戻す」付き）。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;

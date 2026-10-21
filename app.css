@@ -2461,6 +2461,22 @@ body:has(.bulk-bar) .fab{display:none;}
 .vb-box input{width:100%;min-height:40px;padding:0 22px 0 8px;border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--surface-raised);color:var(--text);font:inherit;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;}
 .vb-box input[aria-invalid="true"]{border-color:var(--accent);}
 .vb-box i{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;color:var(--text-muted);font-size:var(--fs-2xs);pointer-events:none;}
+.vb-box.is-text input{padding-right:8px;font-variant-numeric:normal;}
+/* v11.20 · Valorar en serie: buscador, «Dónde lo compré» y «Mis sitios» */
+.vb-row .vb-store{grid-column:1 / -1;}
+.vb-chips{margin-top:var(--sp-3);}
+.vb-tools{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--sp-2);margin-top:var(--sp-2);}
+.vb-tools .field{flex:1 1 180px;min-width:0;margin:0;}
+.vb-tools .btn{flex:0 0 auto;min-height:40px;}
+.vb-count{margin:var(--sp-2) 0 0;}
+.st-add{display:flex;align-items:flex-end;gap:var(--sp-2);margin-top:var(--sp-2);}
+.st-add .field{flex:1 1 auto;min-width:0;margin:0;}
+.st-add .btn{flex:0 0 auto;min-height:44px;}
+.st-list{list-style:none;margin:var(--sp-3) 0 0;padding:0;display:flex;flex-direction:column;}
+.st-row{display:flex;align-items:center;gap:var(--sp-1);padding:4px 2px;border-bottom:1px solid var(--line);}
+.st-name{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}
+.st-name b{font-size:var(--fs-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.st-name small{font-size:var(--fs-2xs);color:var(--text-muted);}
 @media (prefers-reduced-motion: reduce){ .grp-head .grp-chev{transition:none;} }
 
 /* ---------- v11.19 · Imágenes ---------- */

@@ -97,6 +97,8 @@ function buildPortableSnapshot(){
   // v11.19: tus filtros guardados y cómo ha cambiado el valor de tu colección (si los hay)
   if(Array.isArray(OVERRIDES.filtrosGuardados) && OVERRIDES.filtrosGuardados.length) snapshot.filtrosGuardados = JSON.parse(JSON.stringify(OVERRIDES.filtrosGuardados));
   if(Array.isArray(OVERRIDES.valorHistorial) && OVERRIDES.valorHistorial.length) snapshot.valorHistorial = JSON.parse(JSON.stringify(OVERRIDES.valorHistorial));
+  // v11.20: tus sitios de compra (solo si has cambiado la lista inicial)
+  if(Array.isArray(OVERRIDES.tiendas)) snapshot.tiendas = OVERRIDES.tiendas.filter(x=> typeof x==='string');
   PRODUCTS.forEach(p=>{
     snapshot.customProducts.push(Object.assign({}, p));
     snapshot.products[p.id] = Object.assign({}, p);

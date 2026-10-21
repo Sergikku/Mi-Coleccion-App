@@ -1683,8 +1683,8 @@ function loanSectionHTML(p){
   const L = p.prestamo && typeof p.prestamo==='object' ? p.prestamo : {}, C = p.compra && typeof p.compra==='object' ? p.compra : {};
   const body = `<div class="field-grid">
       ${editableField('date', t('loan.bought_date'), C.fecha || '', `updatePurchase('${p.id}','fecha',this.value)`)}
-      ${editableField('text', t('loan.store'), C.tienda || '', `updatePurchase('${p.id}','tienda',this.value)`, '', 'maxlength="80"')}
-    </div><p class="section-sub">${t('loan.paid_note')}</p>
+      ${editableField('text', t('loan.store'), C.tienda || '', `updatePurchase('${p.id}','tienda',this.value)`, '', 'maxlength="80" list="storeListP" autocomplete="off"')}
+    </div>${storeDatalistHTML('storeListP')}<p class="section-sub">${t('loan.paid_note')}</p>
     <div class="field-grid">
       ${editableField('text', t('loan.to'), L.a || '', `updateLoan('${p.id}','a',this.value)`, '', 'maxlength="60"')}
       ${editableField('date', t('loan.since'), L.desde || '', `updateLoan('${p.id}','desde',this.value)`)}
@@ -1712,8 +1712,11 @@ async function updatePurchase(id, field, value){
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
   const cur = Object.assign({ fecha:'', tienda:'' }, p.compra && typeof p.compra==='object' ? p.compra : {});
   cur[field] = String(value || '').trim();
+  let added = false;
+  if(field==='tienda' && cur.tienda){ cur.tienda = storeCanonical(cur.tienda); added = storeRemember(cur.tienda); }   // v11.20: un sitio nuevo pasa a «Mis sitios»
   const v = cur.fecha || cur.tienda ? { fecha:cur.fecha, tienda:cur.tienda } : null;
   p.compra = v; await setProductField(id, 'compra', v);
+  if(added) showToast(t('stores.added').replace('{s}', cur.tienda), { ok:true, replace:true });
 }
 /* Etiquetas en la ficha: añadir y quitar */
 function tagsEditorHTML(p){
@@ -1785,35 +1788,68 @@ function valueSectionHTML(){
     ${chart || `<p class="section-sub">${t('val.chart_one')}</p>`}
     ${btn}</section>`;
 }
-/* Valorar en serie: una lista de tus piezas con su valor, para rellenarlo seguido */
-let vbState = { only:true, plat:'', limit:40 };
-function openValueBulk(){
-  vbState = { only:true, plat:'', limit:40 };
-  openSheet({ kind:'val-bulk', title:t('val.bulk_title'), body:valueBulkBodyHTML(), foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>`, onClose: ()=> render() });
+/* Valorar en serie: una lista de tus piezas con su valor, para rellenarlo seguido.
+   v11.20: buscador, «Dónde lo compré» en cada fila y el filtro «Sin sitio». */
+let vbState = { show:'novalue', plat:'', q:'', limit:40 };
+function openValueBulk(keep){
+  if(keep!==true) vbState = { show:'novalue', plat:'', q:'', limit:40 };
+  openSheet({ kind:'val-bulk', title:t('val.bulk_title'), body:valueBulkBodyHTML(), foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>`,
+    focus: keep===true ? '[data-fk="vb-stores"]' : '[data-fk="vb-' + vbState.show + '"]', onClose: ()=> render() });
 }
+function hasStore(p){ return !!(p && p.compra && typeof p.compra==='object' && String(p.compra.tienda || '').trim()); }
 function valueBulkList(){
-  return sortGames(PRODUCTS.filter(p=> p.possession==='tengo' && (!vbState.plat || p.platformId===vbState.plat) && (!vbState.only || valueNow(p)===null)));
+  const tk = searchTokens(vbState.q || '');
+  return sortGames(PRODUCTS.filter(p=> p.possession==='tengo' && (!vbState.plat || p.platformId===vbState.plat)
+    && (vbState.show!=='novalue' || valueNow(p)===null) && (vbState.show!=='nostore' || !hasStore(p)) && productMatchesSearch(p, tk)));
 }
 function valueBulkBodyHTML(){
-  const list = valueBulkList(), shown = list.slice(0, vbState.limit);
+  const list = valueBulkList();
   const plats = getAllPlatforms().filter(pl=> PRODUCTS.some(p=> p.platformId===pl.id && p.possession==='tengo'));
+  const chip = (k, label)=> `<button type="button" class="chip ${vbState.show===k ? 'active' : ''}" aria-pressed="${vbState.show===k}" data-fk="vb-${k}" onclick="vbState.show='${k}'; vbState.limit=40; vbRefresh()">${label}</button>`;
+  return `${searchbarHTML({ id:'vbQ', placeholder:t('vb.search_ph'), value:vbState.q, oninput:'vbQuery(this.value)' })}
+    <div class="chip-row vb-chips" role="group" aria-label="${escapeHTML(t('val.bulk_title'))}">${chip('novalue', t('val.only_missing'))}${chip('nostore', t('vb.no_store'))}${chip('all', t('val.all'))}</div>
+    <div class="vb-tools"><div class="field" data-nosave><label for="vbPlat">${t('filter.platform')}</label><select id="vbPlat" onchange="vbState.plat=this.value; vbState.limit=40; vbRefresh()"><option value="">${t('val.platform_all')}</option>${plats.map(pl=>`<option value="${pl.id}" ${vbState.plat===pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}</select></div>
+      <button type="button" class="btn btn-sm" data-fk="vb-stores" onclick="openStoresSheet(true)">${icon('pencil')} ${t('stores.title')}</button></div>
+    <p class="section-sub vb-count" id="vbCount" role="status">${escapeHTML(vbCountText(list.length))}</p>
+    <div id="vbRes">${valueBulkResultsHTML(list)}</div>${storeDatalistHTML('vbStores')}`;
+}
+function vbCountText(n){ return (n===1 ? t('vb.count1') : t('vb.count')).replace('{n}', n); }
+function valueBulkResultsHTML(list){
+  const shown = list.slice(0, vbState.limit);
   const cs = currencySymbol();
-  return `<div class="chip-row" role="group" aria-label="${escapeHTML(t('val.bulk_title'))}"><button type="button" class="chip ${vbState.only ? 'active' : ''}" aria-pressed="${vbState.only}" data-fk="vb-only" onclick="vbState.only=true; vbState.limit=40; vbRefresh()">${t('val.only_missing')}</button><button type="button" class="chip ${vbState.only ? '' : 'active'}" aria-pressed="${!vbState.only}" data-fk="vb-all" onclick="vbState.only=false; vbState.limit=40; vbRefresh()">${t('val.all')}</button></div>
-    <div class="field" data-nosave><label for="vbPlat">${t('filter.platform')}</label><select id="vbPlat" onchange="vbState.plat=this.value; vbState.limit=40; vbRefresh()"><option value="">${t('val.platform_all')}</option>${plats.map(pl=>`<option value="${pl.id}" ${vbState.plat===pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}</select></div>
-    ${shown.length ? `<div class="vb-list" data-nosave>${shown.map(p=>{ const id = escapeHTML(p.id), now = valueNow(p), paid = valuePaid(p);
+  const empty = vbState.q.trim() ? t('vb.no_match') + (vbState.show!=='all' ? ' ' + t('vb.try_all') : '')
+    : t(vbState.show==='novalue' ? 'val.none_left' : vbState.show==='nostore' ? 'vb.none_left_store' : 'val.empty_sel');
+  return `${shown.length ? `<div class="vb-list" data-nosave>${shown.map(p=>{ const id = escapeHTML(p.id), now = valueNow(p), paid = valuePaid(p), st = hasStore(p) ? p.compra.tienda : '';
       return `<div class="vb-row"><div class="vb-name"><b>${escapeHTML(p.name)}</b><small>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))}</small></div>
         <label class="vb-in"><span>${t('val.now')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${now===null ? '' : now}" aria-label="${escapeHTML(t('val.now') + ' — ' + p.name)}" onchange="vbSet('${id}','valorActual',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label>
-        <label class="vb-in"><span>${t('val.paid_short')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${paid===null ? '' : paid}" aria-label="${escapeHTML(t('p.value_bought') + ' — ' + p.name)}" onchange="vbSet('${id}','valorAdquisicion',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label></div>`; }).join('')}</div>`
-      : `<p class="section-sub">${t(vbState.only ? 'val.none_left' : 'val.empty_sel')}</p>`}
-    ${list.length > shown.length ? `<button type="button" class="btn btn-sm load-more" data-fk="vb-more" onclick="vbState.limit+=40; vbRefresh()">${t('val.more').replace('{n}', list.length - shown.length)}</button>` : ''}`;
+        <label class="vb-in"><span>${t('val.paid_short')}</span><span class="vb-box"><input type="number" inputmode="decimal" step="0.01" min="0" value="${paid===null ? '' : paid}" aria-label="${escapeHTML(t('p.value_bought') + ' — ' + p.name)}" onchange="vbSet('${id}','valorAdquisicion',this)"><i aria-hidden="true">${escapeHTML(cs)}</i></span></label>
+        <label class="vb-in vb-store"><span>${t('vb.store')}</span><span class="vb-box is-text"><input type="text" list="vbStores" maxlength="80" autocomplete="off" enterkeyhint="done" value="${escapeHTML(st)}" placeholder="${escapeHTML(t('vb.store_ph'))}" aria-label="${escapeHTML(t('vb.store') + ' — ' + p.name)}" onchange="vbSetStore('${id}',this)"></span></label></div>`; }).join('')}</div>`
+      : `<p class="section-sub">${escapeHTML(empty)}</p>`}
+    ${list.length > shown.length ? `<button type="button" class="btn btn-sm load-more" data-fk="vb-more" onclick="vbState.limit+=40; vbRefreshList()">${t('val.more').replace('{n}', list.length - shown.length)}</button>` : ''}`;
+}
+/* Al escribir en el buscador solo cambia la lista: la caja no se toca (el teclado del móvil no se corta) */
+function vbQuery(v){
+  vbState.q = String(v || ''); vbState.limit = 40;
+  clearTimeout(window._vbQT); window._vbQT = setTimeout(vbRefreshList, 140);
+}
+function vbRefreshList(){
+  if(!isSheetKind('val-bulk')) return;
+  const r = document.getElementById('vbRes'); if(!r) return;
+  const a = document.activeElement, more = a && a.dataset && a.dataset.fk==='vb-more';
+  const list = valueBulkList();
+  r.innerHTML = valueBulkResultsHTML(list);
+  const c = document.getElementById('vbCount'); if(c) c.textContent = vbCountText(list.length);
+  if(more){ const b = r.querySelector('[data-fk="vb-more"]'); if(b) b.focus({ preventScroll:true }); }   // (como antes: el foco sigue en «Ver más», sin abrir el teclado)
 }
 function vbRefresh(){
   if(!isSheetKind('val-bulk')) return;
   const a = document.activeElement, fk = a && a.dataset ? a.dataset.fk : null, id = a && a.id;
+  const pos = a && a.id==='vbQ' ? a.selectionStart : null;
   const body = document.getElementById('sheetBody'), y = body ? body.scrollTop : 0;
   updateSheetBody(valueBulkBodyHTML());
   if(body) body.scrollTop = y;
-  const b = fk ? document.querySelector(`#sheetBody [data-fk="${fk}"]`) : id ? document.getElementById(id) : null; if(b) b.focus({ preventScroll:true });
+  const b = fk ? document.querySelector(`#sheetBody [data-fk="${fk}"]`) : id ? document.getElementById(id) : null;
+  if(b){ b.focus({ preventScroll:true }); if(pos!==null) try{ b.setSelectionRange(pos, pos); }catch(e){} }
 }
 async function vbSet(id, field, input){
   if(input.validity && input.validity.badInput){ input.setAttribute('aria-invalid', 'true'); return; }   // (lo escrito no es un número: no se borra lo que había)
@@ -1827,4 +1863,118 @@ async function vbSet(id, field, input){
   if(field==='valorActual'){ const hoy = new Date().toISOString().slice(0, 10); p.valuation.fechaActualizacion = hoy; await setEditionNested(id, 'valuation', 'fechaActualizacion', hoy); }
   recordValueHistory(); await persistOverrides();
   input.closest('.vb-row') && input.closest('.vb-row').classList.add('is-saved');
+}
+async function vbSetStore(id, input){
+  if(!PRODUCTS_BY_ID[id]) return;
+  const v = storeCanonical(input.value);
+  input.value = v;
+  await updatePurchase(id, 'tienda', v);
+  input.closest('.vb-row') && input.closest('.vb-row').classList.add('is-saved');
+}
+
+/* ---------- Mis sitios de compra (v11.20) ----------
+   Las sugerencias de «Dónde lo compré» / «Tienda o vendedor». Mientras no
+   cambies nada, es la lista inicial (no se guarda nada); en cuanto añades,
+   renombras o quitas uno, se guarda en OVERRIDES.tiendas (una lista de textos).
+   Un sitio nuevo escrito en una pieza se añade solo. Quitar un sitio de la
+   lista no cambia las piezas que ya lo tienen. */
+const STORE_DEFAULTS = ['eBay', 'Wallapop', 'Vinted', 'Todocolección', 'Amazon', 'Buyee', 'Yahoo! Auctions', 'Mercari', 'Suruga-ya', 'Mandarake', 'CeX', 'GAME'];
+function storeKey(s){ return normText(String(s===null || s===undefined ? '' : s).trim()).replace(/\s+/g, ' '); }
+function storeList(){
+  const src = Array.isArray(OVERRIDES.tiendas) ? OVERRIDES.tiendas : STORE_DEFAULTS.concat([t('stores.physical')]);
+  const seen = new Set(), out = [];
+  src.forEach(s=>{ if(typeof s!=='string') return; const v = s.trim().slice(0, 80), k = storeKey(v); if(!v || seen.has(k)) return; seen.add(k); out.push(v); });
+  return out;
+}
+/* Si ya está en tu lista (sin mirar mayúsculas ni tildes), se escribe como en la lista */
+function storeCanonical(v){
+  const s = String(v || '').trim().slice(0, 80), k = storeKey(s); if(!s) return '';
+  return storeList().find(x=> storeKey(x)===k) || s;
+}
+function storeOptionsHTML(){ return storeList().map(s=>`<option value="${escapeHTML(s)}"></option>`).join(''); }
+function storeDatalistHTML(id){ return `<datalist id="${id}" class="store-dl">${storeOptionsHTML()}</datalist>`; }
+function storeDatalistsRefresh(){ const html = storeOptionsHTML(); document.querySelectorAll('datalist.store-dl').forEach(d=>{ d.innerHTML = html; }); }
+/* Un sitio nuevo escrito en una pieza pasa a tu lista (devuelve true si era nuevo) */
+function storeRemember(name){
+  const v = String(name || '').trim().slice(0, 80); if(!v) return false;
+  const list = storeList(); if(list.some(s=> storeKey(s)===storeKey(v))) return false;
+  OVERRIDES.tiendas = list.concat([v]); storeDatalistsRefresh(); return true;
+}
+function storeUseCounts(){
+  const m = {};
+  PRODUCTS.forEach(p=>{ if(hasStore(p)){ const k = storeKey(p.compra.tienda); m[k] = (m[k] || 0) + 1; } });
+  return m;
+}
+let storesBack = null;
+function openStoresSheet(fromBulk){
+  storesBack = fromBulk===true ? 'val-bulk' : null;
+  openSheet({ kind:'stores', title:t('stores.title'), body:storesBodyHTML(), foot:`<button type="button" class="btn primary" onclick="closeSheet()">${t('copy.done')}</button>`,
+    focus:'[data-fk="st-add"]', onClose: ()=>{ if(storesBack==='val-bulk') openValueBulk(true); else render(); } });
+}
+function storesBodyHTML(){
+  const list = storeList(), uses = storeUseCounts();
+  return `<p class="section-sub">${t('stores.sub')}</p>
+    <div class="st-add"><div class="field"><label for="stNew">${t('stores.new')}</label><input id="stNew" type="text" maxlength="80" autocomplete="off" enterkeyhint="done" onkeydown="if(event.key==='Enter'){ event.preventDefault(); storeAddFromInput(); }"></div>
+      <button type="button" class="btn" data-fk="st-add" onclick="storeAddFromInput()">${icon('plus')} ${t('stores.add')}</button></div>
+    ${list.length ? `<ul class="st-list">${list.map((s, i)=>{ const n = uses[storeKey(s)] || 0;
+      return `<li class="st-row"><span class="st-name"><b>${escapeHTML(s)}</b>${n ? `<small>${escapeHTML((n===1 ? t('stores.used1') : t('stores.used')).replace('{n}', n))}</small>` : ''}</span>
+        <button type="button" class="btn btn-ghost btn-icon" data-fk="st-ren-${i}" onclick="storeRename(${i})" aria-label="${escapeHTML(t('stores.rename').replace('{s}', s))}" title="${escapeHTML(t('stores.rename').replace('{s}', s))}">${icon('pencil')}</button>
+        <button type="button" class="btn btn-ghost btn-icon" data-fk="st-rm-${i}" onclick="storeRemove(${i})" aria-label="${escapeHTML(t('stores.remove').replace('{s}', s))}" title="${escapeHTML(t('stores.remove').replace('{s}', s))}">${icon('trash')}</button></li>`; }).join('')}</ul>`
+      : `<p class="section-sub">${t('stores.empty')}</p>`}`;
+}
+function storesRefresh(focusSel){
+  if(!isSheetKind('stores')) return;
+  const body = document.getElementById('sheetBody'), y = body ? body.scrollTop : 0;
+  const inp = document.getElementById('stNew'), typed = inp ? inp.value : '';
+  updateSheetBody(storesBodyHTML());
+  if(body) body.scrollTop = y;
+  const ni = document.getElementById('stNew'); if(ni) ni.value = typed;
+  const b = focusSel ? document.querySelector('#sheetBody ' + focusSel) : null;
+  (b || document.querySelector('#sheetBody [data-fk="st-add"]')).focus({ preventScroll:true });
+}
+async function storeAddFromInput(){
+  const inp = document.getElementById('stNew'); if(!inp) return;
+  const v = inp.value.trim().slice(0, 80);
+  if(!v){ inp.focus(); return; }
+  const list = storeList();
+  if(list.some(s=> storeKey(s)===storeKey(v))){ showToast(t('stores.exists').replace('{s}', v), { replace:true }); inp.focus(); inp.select(); return; }
+  OVERRIDES.tiendas = list.concat([v]); await persistOverrides();
+  inp.value = ''; storesRefresh('#stNew');   // (el foco sigue en la caja, para añadir otro)
+  showToast(t('stores.added').replace('{s}', v), { ok:true, replace:true });
+}
+async function storeRename(i){
+  const list = storeList(), old = list[i]; if(old===undefined) return;
+  const raw = await askText(t('stores.rename_q').replace('{s}', old), old);
+  if(raw===null) return storesRefresh(`[data-fk="st-ren-${i}"]`);
+  const nv = String(raw).trim().slice(0, 80);
+  if(!nv || nv===old) return storesRefresh(`[data-fk="st-ren-${i}"]`);
+  if(list.some((s, j)=> j!==i && storeKey(s)===storeKey(nv))){ showToast(t('stores.exists').replace('{s}', nv), { replace:true }); return storesRefresh(`[data-fk="st-ren-${i}"]`); }
+  const k = storeKey(old), ids = PRODUCTS.filter(p=> hasStore(p) && storeKey(p.compra.tienda)===k).map(p=> p.id);
+  if(ids.length && !await showConfirmModal((ids.length===1 ? t('stores.rename_also1') : t('stores.rename_also')).replace('{n}', ids.length).replace('{a}', old).replace('{b}', nv), { okLabel:t('stores.rename_ok') }))
+    return storesRefresh(`[data-fk="st-ren-${i}"]`);
+  const prevList = Array.isArray(OVERRIDES.tiendas) ? OVERRIDES.tiendas.slice() : undefined, prevCompra = {};
+  const next = list.slice(); next[i] = nv; OVERRIDES.tiendas = next;
+  ids.forEach(id=>{ const p = PRODUCTS_BY_ID[id]; prevCompra[id] = p.compra; const v = Object.assign({}, p.compra, { tienda:nv });
+    p.compra = v; if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {}; OVERRIDES.products[id].compra = v; });
+  await persistOverrides();
+  storesRefresh(`[data-fk="st-ren-${i}"]`);
+  showToast(ids.length ? (ids.length===1 ? t('stores.renamed1') : t('stores.renamed')).replace('{n}', ids.length).replace('{s}', nv) : t('stores.renamed0').replace('{s}', nv), { ok:true, replace:true, action:{ label:t('common.undo'), fn: async ()=>{
+    if(prevList===undefined) delete OVERRIDES.tiendas; else OVERRIDES.tiendas = prevList;
+    Object.keys(prevCompra).forEach(id=>{ const p = PRODUCTS_BY_ID[id]; if(!p) return; p.compra = prevCompra[id]; if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {}; OVERRIDES.products[id].compra = prevCompra[id]; });
+    await persistOverrides(); storesAfterUndo(`[data-fk="st-ren-${i}"]`); } } });
+}
+async function storeRemove(i){
+  const list = storeList(), s = list[i]; if(s===undefined) return;
+  const prevList = Array.isArray(OVERRIDES.tiendas) ? OVERRIDES.tiendas.slice() : undefined;
+  OVERRIDES.tiendas = list.filter((_, j)=> j!==i); await persistOverrides();
+  const n = storeUseCounts()[storeKey(s)] || 0, left = OVERRIDES.tiendas.length;
+  storesRefresh(left ? `[data-fk="st-rm-${Math.min(i, left - 1)}"]` : null);
+  showToast(t('stores.removed').replace('{s}', s) + (n ? ' ' + t('stores.removed_note') : ''), { replace:true, action:{ label:t('common.undo'), fn: async ()=>{
+    if(prevList===undefined) delete OVERRIDES.tiendas; else OVERRIDES.tiendas = prevList;
+    await persistOverrides(); storesAfterUndo(`[data-fk="st-rm-${i}"]`); } } });
+}
+/* Tras «Deshacer»: se ve el cambio esté donde esté (Mis sitios, Valorar en serie o la ficha) */
+function storesAfterUndo(focusSel){
+  storeDatalistsRefresh();
+  if(isSheetKind('stores')) storesRefresh(focusSel); else if(isSheetKind('val-bulk')) vbRefresh(); else render();
 }
