@@ -195,38 +195,86 @@ function dashCatRowsHTML(cats){
       <span class="dc-name">${escapeHTML(c.name)}</span><span class="dc-count">${n(c.have)} / ${n(c.total)} · ${c.pct} %</span>
       <span class="dc-bar" aria-hidden="true"><span class="dist-c${i % 8}" style="width:${c.pct}%"></span></span></button>`).join('')}</div>`;
 }
-/* La pieza del día: una de las tuyas (si hay fotos, de las que tienen foto delantera), la misma todo el día.
-   «Otra» enseña otra (solo en esta pantalla, no se guarda nada). */
-let dashDaily = { day:'', id:'', off:0 };
-function dashDailyPick(){
+/* La pieza del día (v11.23): una de tus piezas con sentido para hoy, por este orden:
+   1 «Tal día como hoy» (salió un día como hoy) · 2 la compraste un día como hoy ·
+   3 salió esta semana (±3 días) · 4 salió este mes · 5 cualquiera (la misma todo el día).
+   Dentro de cada grupo, primero las que tienen foto. «Otra» pasa a la siguiente. No se guarda nada. */
+let dashDaily = { day:'', off:0 };
+const DD_TIERS = ['today', 'bought', 'week', 'month', 'any'];
+function ddParts(s){ const m = String(s || '').match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/); return m ? { y:+m[1], m:+m[2], d:m[3] ? +m[3] : 0 } : null; }
+function ddDayDiff(a, b){   // días entre dos fechas del año (mes/día), por el camino más corto
+  const t1 = Date.UTC(2001, a.m - 1, a.d), t2 = Date.UTC(2001, b.m - 1, b.d);
+  const diff = Math.abs(t1 - t2) / 864e5; return Math.min(diff, 365 - diff);
+}
+function dashDailyList(){
   const own = PRODUCTS.filter(p=> p.possession==='tengo');
-  if(!own.length) return null;
-  const ready = typeof PHOTO_INDEX!=='undefined' && PHOTO_INDEX.ready;
-  const withPhoto = ready ? own.filter(p=> hasPhoto(shownPhotoId(p), 'front')) : [];
-  const pool = withPhoto.length ? withPhoto : own;
-  const day = new Date().toISOString().slice(0, 10);
-  if(dashDaily.day!==day){ dashDaily = { day, id:'', off:0 }; }
-  const cur = dashDaily.id && PRODUCTS_BY_ID[dashDaily.id];
-  if(cur && cur.possession==='tengo' && pool.includes(cur) && ready) return cur;
+  if(!own.length) return [];
+  const now = new Date(), today = { y:now.getFullYear(), m:now.getMonth() + 1, d:now.getDate() };
+  const day = today.y + '-' + today.m + '-' + today.d;
+  if(dashDaily.day!==day) dashDaily = { day, off:0 };
   let h = 2166136261; for(const ch of day) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
-  const ids = pool.map(p=> p.id).sort();
-  const p = PRODUCTS_BY_ID[ids[((h >>> 0) + dashDaily.off * 7919) % ids.length]];
-  if(ready) dashDaily.id = p.id;
-  return p;
+  const mix = (id)=>{ let x = h >>> 0; for(const ch of id) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+  const ready = typeof PHOTO_INDEX!=='undefined' && PHOTO_INDEX.ready;
+  const tiers = { today:[], bought:[], week:[], month:[], any:[] };
+  own.forEach(p=>{
+    const r = ddParts(p.releaseDateExact), c = ddParts(p.compra && typeof p.compra==='object' ? p.compra.fecha : '');
+    let tier = 'any', date = null;
+    if(r && r.d && r.m===today.m && r.d===today.d && r.y <= today.y){ tier = 'today'; date = r; }
+    else if(c && c.d && c.m===today.m && c.d===today.d && c.y < today.y){ tier = 'bought'; date = c; }
+    else if(r && r.d && r.y <= today.y && ddDayDiff(r, today) <= 3){ tier = 'week'; date = r; }
+    else if(r && r.m===today.m && r.y < today.y){ tier = 'month'; date = r; }
+    tiers[tier].push({ p, tier, date, photo: ready && hasPhoto(shownPhotoId(p), 'front'), k: mix(p.id) });
+  });
+  const out = [];
+  DD_TIERS.forEach(k=>{ const L = tiers[k].sort((a, b)=> (b.photo - a.photo) || (a.k - b.k)); L.forEach((x, i)=>{ x.i = i; x.n = L.length; }); out.push(...L); });
+  return out;
+}
+function ddDateText(dt){
+  const loc = numLocale();
+  return dt.d ? new Date(dt.y, dt.m - 1, dt.d).toLocaleDateString(loc, { day:'numeric', month:'long', year:'numeric' })
+              : new Date(dt.y, dt.m - 1, 1).toLocaleDateString(loc, { month:'long', year:'numeric' });
+}
+function ddAgoText(y){
+  const n = new Date().getFullYear() - y;
+  return n <= 0 ? t('dash.dd_this_year') : (n===1 ? t('dash.dd_ago1') : t('dash.dd_ago').replace('{n}', n));
+}
+/* Un dato de la pieza dentro de su plataforma: la más antigua, la más reciente o cuántas tienes */
+function ddFact(p){
+  if(!p.platformId) return '';
+  const L = PRODUCTS.filter(x=> x.platformId===p.platformId);
+  const own = L.filter(x=> x.possession==='tengo');
+  const key = (x)=> String(x.releaseDateExact || x.year || '');
+  const dated = own.filter(x=> /^\d{4}/.test(key(x))).sort((a, b)=> key(a).localeCompare(key(b)));
+  const name = p.platformName || '';
+  if(dated.length >= 3 && dated[0]===p) return t('dash.dd_fact_oldest').replace('{p}', name);
+  if(dated.length >= 3 && dated[dated.length - 1]===p) return t('dash.dd_fact_newest').replace('{p}', name);
+  if(own.length===L.length && L.length > 1) return t('dash.dd_fact_full').replace('{t}', L.length).replace('{p}', name);
+  return t('dash.dd_fact_count').replace('{h}', own.length).replace('{t}', L.length).replace('{p}', name);
 }
 function dashDailyHTML(){
-  const p = dashDailyPick(); if(!p) return '';
+  const list = dashDailyList(); if(!list.length) return '';
+  const x = list[dashDaily.off % list.length], p = x.p;
   const pv = platVisual(p.platformId), photoId = shownPhotoId(p), has = hasPhoto(photoId, 'front');
   const meta = [p.platformName, p.year, regionShortText(p)].filter(Boolean).map(escapeHTML).join(' · ');
+  const tag = t('dash.dd_tag_' + x.tier) + (x.tier!=='any' && x.n > 1 ? ' · ' + t('dash.dd_of').replace('{i}', x.i + 1).replace('{n}', x.n) : '');
+  const when = x.date ? (x.tier==='bought' ? t('dash.dd_bought_line') : t('dash.dd_released_line')).replace('{d}', ddDateText(x.date)).replace('{a}', ddAgoText(x.date.y)) : '';
+  const sum = String(p.summary || '').trim();
   return `<section class="dash-daily" aria-labelledby="ddName">
-    <div class="dd-art" style="--plat:${pv.color}"><span class="dd-tag">${t('dash.daily')}</span>
-      <span class="dd-cover">${has ? photoImgHTML(p, 'front', 'full', '', photoId) : `<span class="dd-code">${escapeHTML(pv.code)}</span>`}${shownSealed(p) ? `<span class="cover-seal" title="${escapeHTML(t('wall.sealed'))}">${icon('shield')}</span>` : ''}</span></div>
-    <div class="dd-info"><h2 class="dd-name" id="ddName">${escapeHTML(p.name)}</h2>${meta ? `<p class="dd-meta">${meta}</p>` : ''}
+    <div class="dd-art${has ? ' has-photo' : ''}" style="--plat:${pv.color}"><span class="dd-tag">${escapeHTML(tag)}</span>
+      ${has ? photoImgHTML(p, 'front', 'full', 'class="dd-img"', photoId) : `<span class="dd-code" aria-hidden="true">${escapeHTML(pv.code)}</span>`}
+      ${shownSealed(p) ? `<span class="cover-seal" title="${escapeHTML(t('wall.sealed'))}">${icon('shield')}</span>` : ''}</div>
+    <div class="dd-info">
+      ${when ? `<p class="dd-when">${icon('calendar')}<span>${escapeHTML(when)}</span></p>` : ''}
+      <h2 class="dd-name" id="ddName">${escapeHTML(p.name)}</h2>
+      ${p.nameJp ? `<p class="dd-jp" lang="ja">${escapeHTML(p.nameJp)}</p>` : ''}
+      ${meta ? `<p class="dd-meta">${meta}</p>` : ''}
+      ${sum ? `<p class="dd-sum">${escapeHTML(sum)}</p>` : ''}
+      <p class="dd-fact">${icon('info')}<span>${escapeHTML(ddFact(p))}</span></p>
       <div class="dd-actions"><button type="button" class="btn dd-open" onclick="goProduct('${p.id}')">${t('dash.daily_open')}</button>
         <button type="button" class="btn dd-other" data-fk="dd-other" onclick="dashDailyOther()">${icon('refresh')} ${t('dash.daily_other')}</button></div></div>
   </section>`;
 }
-function dashDailyOther(){ dashDaily.off++; dashDaily.id = ''; renderKeepFocus('[data-fk="dd-other"]'); }
+function dashDailyOther(){ dashDaily.off++; renderKeepFocus('[data-fk="dd-other"]'); }
 /* «Casi completas»: plataformas a las que les falta poco (al menos la mitad), las 3 más cerca de completarse */
 function dashNearPlatforms(limit){
   const m = groupCounts(PRODUCTS.filter(p=> p.platformId && platformCountsInCollection(p.platformId)), p=> p.platformId);

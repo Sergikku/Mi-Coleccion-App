@@ -3112,6 +3112,39 @@ I18N.es['ayuda.organize.body'] += '<br><br><b>El Dashboard</b> (v11.22): arriba,
 I18N.en['ayuda.organize.body'] += '<br><br><b>The Dashboard</b> (v11.22): at the top, the summary with what you have, what you’re missing, the sealed ones, the value and a bar per category (tap it to open it). Below, the <b>item of the day</b> (one of yours each day; “Another” shows a different one), recently added items, the platforms that are <b>nearly complete</b> and, at the end, <b>your collection’s value</b> and how it changes. Items to confirm show as a number on “Research” in the bottom bar.';
 I18N.de['ayuda.organize.body'] += '<br><br><b>Das Dashboard</b> (v11.22): oben die Übersicht mit dem, was du hast, was fehlt, den versiegelten Stücken, dem Wert und einem Balken pro Kategorie (antippen zum Öffnen). Darunter das <b>Stück des Tages</b> (jeden Tag eins von deinen; „Anderes“ zeigt ein anderes), die zuletzt hinzugefügten Stücke, die <b>fast vollständigen</b> Plattformen und am Ende der <b>Wert deiner Sammlung</b> mit seiner Entwicklung. Zu bestätigende Stücke stehen als Zahl an „Recherche“ in der unteren Leiste.';
 I18N.ja['ayuda.organize.body'] += '<br><br><b>ダッシュボード</b>（v11.22）：上部に、所持数・未所持・未開封・価値と、カテゴリーごとのバー（タップで開く）をまとめた概要。その下に<b>今日のアイテム</b>（毎日あなたのアイテムから1点。「別のアイテム」で切り替え）、最近追加したアイテム、<b>あと少しでコンプリート</b>のプラットフォーム、最後に<b>コレクションの価値</b>とその推移。未確認のアイテムは、下のバーの「調査中」に数字で表示されます。';
+/* ---------- v11.23 · Pieza del día ---------- */
+Object.assign(I18N.es, {
+  'dash.dd_fact_full':'Tienes las {t} piezas de {p}: está completa.',
+  'dash.dd_tag_today':'Tal día como hoy', 'dash.dd_tag_bought':'La compraste un día como hoy', 'dash.dd_tag_week':'Salió esta semana', 'dash.dd_tag_month':'Salió este mes', 'dash.dd_tag_any':'Pieza del día',
+  'dash.dd_of':'{i} de {n}', 'dash.dd_released_line':'Salió el {d} — {a}', 'dash.dd_bought_line':'La compraste el {d} — {a}',
+  'dash.dd_this_year':'este año', 'dash.dd_ago':'hace {n} años', 'dash.dd_ago1':'hace 1 año',
+  'dash.dd_fact_oldest':'Es la más antigua de tus piezas de {p}.', 'dash.dd_fact_newest':'Es la más reciente de tus piezas de {p}.', 'dash.dd_fact_count':'De {p} tienes {h} de {t} piezas.',
+});
+Object.assign(I18N.en, {
+  'dash.dd_fact_full':'You have all {t} {p} items: it’s complete.',
+  'dash.dd_tag_today':'On this day', 'dash.dd_tag_bought':'You bought it on this day', 'dash.dd_tag_week':'Released this week', 'dash.dd_tag_month':'Released this month', 'dash.dd_tag_any':'Item of the day',
+  'dash.dd_of':'{i} of {n}', 'dash.dd_released_line':'Released {d} — {a}', 'dash.dd_bought_line':'You bought it on {d} — {a}',
+  'dash.dd_this_year':'this year', 'dash.dd_ago':'{n} years ago', 'dash.dd_ago1':'1 year ago',
+  'dash.dd_fact_oldest':'It’s the oldest of your {p} items.', 'dash.dd_fact_newest':'It’s the newest of your {p} items.', 'dash.dd_fact_count':'For {p} you have {h} of {t} items.',
+});
+Object.assign(I18N.de, {
+  'dash.dd_fact_full':'Du hast alle {t} Stücke für {p}: komplett.',
+  'dash.dd_tag_today':'An diesem Tag', 'dash.dd_tag_bought':'An diesem Tag gekauft', 'dash.dd_tag_week':'Diese Woche erschienen', 'dash.dd_tag_month':'Diesen Monat erschienen', 'dash.dd_tag_any':'Stück des Tages',
+  'dash.dd_of':'{i} von {n}', 'dash.dd_released_line':'Erschienen am {d} — {a}', 'dash.dd_bought_line':'Gekauft am {d} — {a}',
+  'dash.dd_this_year':'dieses Jahr', 'dash.dd_ago':'vor {n} Jahren', 'dash.dd_ago1':'vor 1 Jahr',
+  'dash.dd_fact_oldest':'Es ist das älteste deiner Stücke für {p}.', 'dash.dd_fact_newest':'Es ist das neueste deiner Stücke für {p}.', 'dash.dd_fact_count':'Für {p} hast du {h} von {t} Stücken.',
+});
+Object.assign(I18N.ja, {
+  'dash.dd_fact_full':'{p}は{t}点すべて所持しています。コンプリートです。',
+  'dash.dd_tag_today':'今日は何の日', 'dash.dd_tag_bought':'この日に購入', 'dash.dd_tag_week':'今週発売', 'dash.dd_tag_month':'今月発売', 'dash.dd_tag_any':'今日のアイテム',
+  'dash.dd_of':'{n}点中{i}点目', 'dash.dd_released_line':'{d}発売 — {a}', 'dash.dd_bought_line':'{d}に購入 — {a}',
+  'dash.dd_this_year':'今年', 'dash.dd_ago':'{n}年前', 'dash.dd_ago1':'1年前',
+  'dash.dd_fact_oldest':'{p}の中で一番古いアイテムです。', 'dash.dd_fact_newest':'{p}の中で一番新しいアイテムです。', 'dash.dd_fact_count':'{p}は{t}点中{h}点を所持しています。',
+});
+I18N.es['ayuda.organize.body'] += ' Desde la v11.23, la pieza del día tiene sentido: primero una que <b>salió un día como hoy</b>, si no una que <b>compraste un día como hoy</b>, una que salió <b>esta semana</b> o <b>este mes</b>, y si no, una al azar. Enseña la foto entera, cuándo salió, su descripción y un dato de su plataforma.';
+I18N.en['ayuda.organize.body'] += ' Since v11.23 the item of the day makes sense: first one <b>released on this day</b>, otherwise one you <b>bought on this day</b>, one released <b>this week</b> or <b>this month</b>, and otherwise a random one. It shows the whole photo, when it came out, its description and a fact about its platform.';
+I18N.de['ayuda.organize.body'] += ' Seit v11.23 hat das Stück des Tages einen Grund: zuerst eins, das <b>an diesem Tag erschienen</b> ist, sonst eins, das du <b>an diesem Tag gekauft</b> hast, eins aus <b>dieser Woche</b> oder <b>diesem Monat</b>, und sonst ein zufälliges. Es zeigt das ganze Foto, wann es erschien, seine Beschreibung und eine Angabe zu seiner Plattform.';
+I18N.ja['ayuda.organize.body'] += ' v11.23から、今日のアイテムは意味のあるものを選びます。まず<b>今日と同じ日に発売</b>されたもの、なければ<b>この日に購入</b>したもの、<b>今週</b>や<b>今月</b>発売のもの、それもなければランダムです。写真全体、発売日、説明、プラットフォームについての一言を表示します。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;
