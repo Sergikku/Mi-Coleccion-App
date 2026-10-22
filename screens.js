@@ -144,9 +144,6 @@ function renderDashboard(){
       actions:`<button class="btn primary" onclick="goPage('coleccion')">${icon('plus')} ${t('common.create_category')}</button>
                <button class="btn" onclick="goPage('backup')">${icon('archive')} ${t('backup.import')}</button>` });
   }
-  const missing = platformsWithMostMissing(4);
-  const unconfirmed = PRODUCTS.filter(p=>p.existence!=='confirmado').length;
-  const counts = platformCountsMap();
   const n = (v)=> v.toLocaleString(numLocale());
   let html = head;
   html += searchbarHTML({ id:'dash-search', placeholder:t('dash.search_short'), oninput:'handleDashboardSearch(this.value)', scan:'label' });
@@ -163,38 +160,102 @@ function renderDashboard(){
       <button type="button" class="hero-stat is-gold" onclick="goInventory('sellado')"><span class="hs-label">${t('dash.sealed')}</span><span class="hs-value">${n(g.sealed)}</span></button>
       <button type="button" class="hero-stat is-quiet" onclick="openValueBulk()" title="${escapeHTML(g.valued ? (g.lastUpdate ? t('dash.value.updated').replace('{d}', g.lastUpdate) : '') : t('dash.value.novalue'))}"><span class="hs-label">${t('dash.value')}</span><span class="hs-value">${g.valued ? fmtMoney(g.valor) : '—'}</span></button>
     </div>
-    ${distributionHTML(cats)}
+    ${dashCatRowsHTML(cats)}
   </section>`;
+  // v11.22: la pieza del día
+  html += dashDailyHTML();
   // 2. Recién añadidas: tus últimas piezas, como fichas de catálogo
   const recent = recentProducts(12);
   if(recent.length){
     registerListContext(recent.map(p=>p.id), t('dash.recent'));
     html += `<section class="vit-section">${sectionTitleHTML(t('dash.recent'), `<button type="button" class="link-btn" onclick="goPage('gallery')">${t('dash.gallery_link')}</button>`)}<div class="h-scroll">${recent.map(miniCoverHTML).join('')}</div></section>`;
   }
-  // v11.11: tu estantería 3D
-  if(typeof estDashCardHTML==='function') html += estDashCardHTML();
-  // 3. Estanterías · 4. Huecos por llenar
-  html += `<div class="dash-columns"><section class="vit-section">` + sectionTitleHTML(t('dash.categories'), fmtCount(cats.length, 'count.category_one', 'count.category_many'));
-  html += `<div class="shelf-list">${cats.map(c=>shelfCardHTML(c, counts, false)).join('')}</div>`;
-  html += `</section><section class="vit-section">` + sectionTitleHTML(t('dash.gaps'));
-  html += missing.length ? `<div class="gap-grid">${missing.map(gapBlockHTML).join('')}</div>`
-                         : `<p class="section-sub">${g.total ? t('dash.nothing_missing') : t('dash.no_items_yet')}</p>`;
-  html += `</section></div>`;
-  // 5. La colección en el tiempo (información secundaria)
-  const years = yearChartHTML(allEditionsForStats().map(x=>x.product));
-  if(years) html += `<section class="vit-section is-secondary">${sectionTitleHTML(t('dash.timeline'), t('dash.timeline.sub'))}${years}</section>`;
-  if(unconfirmed){
-    html += `<div class="note note-info dash-note">${t('dash.unconfirmed').replace('{n}', unconfirmed)}
-      <div class="note-actions"><button class="btn btn-sm" onclick="goPage('investigacion')">${icon('research')} ${t('nav.investigacion')}</button></div></div>`;
-  }
+  // v11.22: «Casi completas» (las plataformas a las que les falta poco), el valor y, al final, los enlaces.
+  //   La estantería 3D, las categorías en grande y el gráfico por año siguen en Colección, Estantería y Estadísticas;
+  //   las piezas por confirmar, en el número de «Investigar» de la barra.
+  html += dashNearHTML();
+  html += dashValueHTML(g);
   const rep = repeatedStats();
   html += `<div class="quiet-links">
     ${rep.pieces ? `<button class="btn btn-sm btn-ghost" onclick="goInventory('repetidas')">${icon('copies')} ${t('rep.link').replace('{n}', rep.pieces)}</button>` : ''}
     <button class="btn btn-sm btn-ghost" onclick="goPage('gallery')">${icon('camera')} ${t('dash.gallery_link')}</button>
+    <button class="btn btn-sm btn-ghost" onclick="goPage('estadisticas')">${icon('chart')} ${t('dash.by_year')}</button>
     <button class="btn btn-sm btn-ghost" onclick="goPage('backup')">${icon('archive')} ${t('dash.backup_link')}</button>
     <button class="btn btn-sm btn-ghost" onclick="goPage('ayuda')">${icon('help')} ${t('nav.ayuda')}</button>
   </div>`;
   return html;
+}
+/* ---------- Dashboard v11.22 ---------- */
+/* Categorías dentro del resumen: nombre, «tienes / total · %» y su barra; cada una lleva a su categoría */
+function dashCatRowsHTML(cats){
+  const list = cats.filter(c=> c.total > 0);
+  if(!list.length) return '';
+  const n = (v)=> v.toLocaleString(numLocale());
+  return `<div class="dash-cats">${list.map((c, i)=> `<button type="button" class="dash-cat" onclick="goCategory('${c.id}')" aria-label="${escapeHTML(c.name + ' — ' + t('dash.ring_label').replace('{pct}', c.pct).replace('{have}', c.have).replace('{total}', c.total))}">
+      <span class="dc-name">${escapeHTML(c.name)}</span><span class="dc-count">${n(c.have)} / ${n(c.total)} · ${c.pct} %</span>
+      <span class="dc-bar" aria-hidden="true"><span class="dist-c${i % 8}" style="width:${c.pct}%"></span></span></button>`).join('')}</div>`;
+}
+/* La pieza del día: una de las tuyas (si hay fotos, de las que tienen foto delantera), la misma todo el día.
+   «Otra» enseña otra (solo en esta pantalla, no se guarda nada). */
+let dashDaily = { day:'', id:'', off:0 };
+function dashDailyPick(){
+  const own = PRODUCTS.filter(p=> p.possession==='tengo');
+  if(!own.length) return null;
+  const ready = typeof PHOTO_INDEX!=='undefined' && PHOTO_INDEX.ready;
+  const withPhoto = ready ? own.filter(p=> hasPhoto(shownPhotoId(p), 'front')) : [];
+  const pool = withPhoto.length ? withPhoto : own;
+  const day = new Date().toISOString().slice(0, 10);
+  if(dashDaily.day!==day){ dashDaily = { day, id:'', off:0 }; }
+  const cur = dashDaily.id && PRODUCTS_BY_ID[dashDaily.id];
+  if(cur && cur.possession==='tengo' && pool.includes(cur) && ready) return cur;
+  let h = 2166136261; for(const ch of day) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const ids = pool.map(p=> p.id).sort();
+  const p = PRODUCTS_BY_ID[ids[((h >>> 0) + dashDaily.off * 7919) % ids.length]];
+  if(ready) dashDaily.id = p.id;
+  return p;
+}
+function dashDailyHTML(){
+  const p = dashDailyPick(); if(!p) return '';
+  const pv = platVisual(p.platformId), photoId = shownPhotoId(p), has = hasPhoto(photoId, 'front');
+  const meta = [p.platformName, p.year, regionShortText(p)].filter(Boolean).map(escapeHTML).join(' · ');
+  return `<section class="dash-daily" aria-labelledby="ddName">
+    <div class="dd-art" style="--plat:${pv.color}"><span class="dd-tag">${t('dash.daily')}</span>
+      <span class="dd-cover">${has ? photoImgHTML(p, 'front', 'full', '', photoId) : `<span class="dd-code">${escapeHTML(pv.code)}</span>`}${shownSealed(p) ? `<span class="cover-seal" title="${escapeHTML(t('wall.sealed'))}">${icon('shield')}</span>` : ''}</span></div>
+    <div class="dd-info"><h2 class="dd-name" id="ddName">${escapeHTML(p.name)}</h2>${meta ? `<p class="dd-meta">${meta}</p>` : ''}
+      <div class="dd-actions"><button type="button" class="btn dd-open" onclick="goProduct('${p.id}')">${t('dash.daily_open')}</button>
+        <button type="button" class="btn dd-other" data-fk="dd-other" onclick="dashDailyOther()">${icon('refresh')} ${t('dash.daily_other')}</button></div></div>
+  </section>`;
+}
+function dashDailyOther(){ dashDaily.off++; dashDaily.id = ''; renderKeepFocus('[data-fk="dd-other"]'); }
+/* «Casi completas»: plataformas a las que les falta poco (al menos la mitad), las 3 más cerca de completarse */
+function dashNearPlatforms(limit){
+  const m = groupCounts(PRODUCTS.filter(p=> p.platformId && platformCountsInCollection(p.platformId)), p=> p.platformId);
+  return getAllPlatforms().map(pl=> Object.assign({ id:pl.id, name:pl.name }, m.get(pl.id) || EMPTY_COUNTS))
+    .filter(s=> s.missing > 0 && s.have * 2 >= s.total)
+    .sort((a, b)=> a.missing - b.missing || b.pct - a.pct || compareNames(a.name, b.name))
+    .slice(0, limit || 3);
+}
+function dashNearHTML(){
+  const list = dashNearPlatforms(3); if(!list.length) return '';
+  const n = (v)=> v.toLocaleString(numLocale());
+  return `<section class="vit-section">${sectionTitleHTML(t('dash.near'), `<button type="button" class="link-btn" onclick="goInventory('falta')">${t('dash.near_all')}</button>`)}
+    <div class="dash-near">${list.map(s=>{ const pv = platVisual(s.id);
+      return `<button type="button" class="dn-row" onclick="goMissing('${s.id}')" style="--plat:${pv.color}"><span class="code-chip">${escapeHTML(pv.code)}</span>
+        <span class="dn-txt"><b>${escapeHTML(s.name)}</b><small>${t('dash.near_of').replace('{h}', n(s.have)).replace('{t}', n(s.total))}</small></span>
+        <span class="dn-miss">${(s.missing===1 ? t('dash.near_miss1') : t('dash.near_miss')).replace('{n}', n(s.missing))}</span></button>`; }).join('')}</div></section>`;
+}
+/* El valor de tu colección, al final: total, su evolución, lo pagado, la diferencia y cuántas tienen valor */
+function dashValueHTML(g){
+  if(!g.have) return '';
+  const v = valueTotals();
+  const chart = v.nNow ? valueChartSVG(Array.isArray(OVERRIDES.valorHistorial) ? OVERRIDES.valorHistorial : []) : '';
+  const diff = v.both ? (v.diff >= 0 ? '+' : '−') + fmtMoney(Math.abs(v.diff)) : '—';
+  return `<section class="dash-value" aria-labelledby="dvTitle">
+    <div class="dv-head"><h2 id="dvTitle">${t('val.title')}</h2><button type="button" class="link-btn" onclick="goPage('estadisticas')">${t('dash.value_more')}</button></div>
+    ${v.nNow ? `<div class="dv-total">${fmtMoney(v.now)}</div>${chart || `<p class="dv-note">${t('val.chart_one')}</p>`}` : `<p class="dv-note">${t('val.empty')}</p>`}
+    <div class="dv-three"><span>${t('val.paid')}<b>${v.nPaid ? fmtMoney(v.paid) : '—'}</b></span><span>${t('val.diff')}<b class="${v.both ? (v.diff >= 0 ? 'is-up' : 'is-down') : ''}">${diff}</b></span><span>${t('dash.value_with')}<b>${t('dash.near_of').replace('{h}', v.nNow).replace('{t}', g.have)}</b></span></div>
+    <button type="button" class="btn dv-bulk" data-fk="dv-bulk" onclick="openValueBulk()">${icon('coins')} ${t('val.bulk')}</button>
+  </section>`;
 }
 /* Métrica del Dashboard → Inventario con ese filtro */
 function goInventory(filter){
@@ -1261,7 +1322,8 @@ function backupReminderHTML(){
   const days = daysSince(APP_META.lastFullBackupAt);
   if(days!==null && days < BACKUP_REMINDER_DAYS) return '';
   const msg = days===null ? t('backup.reminder.never') : t('backup.reminder.days').replace('{n}', days);
-  return `<div class="note note-warn" id="backup-reminder" role="status">${escapeHTML(msg)}<div class="note-actions"><button class="btn btn-sm" onclick="goPage('backup')">${icon('archive')} ${t('backup.reminder.cta')}</button></div></div>`;
+  // v11.22: una sola línea, con el botón al lado
+  return `<div class="dash-reminder" id="backup-reminder" role="status">${icon('archive')}<span>${escapeHTML(msg)}</span><button type="button" class="link-btn" onclick="goPage('backup')">${t('backup.reminder.cta')}</button></div>`;
 }
 function lastBackupText(){
   const iso = APP_META.lastFullBackupAt;

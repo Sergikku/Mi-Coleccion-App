@@ -247,6 +247,7 @@ function updateDocumentTitle(){
 }
 
 /* Barra de navegación (abajo en móvil, pestañas arriba en escritorio) */
+function unconfirmedCount(){ return typeof PRODUCTS!=='undefined' ? PRODUCTS.filter(p=> p.existence!=='confirmado').length : 0; }
 function renderNav(){
   const items = (bottom)=> NAV.map(n=>{
     const active = view.page===n.id;
@@ -255,7 +256,11 @@ function renderNav(){
     const lang = OVERRIDES.lang || 'es';
     const short = bottom && I18N[lang] && I18N[lang]['nav.short.'+n.id];
     const full = t(n.labelKey);
-    return `<button class="navitem ${active?'active':''}" ${active?'aria-current="page"':''} ${short?`aria-label="${escapeHTML(full)}" title="${escapeHTML(full)}"`:''} onclick="goPage('${n.id}')">${icon(n.icon,'navicon')}<span class="navlabel">${short || full}</span></button>`;
+    // v11.22: en «Investigar», cuántas piezas quedan por confirmar (antes era un aviso en el Dashboard)
+    const nb = n.id==='investigacion' ? unconfirmedCount() : 0;
+    const name = nb ? full + ' — ' + t('nav.badge_unconfirmed').replace('{n}', nb) : full;
+    const lbl = short || nb ? `aria-label="${escapeHTML(name)}" title="${escapeHTML(name)}"` : '';
+    return `<button class="navitem ${active?'active':''}" ${active?'aria-current="page"':''} ${lbl} onclick="goPage('${n.id}')">${icon(n.icon,'navicon')}${nb ? `<span class="nav-badge" aria-hidden="true">${nb > 99 ? '99+' : nb}</span>` : ''}<span class="navlabel">${short || full}</span></button>`;
   }).join('');
   document.getElementById('bottomnav').innerHTML = items(true);
   document.getElementById('topnav').innerHTML = items(false);

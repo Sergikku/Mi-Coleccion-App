@@ -3083,6 +3083,35 @@ I18N.es['ayuda.search.body'] += ' Con <b>Sin pagado</b> ves solo las que aún no
 I18N.en['ayuda.search.body'] += ' <b>No price paid</b> shows only the ones that don’t have what they cost you yet (v11.21.1).';
 I18N.de['ayuda.search.body'] += ' <b>Ohne Kaufpreis</b> zeigt nur die, bei denen noch fehlt, was sie dich gekostet haben (v11.21.1).';
 I18N.ja['ayuda.search.body'] += ' <b>購入価格なし</b>で、まだ購入価格を入れていないものだけを表示します（v11.21.1）。';
+/* ---------- v11.22 · Dashboard ---------- */
+Object.assign(I18N.es, {
+  'dash.daily':'Pieza del día', 'dash.daily_open':'Ver ficha', 'dash.daily_other':'Otra',
+  'dash.near':'Casi completas', 'dash.near_all':'Ver lo que falta', 'dash.near_of':'{h} de {t}', 'dash.near_miss':'Faltan {n}', 'dash.near_miss1':'Falta 1',
+  'dash.value_more':'Detalles', 'dash.value_with':'Con valor', 'dash.by_year':'Por año de salida',
+  'nav.badge_unconfirmed':'{n} por confirmar',
+});
+Object.assign(I18N.en, {
+  'dash.daily':'Item of the day', 'dash.daily_open':'Open item', 'dash.daily_other':'Another',
+  'dash.near':'Nearly complete', 'dash.near_all':'See what’s missing', 'dash.near_of':'{h} of {t}', 'dash.near_miss':'{n} missing', 'dash.near_miss1':'1 missing',
+  'dash.value_more':'Details', 'dash.value_with':'With a value', 'dash.by_year':'By release year',
+  'nav.badge_unconfirmed':'{n} to confirm',
+});
+Object.assign(I18N.de, {
+  'dash.daily':'Stück des Tages', 'dash.daily_open':'Stück öffnen', 'dash.daily_other':'Anderes',
+  'dash.near':'Fast vollständig', 'dash.near_all':'Was fehlt', 'dash.near_of':'{h} von {t}', 'dash.near_miss':'{n} fehlen', 'dash.near_miss1':'1 fehlt',
+  'dash.value_more':'Details', 'dash.value_with':'Mit Wert', 'dash.by_year':'Nach Erscheinungsjahr',
+  'nav.badge_unconfirmed':'{n} zu bestätigen',
+});
+Object.assign(I18N.ja, {
+  'dash.daily':'今日のアイテム', 'dash.daily_open':'詳細を見る', 'dash.daily_other':'別のアイテム',
+  'dash.near':'あと少しでコンプリート', 'dash.near_all':'足りないものを見る', 'dash.near_of':'{t}点中{h}点', 'dash.near_miss':'あと{n}点', 'dash.near_miss1':'あと1点',
+  'dash.value_more':'詳細', 'dash.value_with':'価値あり', 'dash.by_year':'発売年別',
+  'nav.badge_unconfirmed':'未確認 {n}点',
+});
+I18N.es['ayuda.organize.body'] += '<br><br><b>El Dashboard</b> (v11.22): arriba, el resumen con lo que tienes, lo que te falta, las precintadas, el valor y una barra por categoría (tócala para entrar). Debajo, la <b>pieza del día</b> (cada día una de las tuyas; «Otra» enseña otra), las recién añadidas, las plataformas <b>casi completas</b> y, al final, el <b>valor de tu colección</b> con su evolución. Las piezas por confirmar salen con un número en «Investigar», en la barra de abajo.';
+I18N.en['ayuda.organize.body'] += '<br><br><b>The Dashboard</b> (v11.22): at the top, the summary with what you have, what you’re missing, the sealed ones, the value and a bar per category (tap it to open it). Below, the <b>item of the day</b> (one of yours each day; “Another” shows a different one), recently added items, the platforms that are <b>nearly complete</b> and, at the end, <b>your collection’s value</b> and how it changes. Items to confirm show as a number on “Research” in the bottom bar.';
+I18N.de['ayuda.organize.body'] += '<br><br><b>Das Dashboard</b> (v11.22): oben die Übersicht mit dem, was du hast, was fehlt, den versiegelten Stücken, dem Wert und einem Balken pro Kategorie (antippen zum Öffnen). Darunter das <b>Stück des Tages</b> (jeden Tag eins von deinen; „Anderes“ zeigt ein anderes), die zuletzt hinzugefügten Stücke, die <b>fast vollständigen</b> Plattformen und am Ende der <b>Wert deiner Sammlung</b> mit seiner Entwicklung. Zu bestätigende Stücke stehen als Zahl an „Recherche“ in der unteren Leiste.';
+I18N.ja['ayuda.organize.body'] += '<br><br><b>ダッシュボード</b>（v11.22）：上部に、所持数・未所持・未開封・価値と、カテゴリーごとのバー（タップで開く）をまとめた概要。その下に<b>今日のアイテム</b>（毎日あなたのアイテムから1点。「別のアイテム」で切り替え）、最近追加したアイテム、<b>あと少しでコンプリート</b>のプラットフォーム、最後に<b>コレクションの価値</b>とその推移。未確認のアイテムは、下のバーの「調査中」に数字で表示されます。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;
