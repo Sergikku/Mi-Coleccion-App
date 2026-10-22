@@ -268,13 +268,18 @@ function dashDailyHTML(){
       <h2 class="dd-name" id="ddName">${escapeHTML(p.name)}</h2>
       ${p.nameJp ? `<p class="dd-jp" lang="ja">${escapeHTML(p.nameJp)}</p>` : ''}
       ${meta ? `<p class="dd-meta">${meta}</p>` : ''}
-      ${sum ? `<p class="dd-sum">${escapeHTML(sum)}</p>` : ''}
+      ${sum ? `<p class="dd-sum" id="ddSum">${escapeHTML(sum)}</p>${sum.length > 240 || sum.includes('\n') ? `<button type="button" class="link-btn dd-more" data-fk="dd-more" aria-expanded="false" aria-controls="ddSum" onclick="ddToggleSum(this)">${t('dash.dd_more')}</button>` : ''}` : ''}
       <p class="dd-fact">${icon('info')}<span>${escapeHTML(ddFact(p))}</span></p>
       <div class="dd-actions"><button type="button" class="btn dd-open" onclick="goProduct('${p.id}')">${t('dash.daily_open')}</button>
         <button type="button" class="btn dd-other" data-fk="dd-other" onclick="dashDailyOther()">${icon('refresh')} ${t('dash.daily_other')}</button></div></div>
   </section>`;
 }
 function dashDailyOther(){ dashDaily.off++; renderKeepFocus('[data-fk="dd-other"]'); }
+function ddToggleSum(btn){   // (se despliega ahí mismo; no se guarda)
+  const open = btn.getAttribute('aria-expanded')!=='true', el = document.getElementById('ddSum');
+  if(el) el.classList.toggle('is-open', open);
+  btn.setAttribute('aria-expanded', String(open)); btn.textContent = t(open ? 'dash.dd_less' : 'dash.dd_more');
+}
 /* «Casi completas»: plataformas a las que les falta poco (al menos la mitad), las 3 más cerca de completarse */
 function dashNearPlatforms(limit){
   const m = groupCounts(PRODUCTS.filter(p=> p.platformId && platformCountsInCollection(p.platformId)), p=> p.platformId);
@@ -739,7 +744,9 @@ async function renderProductDetail(prodId){
   sections += disclosureHTML('valoracion', t('p.valuation'), valBody, productSectionsOpen, typeof p.valuation.valorActual==='number' ? fmtMoney(p.valuation.valorActual) : '');
   sections += loanSectionHTML(p);   // v11.19: compra y préstamo
 
-  const notasBody = editableTextarea(t('p.summary'), p.summary, `updateProductField('${p.id}','summary',this.value)`)
+  // v11.24: el cuadro de la descripción crece con el texto (1 o 2 párrafos) y al escribir
+  const sumRows = Math.min(24, Math.max(3, String(p.summary || '').split('\n').reduce((n, l)=> n + Math.max(1, Math.ceil(l.length / 30)), 0) + 1));
+  const notasBody = editableTextarea(t('p.summary'), p.summary, `updateProductField('${p.id}','summary',this.value)`, `rows="${sumRows}" oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight + 2, window.innerHeight * 0.7) + 'px'"`)
     + editableTextarea(t('p.notes_field'), p.notes, `updateProductField('${p.id}','notes',this.value)`);
   sections += disclosureHTML('notas', t('p.notes'), notasBody, productSectionsOpen, (p.summary||p.notes) ? t('p.has_text') : '');
 

@@ -352,12 +352,15 @@ function researchPlan(data){
     }
     // la descripción: solo donde no hay
     const sm = typeof r.summary==='string' ? r.summary.trim() : '';
-    if(sm && !String(p.summary==null ? '' : p.summary).trim()) items.push({ key:'desc:' + id, kind:'desc', id, ch:{ summary:sm }, from:'', to:sm });
+    const curSum = String(p.summary==null ? '' : p.summary).trim();
+    if(sm && !curSum) items.push({ key:'desc:' + id, kind:'desc', id, ch:{ summary:sm }, from:'', to:sm });
+    // v11.24: si ya tenía descripción y la nueva es distinta, se ofrece cambiarla (sin marcar: decides tú)
+    else if(sm && curSum.replace(/\s+/g, ' ')!==sm.replace(/\s+/g, ' ')) items.push({ key:'descdiff:' + id, kind:'descdiff', id, ch:{ summary:sm }, from:curSum, to:sm });
   });
   return { items, skip, unknown };
 }
 let RIM = null;
-const RIM_KINDS = ['differs', 'precise', 'fill', 'desc'];
+const RIM_KINDS = ['differs', 'precise', 'fill', 'desc', 'descdiff'];
 async function importResearch(data){
   const plan = researchPlan(data);
   if(!plan.items.length){
@@ -366,7 +369,7 @@ async function importResearch(data){
     showToast(msg, { duration:6000 });
     return;
   }
-  RIM = { plan, sel: new Set(plan.items.filter(x=> x.kind!=='differs').map(x=> x.key)), applied:false };
+  RIM = { plan, sel: new Set(plan.items.filter(x=> x.kind!=='differs' && x.kind!=='descdiff').map(x=> x.key)), applied:false };
   openSheet({ kind:'rimport', title:t('rimport.title'), body:rimportBodyHTML(), foot:rimportFootHTML(), focus:'#rimApply',
     onClose: ()=>{ if(RIM && !RIM.applied) setBackupStatus('photos', t('import.cancelled')); RIM = null; } });
 }
@@ -383,7 +386,9 @@ function rimportBodyHTML(){
   if(plan.skip.bad) ign.push(t('rimport.skip_bad').replace('{n}', plan.skip.bad));
   if(plan.unknown) ign.push(t('rimport.unknown').replace('{n}', plan.unknown));
   const row = (x)=>{ const p = PRODUCTS_BY_ID[x.id], sub = [p.platformName, p.year].filter(Boolean).join(' · ');
-    const what = x.kind==='desc' ? `<span class="rim-desc">${escapeHTML(x.to.length > 140 ? x.to.slice(0, 140) + '…' : x.to)}</span>`
+    const cut = (v, n)=> v.length > n ? v.slice(0, n) + '…' : v;
+    const what = x.kind==='desc' ? `<span class="rim-desc">${escapeHTML(cut(x.to, 140))}</span>`
+      : x.kind==='descdiff' ? `<span class="rim-desc"><s>${escapeHTML(cut(x.from, 90))}</s></span><span class="rim-desc rim-new">${escapeHTML(cut(x.to, 220))}</span>`
       : `<span class="rim-dates">${x.from ? `<s>${escapeHTML(x.from)}</s> → ` : ''}<b>${escapeHTML(x.to)}</b></span>`;
     return `<label class="rim-row"><input type="checkbox" data-key="${escapeHTML(x.key)}" ${sel.has(x.key) ? 'checked' : ''} onchange="rimportToggle(this)">
       <span class="rim-txt"><span class="rim-name">${escapeHTML(p.name)}</span><small>${escapeHTML(sub)}</small>${what}</span></label>`; };
@@ -409,7 +414,7 @@ async function rimportApply(){
   if(!RIM || !RIM.sel.size) return;
   const items = RIM.plan.items.filter(x=> RIM.sel.has(x.key)), unknown = RIM.plan.unknown;
   const byId = {}; items.forEach(x=>{ byId[x.id] = Object.assign(byId[x.id] || {}, x.ch); });
-  const n = { dates: items.filter(x=> x.kind!=='desc').length, fixed: items.filter(x=> x.kind==='differs' || x.kind==='precise').length, desc: items.filter(x=> x.kind==='desc').length };
+  const n = { dates: items.filter(x=> x.kind!=='desc').length, fixed: items.filter(x=> x.kind==='differs' || x.kind==='precise').length, desc: items.filter(x=> x.kind==='desc' || x.kind==='descdiff').length };
   try{
     // copia interna para poder deshacer (la misma que usa cualquier importación)
     const savedAt = new Date().toISOString();

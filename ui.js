@@ -2364,9 +2364,9 @@ function numberField(label, value, onchangeAttr){
   const id = fieldId();
   return `<div class="field"><label for="${id}">${label}</label><input id="${id}" type="number" inputmode="decimal" step="0.01" value="${value===null||value===undefined?'':value}" onchange="${onchangeAttr}"></div>`;
 }
-function editableTextarea(label, value, onchangeAttr){
+function editableTextarea(label, value, onchangeAttr, extra){
   const id = fieldId();
-  return `<div class="field"><label for="${id}">${label}</label><textarea id="${id}" onchange="${onchangeAttr}">${escapeHTML(value||'')}</textarea></div>`;
+  return `<div class="field"><label for="${id}">${label}</label><textarea id="${id}" onchange="${onchangeAttr}" ${extra||''}>${escapeHTML(value||'')}</textarea></div>`;
 }
 function editableSelect(label, value, options, onchangeAttr){
   const id = fieldId();

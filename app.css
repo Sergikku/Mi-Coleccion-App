@@ -2709,7 +2709,12 @@ html.est-tour-on .est-ctl, html.est-tour-on .est-bar, html.est-tour-on .est-imm-
 .dd-when{display:flex;align-items:center;gap:6px;margin:0 0 2px;font-size:var(--fs-sm);font-weight:600;color:#e8b35f;}
 .dd-when .ico{flex:0 0 auto;}
 .dd-jp{margin:0;font-size:var(--fs-sm);color:rgba(241,237,227,0.74);}
-.dd-sum{margin:8px 0 0;font-size:var(--fs-sm);line-height:1.5;color:rgba(241,237,227,0.88);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;}
+.dd-sum{margin:8px 0 0;font-size:var(--fs-sm);line-height:1.5;color:rgba(241,237,227,0.88);white-space:pre-line;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;}
 .dd-fact{display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;padding:8px 10px;border-radius:var(--r-md);background:rgba(241,237,227,0.08);font-size:var(--fs-xs);line-height:1.45;color:rgba(241,237,227,0.88);}
 .dd-fact .ico{flex:0 0 auto;margin-top:1px;color:#7cc4b6;}
 @media (min-width:820px){ .dd-art{align-self:start;} }
+
+/* v11.24 · descripción: «Leer más» en la pieza del día y la nueva en la revisión */
+.dd-sum.is-open{display:block;-webkit-line-clamp:unset;overflow:visible;}
+.dash-daily .dd-more{align-self:flex-start;min-height:var(--tap);color:#e8b35f;font-weight:600;}
+.rim-desc.rim-new{color:var(--text);}

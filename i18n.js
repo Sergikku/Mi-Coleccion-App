@@ -3145,6 +3145,15 @@ I18N.es['ayuda.organize.body'] += ' Desde la v11.23, la pieza del día tiene sen
 I18N.en['ayuda.organize.body'] += ' Since v11.23 the item of the day makes sense: first one <b>released on this day</b>, otherwise one you <b>bought on this day</b>, one released <b>this week</b> or <b>this month</b>, and otherwise a random one. It shows the whole photo, when it came out, its description and a fact about its platform.';
 I18N.de['ayuda.organize.body'] += ' Seit v11.23 hat das Stück des Tages einen Grund: zuerst eins, das <b>an diesem Tag erschienen</b> ist, sonst eins, das du <b>an diesem Tag gekauft</b> hast, eins aus <b>dieser Woche</b> oder <b>diesem Monat</b>, und sonst ein zufälliges. Es zeigt das ganze Foto, wann es erschien, seine Beschreibung und eine Angabe zu seiner Plattform.';
 I18N.ja['ayuda.organize.body'] += ' v11.23から、今日のアイテムは意味のあるものを選びます。まず<b>今日と同じ日に発売</b>されたもの、なければ<b>この日に購入</b>したもの、<b>今週</b>や<b>今月</b>発売のもの、それもなければランダムです。写真全体、発売日、説明、プラットフォームについての一言を表示します。';
+/* ---------- v11.24 · Descripciones ---------- */
+Object.assign(I18N.es, { 'dash.dd_more':'Leer más', 'dash.dd_less':'Leer menos', 'rimport.g_descdiff':'Descripciones distintas', 'rimport.d_descdiff':'Ya tenía descripción y la nueva es distinta (tachada, la que tienes). Están sin marcar: elige cuáles cambias.' });
+Object.assign(I18N.en, { 'dash.dd_more':'Read more', 'dash.dd_less':'Read less', 'rimport.g_descdiff':'Different descriptions', 'rimport.d_descdiff':'It already had a description and the new one is different (crossed out: yours). They’re unticked: choose which to change.' });
+Object.assign(I18N.de, { 'dash.dd_more':'Mehr lesen', 'dash.dd_less':'Weniger', 'rimport.g_descdiff':'Abweichende Beschreibungen', 'rimport.d_descdiff':'Es hatte schon eine Beschreibung und die neue ist anders (durchgestrichen: deine). Sie sind nicht angehakt: Wähle, welche du änderst.' });
+Object.assign(I18N.ja, { 'dash.dd_more':'続きを読む', 'dash.dd_less':'閉じる', 'rimport.g_descdiff':'異なる説明', 'rimport.d_descdiff':'すでに説明があり、新しい説明と異なります（取り消し線が今の説明）。チェックは外れています。変更するものを選んでください。' });
+I18N.es['ayuda.backup.body'] += ' Desde la v11.24, si una pieza ya tenía descripción y el archivo trae otra, sale en <b>Descripciones distintas</b>, sin marcar, para que elijas cuáles cambias.';
+I18N.en['ayuda.backup.body'] += ' Since v11.24, if an item already had a description and the file brings another, it appears under <b>Different descriptions</b>, unticked, so you choose which to change.';
+I18N.de['ayuda.backup.body'] += ' Seit v11.24 erscheint eine neue Beschreibung für ein Stück, das schon eine hatte, unter <b>Abweichende Beschreibungen</b>, nicht angehakt, damit du wählst, welche du änderst.';
+I18N.ja['ayuda.backup.body'] += ' v11.24から、すでに説明があるアイテムにファイルが別の説明を持ってきた場合は、<b>異なる説明</b>にチェックなしで表示され、変更するものを選べます。';
 function t(key){
   const lang = OVERRIDES.lang || 'es';
   return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key;
