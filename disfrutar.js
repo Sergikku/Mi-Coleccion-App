@@ -190,20 +190,19 @@ function printColeccionChecklist(id){ const c = coleccionesList().find(x=> x.id=
 
 /* ---------- Visita guiada ---------- */
 let VISITA = null;
+/* v11.31: TODAS las piezas que tienes, balda a balda y de izquierda a derecha
+   (antes eran solo 3 destacadas por balda), por todos los muebles. Si estás
+   mirando un mueble o una balda, empieza por ahí y sigue hasta dar la vuelta. */
 function visitaStops(scopeMid){
   const out = [], E = estData();
   E.muebles.forEach(m=>{
     if(m.isFloor || (scopeMid && m.id!==scopeMid)) return;
     estSurfaceIds(m).forEach(sid=>{
       const sf = estSurface(m, sid); if(!sf) return;
-      const ps = sf.items.map(it=> PRODUCTS_BY_ID[it.pid]).filter(p=> p && p.possession==='tengo');
-      // las destacadas: con descripción primero, luego con foto; hasta 3 por balda (todas si es un solo mueble)
-      const rank = (p)=> (String(p.summary || '').trim() ? 0 : 2) + (hasPhoto(shownPhotoId(p), 'front') ? 0 : 1);
-      const pick = ps.slice().sort((a, b)=> rank(a) - rank(b)).slice(0, scopeMid ? 99 : 3);
-      ps.filter(p=> pick.includes(p)).forEach(p=> out.push({ pid:p.id, mid:m.id, sid }));
+      sf.items.forEach(it=>{ const p = PRODUCTS_BY_ID[it.pid]; if(p && p.possession==='tengo') out.push({ pid:p.id, mid:m.id, sid }); });
     });
   });
-  return out.slice(0, 60);
+  return out;
 }
 /* v11.30: la visita es animada. En cada pieza: va a su balda, la pieza SALE de su
    sitio (la misma animación que al tocarla), da una vuelta entera, se queda unos
@@ -211,11 +210,12 @@ function visitaStops(scopeMid){
    abajo, solo una barra pequeña con «Pieza n de N», el nombre y los botones. */
 const VISITA_T = { spin:3200, hold:2600, gap:450 };
 function visitaStart(){
-  const scope = EST.view!=='sala' && EST.mid ? EST.mid : null;
-  const stops = visitaStops(scope);
+  const stops = visitaStops(null);
   if(!stops.length){ showToast(t('tour.empty'), { replace:true }); return; }
+  // si estás mirando una balda (o un mueble), la visita empieza por su primera pieza
+  const here = EST.view==='balda' ? stops.findIndex(x=> x.mid===EST.mid && x.sid===EST.bsid) : EST.view!=='sala' && EST.mid ? stops.findIndex(x=> x.mid===EST.mid) : -1;
   VISITA = { stops, i:0, play:true, timer:null, run:0, phase:'' };
-  visitaGo(0);
+  visitaGo(Math.max(0, here));
 }
 const visitaWait = (ms, run)=> new Promise(r=> setTimeout(()=> r(VISITA && VISITA.run===run), ms));
 /* Guarda la pieza que está fuera, sin animación (al saltar a otra o al salir) */
