@@ -4782,8 +4782,9 @@ function estPullPoseRot(it, b, cover){
   if(cover) return { tf:'rotateX(0deg) rotateY(0deg) rotateZ(0deg) rotateY(0deg)', ry:0 };
   return { tf: estPoseTf(b), ry: b.ang };   // (v11.16: con la cara en la que se apoya)
 }
-function estPullOut(pid, srcEl){
+function estPullOut(pid, srcEl, opts){
   const p = PRODUCTS_BY_ID[pid]; if(!p) return;
+  const tour = !!(opts && opts.tour);   // v11.30: en la visita guiada, solo la pieza (sin textos ni botones; la visita la gira y la devuelve)
   estCloseInspect(true);
   const loc = estFind(pid), it = loc ? estSurface(loc.m, loc.sid).items[loc.i] : { pid };
   const b = estItemBox(it, p), d0 = b.dims;
@@ -4795,8 +4796,9 @@ function estPullOut(pid, srcEl){
   const film = !miss && estSealed(p) ? EST_FILM : '';   // v11.18: su film
   const sub = p.possession==='tengo' ? [n > 1 ? t('est.have_n').replace('{n}', n) : t('est.have'), copyLine(p, c)].join(' · ') : t('cover.missing');
   const root = document.createElement('div');
-  root.id = 'estPull'; root.className = 'est-pull is-start';
-  root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-labelledby', 'estPullT');
+  root.id = 'estPull'; root.className = 'est-pull is-start' + (tour ? ' is-tour' : '');
+  if(tour) root.setAttribute('aria-hidden', 'true');
+  else { root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-labelledby', 'estPullT'); }
   root.innerHTML = `<div class="est-pull-bg" aria-hidden="true"></div>
     <div class="est-pull-stage" id="estPullStage" aria-hidden="true"><div class="est-pull-obj" id="estPullObj"><div class="est-pull-rot${miss ? ' is-ghost' : ''}${film ? ' is-sealed' : ''}" id="estPullRot" style="--plat:${pv.color}"></div></div></div>
     <div class="est-pull-info"><h2 id="estPullT">${escapeHTML(p.name)}</h2><p>${escapeHTML([p.platformName, p.year].filter(Boolean).join(' · '))}<br>${escapeHTML(sub)}</p><p class="est-pull-tip">${t('est.pull_tip')}</p></div>
@@ -4820,7 +4822,7 @@ function estPullOut(pid, srcEl){
   // de dónde sale: su sitio en la balda (se queda vacío mientras está fuera)
   const src = srcEl && srcEl.closest ? (srcEl.closest('.est-pz, .est-cv, .est-sp') || null) : null;
   const pose = estPullPoseRot(it, b, !!(src && src.classList.contains('est-cv')));
-  const st = { pid, rx:-10, ry:-28, z:1, fit:1, S0:S, d0, bigH: b.hgt * S, src, pose, ret: document.activeElement, closing:false };
+  const st = { pid, rx:-10, ry:-28, z:1, fit:1, S0:S, d0, bigH: b.hgt * S, src, pose, ret: document.activeElement, closing:false, tour };
   estPullState = st;
   st.start = estPullStartFor(st, st.bigH);
   estHydratePhotos(root);
@@ -4841,6 +4843,7 @@ function estPullOut(pid, srcEl){
   void root.offsetWidth;
   root.classList.remove('is-start');
   if(src) src.classList.add('is-out');
+  if(tour) return st;
   estPullBind(root, st);
   setTimeout(()=>{ const bt = root.querySelector('.est-pull-exit'); if(bt) bt.focus({ preventScroll:true }); }, 60);
 }
@@ -4979,7 +4982,7 @@ function estPullClose(silent){
   const root = document.getElementById('estPull'); if(root) root.remove();
   if(S && S.src) S.src.classList.remove('is-out');
   _trimBig.splice(0).forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(e){} });
-  if(!silent && S){
+  if(!silent && S && !S.tour){
     const back = S.ret && S.ret!==document.body && document.contains(S.ret) ? S.ret : document.getElementById('estRail');
     if(back && back.focus) try{ back.focus({ preventScroll:true }); }catch(e){}
   }

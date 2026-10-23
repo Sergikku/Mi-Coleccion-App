@@ -1,4 +1,4 @@
-/* Service worker de La Colección App — v11.29.0
+/* Service worker de La Colección App — v11.30.0
  *
  * Qué hace:
  *  - Al instalarse guarda TODO lo necesario para funcionar sin conexión
@@ -29,13 +29,13 @@
  *  - v11.29: avisos.js y portada.js (archivos nuevos). Al tocar una notificación de avisos,
  *    trae la app delante (o la abre) y le pide abrir los avisos.
  */
-const CACHE_NAME = 'coleccion-app-v11.29.0';
+const CACHE_NAME = 'coleccion-app-v11.30.0';
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = './index.html';
 // Todos los archivos de la app (si se añade uno, añadirlo también a index.html)
 // CSS y JS se piden con ?v=<versión> (igual que en index.html), así una versión
 // nueva nunca reutiliza archivos de la anterior. Todo va en la raíz, sin carpetas.
-const V = '?v=11.29.0';
+const V = '?v=11.30.0';
 const PRECACHE = [
   APP_SHELL, './app.css' + V,
   ...['util', 'i18n', 'storage', 'model', 'ui', 'screens', 'actions', 'copias', 'plano', 'estanteria', 'backup', 'revision', 'compras', 'ubicacion', 'disfrutar', 'avisos', 'portada', 'scanner', 'sync', 'app'].map((n) => './' + n + '.js' + V),

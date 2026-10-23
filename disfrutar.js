@@ -205,48 +205,93 @@ function visitaStops(scopeMid){
   });
   return out.slice(0, 60);
 }
+/* v11.30: la visita es animada. En cada pieza: va a su balda, la pieza SALE de su
+   sitio (la misma animación que al tocarla), da una vuelta entera, se queda unos
+   segundos y VUELVE a su sitio; luego pasa a la siguiente. Sin cartela ni ficha:
+   abajo, solo una barra pequeña con «Pieza n de N», el nombre y los botones. */
+const VISITA_T = { spin:3200, hold:2600, gap:450 };
 function visitaStart(){
   const scope = EST.view!=='sala' && EST.mid ? EST.mid : null;
   const stops = visitaStops(scope);
   if(!stops.length){ showToast(t('tour.empty'), { replace:true }); return; }
-  VISITA = { stops, i:0, play:true, timer:null };
+  VISITA = { stops, i:0, play:true, timer:null, run:0, phase:'' };
   visitaGo(0);
 }
+const visitaWait = (ms, run)=> new Promise(r=> setTimeout(()=> r(VISITA && VISITA.run===run), ms));
+/* Guarda la pieza que está fuera, sin animación (al saltar a otra o al salir) */
+function visitaPullAway(){ if(estPullState && estPullState.tour) estPullClose(true); }
 async function visitaGo(i){
   if(!VISITA) return;
+  const run = ++VISITA.run;
+  clearTimeout(VISITA.timer);
+  visitaPullAway();
   VISITA.i = (i + VISITA.stops.length) % VISITA.stops.length;
-  const s = VISITA.stops[VISITA.i], m = estMueble(s.mid);
+  const s = VISITA.stops[VISITA.i];
+  VISITA.phase = 'go'; visitaCard();
   if(view.page!=='estanteria'){ goEstanteria({ pid:s.pid }); await new Promise(r=> setTimeout(r, 60)); }
   else if(EST.mid===s.mid && EST.view==='balda' && EST.bsid===s.sid){ EST.focusPid = s.pid; estShowFocus(); }
   else { EST.mode = 'ver'; EST.mid = s.mid; EST.view = 'balda'; EST.bsid = s.sid; EST.covers = false; EST.sel = null; EST.focusPid = s.pid; await render(); }
-  if(!VISITA) return;
-  visitaCard();
-  clearTimeout(VISITA.timer);
-  if(VISITA.play) VISITA.timer = setTimeout(()=> visitaGo(VISITA.i + 1), reducedMotion() ? 12000 : 9000);
+  // que la balda se coloque antes de sacarla
+  if(!await visitaWait(reducedMotion() ? 150 : 650, run)) return;
+  const el = document.querySelector(`#estScene [data-pid="${CSS.escape(s.pid)}"]`);
+  if(el) el.classList.remove('is-found');
+  const st = estPullOut(s.pid, el, { tour:true });
+  if(!st || !VISITA || VISITA.run!==run) return;
+  // sale (860 ms) y da una vuelta entera
+  VISITA.phase = 'out'; visitaCard();
+  if(!reducedMotion()){
+    if(!await visitaWait(900, run)) return;
+    const rot = document.getElementById('estPullRot');
+    if(rot && rot.animate && estPullState===st){
+      const from = `rotateX(${st.rx}deg) rotateY(${st.ry}deg) rotateZ(0deg) rotateY(0deg)`, to = `rotateX(${st.rx}deg) rotateY(${st.ry + 360}deg) rotateZ(0deg) rotateY(0deg)`;
+      st.spin = rot.animate([{ transform:from }, { transform:to }], { duration:VISITA_T.spin, easing:'cubic-bezier(.45,.05,.4,1)', fill:'forwards' });
+      if(!await visitaWait(VISITA_T.spin, run)) return;
+      if(estPullState===st){ st.ry += 360; estPullApply(); try{ st.spin.cancel(); }catch(e){} st.spin = null; }
+    }
+  }
+  // se queda un momento (en pausa, se queda fuera hasta que sigas)
+  VISITA.phase = 'hold'; visitaCard();
+  if(!VISITA.play) return;
+  await visitaNext(run);
+}
+/* Vuelve a su sitio (con su animación) y pasa a la siguiente */
+async function visitaNext(run, hold){
+  if(!await visitaWait(hold===0 ? 0 : (reducedMotion() ? VISITA_T.hold + 2000 : VISITA_T.hold), run)) return;
+  if(!VISITA.play) return;
+  VISITA.phase = 'back';
+  if(estPullState && estPullState.tour) estPullBack();
+  if(!await visitaWait(reducedMotion() ? 200 : 900 + VISITA_T.gap, run)) return;
+  visitaGo(VISITA.i + 1);
 }
 function visitaCard(){
   if(!VISITA) return;
   const s = VISITA.stops[VISITA.i], p = PRODUCTS_BY_ID[s.pid]; if(!p) return visitaEnd();
   let el = document.getElementById('tourCard');
-  if(!el){ el = document.createElement('section'); el.id = 'tourCard'; el.className = 'tour-card'; el.setAttribute('aria-label', t('tour.title')); document.body.appendChild(el); document.addEventListener('keydown', visitaKey); }
-  const ph = shownPhotoId(p), has = hasPhoto(ph, 'front');
-  el.innerHTML = `<div class="tour-head"><span class="tour-n">${escapeHTML(t('tour.n').replace('{i}', VISITA.i + 1).replace('{n}', VISITA.stops.length))}</span>
-      <button type="button" class="btn btn-ghost btn-icon" data-fk="tour-x" onclick="visitaEnd()" aria-label="${escapeHTML(t('tour.exit'))}" title="${escapeHTML(t('tour.exit'))}">${icon('x')}</button></div>
-    <div class="tour-body" aria-live="polite">${has ? `<img class="tour-img" data-photo="${escapeHTML(ph)}" alt="">` : ''}<div class="tour-txt"><h3>${escapeHTML(p.name)}</h3><p class="tour-meta">${escapeHTML([p.platformName, p.year, regionShortText(p)].filter(Boolean).join(' · '))}</p>
-      ${String(p.summary || '').trim() ? `<p class="tour-sum">${escapeHTML(String(p.summary).trim())}</p>` : ''}</div></div>
-    <div class="tour-btns"><button type="button" class="btn btn-sm" data-fk="tour-prev" onclick="visitaStep(-1)" aria-label="${escapeHTML(t('tour.prev'))}">${icon('chevronLeft')}</button>
-      <button type="button" class="btn btn-sm" data-fk="tour-play" onclick="visitaToggle()" aria-pressed="${VISITA.play}">${icon(VISITA.play ? 'pause' : 'play')} ${t(VISITA.play ? 'tour.pause' : 'tour.play')}</button>
-      <button type="button" class="btn btn-sm" data-fk="tour-ficha" onclick="const id='${escapeHTML(p.id)}'; visitaEnd(); goProduct(id)">${t('tour.ficha')}</button>
-      <button type="button" class="btn btn-sm primary" data-fk="tour-next" onclick="visitaStep(1)" aria-label="${escapeHTML(t('tour.next'))}">${icon('chevronRight')}</button></div>`;
-  if(has && typeof hydratePhotos==='function') hydratePhotos(el);
+  if(!el){ el = document.createElement('section'); el.id = 'tourCard'; el.className = 'tour-card is-bar'; el.setAttribute('aria-label', t('tour.title')); document.body.appendChild(el); document.addEventListener('keydown', visitaKey);
+    el.innerHTML = `<div class="tour-bar-txt" aria-live="polite"><span class="tour-n"></span><b class="tour-name"></b></div>
+      <div class="tour-btns"><button type="button" class="btn btn-sm" data-fk="tour-prev" onclick="visitaStep(-1)" aria-label="${escapeHTML(t('tour.prev'))}" title="${escapeHTML(t('tour.prev'))}">${icon('chevronLeft')}</button>
+      <button type="button" class="btn btn-sm" data-fk="tour-play" onclick="visitaToggle()"></button>
+      <button type="button" class="btn btn-sm" data-fk="tour-next" onclick="visitaStep(1)" aria-label="${escapeHTML(t('tour.next'))}" title="${escapeHTML(t('tour.next'))}">${icon('chevronRight')}</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-fk="tour-x" onclick="visitaEnd()" aria-label="${escapeHTML(t('tour.exit'))}" title="${escapeHTML(t('tour.exit'))}">${icon('x')}</button></div>`; }
+  el.querySelector('.tour-n').textContent = t('tour.n').replace('{i}', VISITA.i + 1).replace('{n}', VISITA.stops.length);
+  el.querySelector('.tour-name').textContent = p.name;
+  const b = el.querySelector('[data-fk="tour-play"]');
+  b.innerHTML = `${icon(VISITA.play ? 'pause' : 'play')}<span class="tour-play-l"> ${t(VISITA.play ? 'tour.pause' : 'tour.play')}</span>`;
 }
-async function visitaStep(d){ if(!VISITA) return; const a = document.activeElement, fk = a && a.closest && a.closest('#tourCard') && a.dataset.fk ? a.dataset.fk : (d > 0 ? 'tour-next' : 'tour-prev'); await visitaGo(VISITA.i + d);
-  const back = ()=>{ const b = document.querySelector(`#tourCard [data-fk="${fk}"]`); if(b) b.focus({ preventScroll:true }); }; back(); setTimeout(back, 80); }
-function visitaToggle(){ if(!VISITA) return; VISITA.play = !VISITA.play; clearTimeout(VISITA.timer); if(VISITA.play) VISITA.timer = setTimeout(()=> visitaGo(VISITA.i + 1), 9000); visitaCard(); const b = document.querySelector('#tourCard [data-fk="tour-play"]'); if(b) b.focus({ preventScroll:true }); }
-function visitaKey(e){ if(!VISITA) return; if(e.key==='Escape'){ e.preventDefault(); visitaEnd(); } else if(e.key==='ArrowRight' && !e.target.closest('input, textarea')) visitaStep(1); else if(e.key==='ArrowLeft' && !e.target.closest('input, textarea')) visitaStep(-1); }
+async function visitaStep(d){ if(!VISITA) return; const a = document.activeElement, fk = a && a.closest && a.closest('#tourCard') && a.dataset.fk ? a.dataset.fk : (d > 0 ? 'tour-next' : 'tour-prev');
+  const back = ()=>{ const b = document.querySelector(`#tourCard [data-fk="${fk}"]`); if(b) b.focus({ preventScroll:true }); };
+  const go = visitaGo(VISITA.i + d); back(); setTimeout(back, 80); await go; }
+function visitaToggle(){
+  if(!VISITA) return; VISITA.play = !VISITA.play; visitaCard();
+  // al seguir: si la pieza ya está fuera quieta, vuelve a su sitio y sigue; si no, acaba lo que estaba haciendo
+  if(VISITA.play && VISITA.phase==='hold') visitaNext(VISITA.run, 0);
+  const b = document.querySelector('#tourCard [data-fk="tour-play"]'); if(b) b.focus({ preventScroll:true });
+}
+function visitaKey(e){ if(!VISITA) return; if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); visitaEnd(); } else if(e.key==='ArrowRight' && !e.target.closest('input, textarea')) visitaStep(1); else if(e.key==='ArrowLeft' && !e.target.closest('input, textarea')) visitaStep(-1); }
 function visitaEnd(){
-  if(VISITA) clearTimeout(VISITA.timer);
+  if(VISITA){ clearTimeout(VISITA.timer); VISITA.run++; }
   VISITA = null; const el = document.getElementById('tourCard'); if(el) el.remove();
+  visitaPullAway();
   document.removeEventListener('keydown', visitaKey);
   const b = document.querySelector('[data-fk="tour"]'); if(b) b.focus({ preventScroll:true });
 }

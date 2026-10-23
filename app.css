@@ -2915,3 +2915,15 @@ html.est-tour-on .est-ctl, html.est-tour-on .est-bar, html.est-tour-on .est-imm-
 .ocr-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:var(--fs-sm);background:var(--fill-1);border-radius:8px;padding:var(--sp-3);margin:0 0 var(--sp-2);max-height:40vh;overflow:auto;}
 [data-fk="ocr-save"]{margin:var(--sp-2) 0 var(--sp-3);}
 .ident-ocr{margin:calc(-1 * var(--sp-1)) 0 var(--sp-3);}
+
+/* v11.30 · Visita guiada animada: la pieza sale de su sitio, gira y vuelve; abajo, una barra pequeña */
+.est-pull.is-tour{padding-bottom:calc(104px + env(safe-area-inset-bottom, 0px));}
+.est-pull.is-tour .est-pull-info, .est-pull.is-tour .est-pull-foot{display:none;}
+.est-pull.is-tour .est-pull-bg{background:radial-gradient(70% 55% at 50% 45%, rgba(24,19,14,0.6), rgba(5,6,10,0.78));-webkit-backdrop-filter:none;backdrop-filter:none;}
+.est-pull.is-tour .est-pull-stage{pointer-events:none;cursor:default;}
+.tour-card.is-bar{max-height:none;flex-direction:row;align-items:center;gap:var(--sp-2);padding:8px 8px 8px 14px;}
+.tour-bar-txt{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px;}
+.tour-bar-txt .tour-name{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tour-card.is-bar .tour-btns{flex:0 0 auto;margin-top:0;gap:6px;}
+.tour-card.is-bar .tour-btns .btn{flex:0 0 auto;min-height:44px;min-width:44px;padding:0 10px;}
+@media (max-width:420px){ .tour-card.is-bar .tour-play-l{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;} }
