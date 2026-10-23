@@ -99,6 +99,18 @@ function buildPortableSnapshot(){
   if(Array.isArray(OVERRIDES.valorHistorial) && OVERRIDES.valorHistorial.length) snapshot.valorHistorial = JSON.parse(JSON.stringify(OVERRIDES.valorHistorial));
   // v11.20: tus sitios de compra (solo si has cambiado la lista inicial)
   if(Array.isArray(OVERRIDES.tiendas)) snapshot.tiendas = OVERRIDES.tiendas.filter(x=> typeof x==='string');
+  // v11.26: tus pedidos (gastos, seguimiento) y los ajustes de compras en otra moneda
+  if(Array.isArray(OVERRIDES.pedidos) && OVERRIDES.pedidos.length) snapshot.pedidos = JSON.parse(JSON.stringify(OVERRIDES.pedidos));
+  if(OVERRIDES.compraAjustes && typeof OVERRIDES.compraAjustes==='object') snapshot.compraAjustes = Object.assign({}, OVERRIDES.compraAjustes);
+  // v11.29: los avisos que has ocultado
+  if(OVERRIDES.avisosOcultos && typeof OVERRIDES.avisosOcultos==='object') snapshot.avisosOcultos = Object.assign({}, OVERRIDES.avisosOcultos);
+  // v11.28: tus logros (y cuándo los conseguiste)
+  if(OVERRIDES.logros && typeof OVERRIDES.logros==='object') snapshot.logros = Object.assign({}, OVERRIDES.logros);
+  // v11.27: tus cajas y tus colecciones
+  if(Array.isArray(OVERRIDES.cajas) && OVERRIDES.cajas.length) snapshot.cajas = JSON.parse(JSON.stringify(OVERRIDES.cajas));
+  if(Array.isArray(OVERRIDES.colecciones) && OVERRIDES.colecciones.length) snapshot.colecciones = JSON.parse(JSON.stringify(OVERRIDES.colecciones));
+  // v11.25: lo que marcaste como «Está bien» en la revisión de la colección
+  if(OVERRIDES.revisionIgnorar && typeof OVERRIDES.revisionIgnorar==='object' && Object.keys(OVERRIDES.revisionIgnorar).length) snapshot.revisionIgnorar = Object.assign({}, OVERRIDES.revisionIgnorar);
   PRODUCTS.forEach(p=>{
     snapshot.customProducts.push(Object.assign({}, p));
     snapshot.products[p.id] = Object.assign({}, p);

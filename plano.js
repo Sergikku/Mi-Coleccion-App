@@ -292,9 +292,13 @@ function openFormatoSheet(id){
 async function setFormato(id, f){
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
   const v = FORMATOS.includes(f) ? f : null;
+  const fit0 = typeof estOverMap==='function' && typeof estHas==='function' && estHas() ? estOverMap() : null;   // v11.17
   p.formato = v;
   await setProductField(id, 'formato', v);
+  const mv = fit0 && typeof estKeepInside==='function' ? estKeepInside(fit0) : null;   // v11.17: las que ahora se salgan, a otro sitio de su balda (o al suelo)
+  if(mv) await estSave(true);
   closeSheet();
+  if(mv) showToast(estFitMsg(mv), { replace:true, duration:7000 });
   render();
   if(typeof estRefresh==='function') estRefresh();
 }
@@ -316,6 +320,7 @@ async function saveMedidasSheet(id){
   if(!w || !h || !d){ const bad = !w ? 'w' : !h ? 'h' : 'd'; const el = document.getElementById('dim_' + bad); if(el){ el.setAttribute('aria-invalid', 'true'); el.focus(); } return; }
   const all = document.getElementById('dim_all');
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const fit0 = typeof estOverMap==='function' && typeof estHas==='function' && estHas() ? estOverMap() : null;   // v11.17
   if(all && all.checked && p.platformId && typeof estSetPlatformDims==='function'){
     await estSetPlatformDims(p.platformId, { ancho:w, alto:h, fondo:d });
     // esta pieza también usa las de su plataforma (si tenía unas propias, se quitan)
@@ -324,16 +329,23 @@ async function saveMedidasSheet(id){
     p.medidas = { ancho:w, alto:h, fondo:d };
     await setProductField(id, 'medidas', p.medidas);
   }
+  // v11.17: en la estantería, las que con estas medidas se salgan de su balda van a otro sitio de ella (o al suelo)
+  const mv = fit0 && typeof estKeepInside==='function' ? estKeepInside(fit0) : null;
+  if(mv) await estSave(true);
   closeSheet();
-  showToast(t('dims.saved'), { ok:true, replace:true });
+  showToast(t('dims.saved') + (mv ? ' ' + estFitMsg(mv) : ''), { ok:true, replace:true, duration: mv ? 7000 : undefined });
   render();
   if(typeof estRefresh==='function') estRefresh();
 }
 async function clearMedidas(id){
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
+  const fit0 = typeof estOverMap==='function' && typeof estHas==='function' && estHas() ? estOverMap() : null;   // v11.17
   p.medidas = null;
   await setProductField(id, 'medidas', null);
+  const mv = fit0 && typeof estKeepInside==='function' ? estKeepInside(fit0) : null;   // v11.17: las que ahora se salgan, a otro sitio de su balda (o al suelo)
+  if(mv) await estSave(true);
   closeSheet();
+  if(mv) showToast(estFitMsg(mv), { replace:true, duration:7000 });
   render();
   if(typeof estRefresh==='function') estRefresh();
 }

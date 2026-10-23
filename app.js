@@ -172,6 +172,10 @@ async function init(){
   if(!OVERRIDES.tourSeen && !storageReadFailed) startTour();
   else if(wantScanner && !storageReadFailed && typeof openScanner==='function') openScanner();
   if(typeof syncStart==='function') syncStart();   // v11.9: cuenta y sincronización
+  if(typeof comprasAlArrancar==='function' && !storageReadFailed) setTimeout(comprasAlArrancar, 1500);   // v11.26: reservas que ya salieron y cambios de moneda pendientes
+  if(typeof logrosSoon==='function' && !storageReadFailed) setTimeout(logrosSoon, 2500);   // v11.28: logros
+  if(typeof avisosAlArrancar==='function' && !storageReadFailed) setTimeout(avisosAlArrancar, 4000);   // v11.29: ¿avisos nuevos?
+  if(typeof openAvisos==='function' && /[?&]avisos=1/.test(location.search) && !storageReadFailed) setTimeout(openAvisos, 800);   // v11.29: desde una notificación
 }
 /* Al volver a la app (otra pestaña, otra app del móvil), se relee el índice de
    fotos: si se añadieron o quitaron fotos en otra ventana, se ven sin recargar. */

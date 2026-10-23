@@ -1,4 +1,4 @@
-/* Service worker de La Colección App — v11.24.0
+/* Service worker de La Colección App — v11.29.0
  *
  * Qué hace:
  *  - Al instalarse guarda TODO lo necesario para funcionar sin conexión
@@ -21,17 +21,24 @@
  *  - v11.9: sync.js (cuenta y sincronización). Las peticiones a Supabase son de
  *    otro dominio: no pasan por aquí ni se guardan en caché.
  *  - v11.11: copias.js, plano.js y estanteria.js (archivos nuevos).
+ *  - v11.25: revision.js (archivo nuevo: revisión, editar en serie y duplicados).
+ *  - v11.26: compras.js (archivo nuevo: coste real, pedidos, seguimiento y reservas). El cambio de
+ *    moneda se pide a api.frankfurter.dev: es de otro dominio, no pasa por aquí ni se guarda en caché.
+ *  - v11.27: ubicacion.js (archivo nuevo: cajas, colecciones, gradeo e historia).
+ *  - v11.28: disfrutar.js (archivo nuevo: logros, mapa, calendario, checklist y visita guiada).
+ *  - v11.29: avisos.js y portada.js (archivos nuevos). Al tocar una notificación de avisos,
+ *    trae la app delante (o la abre) y le pide abrir los avisos.
  */
-const CACHE_NAME = 'coleccion-app-v11.24.0';
+const CACHE_NAME = 'coleccion-app-v11.29.0';
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = './index.html';
 // Todos los archivos de la app (si se añade uno, añadirlo también a index.html)
 // CSS y JS se piden con ?v=<versión> (igual que en index.html), así una versión
 // nueva nunca reutiliza archivos de la anterior. Todo va en la raíz, sin carpetas.
-const V = '?v=11.24.0';
+const V = '?v=11.29.0';
 const PRECACHE = [
   APP_SHELL, './app.css' + V,
-  ...['util', 'i18n', 'storage', 'model', 'ui', 'screens', 'actions', 'copias', 'plano', 'estanteria', 'backup', 'scanner', 'sync', 'app'].map((n) => './' + n + '.js' + V),
+  ...['util', 'i18n', 'storage', 'model', 'ui', 'screens', 'actions', 'copias', 'plano', 'estanteria', 'backup', 'revision', 'compras', 'ubicacion', 'disfrutar', 'avisos', 'portada', 'scanner', 'sync', 'app'].map((n) => './' + n + '.js' + V),
   './manifest.json', './icon-192.png', './icon-512.png', './favicon.png',
   './jszip.min.js', './SpaceGrotesk-VF.woff2', './OFL.txt',
 ];
@@ -117,6 +124,17 @@ async function cacheFirst(event) {
     return (await caches.match(req, { ignoreSearch: true })) || Response.error();
   }
 }
+
+// v11.29: tocar una notificación de avisos trae la app delante y abre los avisos
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const c = all.find((w) => w.url.startsWith(self.registration.scope));
+    if (c) { await c.focus(); c.postMessage({ type: 'open-avisos' }); return; }
+    await self.clients.openWindow('./?avisos=1');
+  })());
+});
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;

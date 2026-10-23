@@ -240,8 +240,9 @@ async function onPhotoSlotChange(input, key){
   if(label) label.classList.add('is-busy');   // el hueco «late» mientras se procesa (v11.4: sin aviso encima del editor)
   const dataUrl = await savePhotoFile(key, file);
   if(dataUrl){
-    showToast(t('photo.saved'), { ok:true, replace:true }); render();
     const info = parsePhotoKey(key);
+    if(info && typeof histAdd==='function' && PRODUCTS_BY_ID[info.id]){ histAdd(info.id, 'foto'); await persistOverrides(); }   // v11.27
+    showToast(t('photo.saved'), { ok:true, replace:true }); render();
     if(info && typeof autoBarcodeFromFile === 'function') autoBarcodeFromFile(info.id, file);   // v11.6: ¿se ve un código en la foto?
   }
   else if(label) label.classList.remove('is-busy');
@@ -259,6 +260,7 @@ async function onExtraPhotosChange(input, id){
   const savedFiles = [];
   for(let i=0; i<take.length; i++){ if(await savePhotoFile('photo_' + id + '_' + free[i], take[i])){ saved++; savedFiles.push(take[i]); } }
   if(!saved){ if(label) label.classList.remove('is-busy'); return; }
+  if(typeof histAdd==='function' && PRODUCTS_BY_ID[id]){ histAdd(id, 'foto'); await persistOverrides(); }   // v11.27
   let msg = saved===1 ? t('photo.saved') : t('photo.saved_n').replace('{n}', saved);
   if(files.length > take.length) msg += ' · ' + t('photo.extras_limit').replace('{n}', files.length - take.length);
   showToast(msg, { ok:true, replace:true, duration: files.length > take.length ? 6000 : undefined });
@@ -294,6 +296,7 @@ async function updateResearchField(id, field, value){
 }
 async function updateEditionField(id, field, value){
   const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition[field]=value;
+  if(field==='possession' && typeof histAdd==='function') histAdd(id, 'estado', value);   // v11.27
   await setEditionField(id, field, value);
   if(field==='possession'){
     refreshCompletoBadge(id);
@@ -322,6 +325,7 @@ async function syncPossessionFromChecklist(id, changedKey, changedValue){
   }
   if(e.possession === next) return;
   e.possession = next;
+  if(typeof histAdd==='function') histAdd(id, 'estado', next);   // v11.27
   await setEditionField(id, 'possession', next);
   refreshPossessButton(id);
   refreshCompletoBadge(id);
@@ -338,6 +342,7 @@ async function updateComponent(id, field, value){
 async function updateConservation(id, field, value){
   const v = (field==='notas') ? value : (value===''?null:Number(value));
   const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.conservation[field]=v;
+  if(field==='general' && v && typeof histAdd==='function') histAdd(id, 'cons', v);   // v11.27
   await setEditionNested(id,'conservation',field,v);
   if(field!=='notas' && typeof refreshCopiesSection==='function') refreshCopiesSection(id);   // v11.11
 }
@@ -345,6 +350,7 @@ async function updateValuation(id, field, value){
   const numeric = ['valorAdquisicion','valorActual'].includes(field);
   const v = numeric ? (value===''?null:Number(value)) : value;
   const rec = EDITIONS_BY_ID[id]; if(rec) rec.edition.valuation[field]=v;
+  if(field==='valorActual' && typeof v==='number' && typeof histAdd==='function') histAdd(id, 'valor', v);   // v11.27
   await setEditionNested(id,'valuation',field,v);
   if(field==='valorActual'){
     const hoy = new Date().toISOString().slice(0,10);
@@ -398,6 +404,8 @@ async function addProductToPlatform(catId, platId, folderId){
 async function createProductIn(catId, platId, folderId, name, year, extra){
   const plat = getAllPlatforms().find(p=>p.id===platId);
   if(!plat) return;
+  // v11.25: si ya hay una pieza con el mismo código o un nombre casi igual, se pregunta antes
+  if(typeof dupConfirmCreate==='function' && !await dupConfirmCreate(name, platId, extra && extra.barcode)) return;
   const id = slugify(name) + '-' + Math.random().toString(36).slice(2,7);
   await addCustomProduct({ id, name, year: year||'', categoryId:catId, platformId:platId, platformName:plat.name, platformCode:plat.code, maker:plat.maker, folderId: folderId||null }, extra);
 }
@@ -435,8 +443,9 @@ function quickAddBodyHTML(d){
   const hasFolders = !!(d.plat && foldersForPlatform(d.plat).length);
   return (quickAddBarcode ? `<p class="qa-code">${icon('barcode')}<span>${t('qa.barcode').replace('{code}', escapeHTML(formatBarcode(quickAddBarcode)))}</span></p>` : '')
     + `<div class="field"><label for="qaName">${t('dlg.product_name')}</label>
-      <input id="qaName" type="text" autocomplete="off" enterkeyhint="done" aria-describedby="qaNameErr" onkeydown="if(event.key==='Enter'){event.preventDefault(); quickAddSubmit();}" oninput="this.removeAttribute('aria-invalid'); document.getElementById('qaNameErr').hidden=true;">
-      <p class="field-error" id="qaNameErr" hidden>${t('qa.name_required')}</p></div>
+      <input id="qaName" type="text" autocomplete="off" enterkeyhint="done" aria-describedby="qaNameErr" onkeydown="if(event.key==='Enter'){event.preventDefault(); quickAddSubmit();}" oninput="this.removeAttribute('aria-invalid'); document.getElementById('qaNameErr').hidden=true; if(typeof dupQuickAddCheck==='function') dupQuickAddCheck();">
+      <p class="field-error" id="qaNameErr" hidden>${t('qa.name_required')}</p>
+      <div class="note dup-note-box" id="qaDup" role="status" aria-live="polite" hidden></div></div>
     <div class="field"><label for="qaYear">${t('dlg.year_optional')}</label>
       <input id="qaYear" type="text" inputmode="numeric" autocomplete="off" maxlength="10" onkeydown="if(event.key==='Enter'){event.preventDefault(); quickAddSubmit();}"></div>
     <div class="qa-where">
@@ -481,6 +490,7 @@ function quickAddPlatChanged(){
   field.hidden = !has;
   document.getElementById('qaFolder').innerHTML = has ? qaFolderOptionsHTML(plat, '') : '';
   quickAddSyncSubmit();
+  if(typeof dupQuickAddCheck==='function') dupQuickAddCheck();   // v11.25
 }
 function quickAddCreatePlatform(){
   const cat = document.getElementById('qaCat').value;
@@ -511,12 +521,15 @@ async function addProductToCategory(catId){
   ], { okLabel:t('common.create') });
   if(!r || !r.name) return;
   const name = r.name, year = r.year || '';
+  if(typeof dupConfirmCreate==='function' && !await dupConfirmCreate(name, '', '')) return;
   const id = slugify(name) + '-' + Math.random().toString(36).slice(2,7);
   await addCustomProduct({ id, name, year, categoryId:catId, platformCode:'X' });
 }
 async function addCustomProduct(custom, extra){
   if(!OVERRIDES.customProducts) OVERRIDES.customProducts = [];
   OVERRIDES.customProducts.push(custom);
+  // v11.27: la fecha de alta (para su historia y el calendario de altas)
+  extra = Object.assign({ alta: typeof todayISO==='function' ? todayISO() : new Date().toISOString().slice(0, 10) }, extra || {});
   // v11.6: datos de la ficha que ya se conocen al crearla (p. ej. el código de barras leído)
   if(extra && Object.keys(extra).length) OVERRIDES.products[custom.id] = Object.assign({}, OVERRIDES.products[custom.id] || {}, extra);
   await persistOverrides();

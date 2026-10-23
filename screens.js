@@ -149,6 +149,7 @@ function renderDashboard(){
   html += searchbarHTML({ id:'dash-search', placeholder:t('dash.search_short'), oninput:'handleDashboardSearch(this.value)', scan:'label' });
   html += `<div id="dash-search-results" aria-live="polite"></div>`;
   html += backupReminderHTML();
+  if(typeof avisosDashHTML==='function') html += avisosDashHTML();   // v11.29: avisos
   // 1. Portada: la cifra manda; las demás la acompañan (y llevan al Inventario filtrado)
   html += `<section class="dash-hero vit-card" aria-label="${t('dash.summary')}">
     <div class="hero-progress">
@@ -164,6 +165,8 @@ function renderDashboard(){
   </section>`;
   // v11.22: la pieza del día
   html += dashDailyHTML();
+  // v11.26: pedidos en camino y próximas reservas
+  if(typeof dashBuyHTML==='function') html += dashBuyHTML();
   // 2. Recién añadidas: tus últimas piezas, como fichas de catálogo
   const recent = recentProducts(12);
   if(recent.length){
@@ -312,6 +315,7 @@ function dashValueHTML(g){
 }
 /* Métrica del Dashboard → Inventario con ese filtro */
 function goInventory(filter){
+  if(filter==='en_camino') filter = 'encamino';   // v11.26
   invState = Object.assign({}, invState, { search:'', filter: filter||'todos', limit:60, cat:'', plat:'', region:'', flags:[], photo:'', complete:'' });
   goPage('inventario');
 }
@@ -363,8 +367,10 @@ function renderCategoryList(){
   }
   // v11.1: cada categoría es una estantería (un lomo por plataforma)
   const counts = platformCountsMap();
+  if(cats.length && typeof coleccionesSectionHTML==='function') html += coleccionesSectionHTML();   // v11.27: tus colecciones
   if(cats.length) html += `<div class="shelf-list">${cats.map(c=>shelfCardHTML(c, counts, true)).join('')}</div>`;
   if(cats.length && typeof estDashCardHTML==='function') html += estDashCardHTML();   // v11.11: tu estantería 3D
+  if(cats.length && typeof cajasCardHTML==='function') html += cajasCardHTML();   // v11.27: cajas y almacén
   html += `<button type="button" class="create-btn" id="tour-add-category" onclick="addCategory()">
     <span class="create-btn-icon">${icon('plus')}</span>
     <span><span class="create-btn-label">${t('common.create_category')}</span><span class="create-btn-sub">${t('common.create_category.sub')}</span></span>
@@ -537,7 +543,8 @@ async function renderPlatformProducts(catId, platId){
   html += `<div class="options-block">${sectionTitleHTML(t('plat.options'))}
     <div class="note ${counts ? 'note-info' : 'note-warn'}">${counts ? t('plat.counts_yes_long') : t('plat.counts_no_long')}
       <div class="note-actions"><button class="btn btn-sm" onclick="togglePlatformCounts('${platId}')">${counts ? t('plat.counts_make_no') : t('plat.counts_make_yes')}</button></div></div>
-    <button class="btn btn-sm" id="tour-add-folder" onclick="addFolder('${catId}','${platId}')">${icon('folder')} ${t('common.create_folder')}</button>
+    <div class="quick-actions is-flush"><button class="btn btn-sm" id="tour-add-folder" onclick="addFolder('${catId}','${platId}')">${icon('folder')} ${t('common.create_folder')}</button>
+    ${typeof printPlatformChecklist==='function' && allProds.length ? `<button class="btn btn-sm" data-fk="plat-chk" onclick="printPlatformChecklist('${platId}')">${icon('printer')} ${t('chk.print')}</button>` : ''}</div>
   </div>`;
   html += `<div class="danger-zone"><h2 class="section-title">${t('common.danger_zone')}</h2>
     <button class="btn btn-danger" onclick="deletePlatform('${catId}','${platId}')">${icon('trash')} ${t('common.delete_platform').replace('{n}', allProds.length)}</button></div>`;
@@ -699,6 +706,7 @@ async function renderProductDetail(prodId){
   if(p.possession!=='tengo' && typeof huntHTML==='function') html += `<div class="detail-section hunt-section">${huntHTML(p, 'ficha')}</div>`;
   // v11.11: dónde está en tu estantería
   if(typeof estPieceRowHTML==='function') html += estPieceRowHTML(p);
+  if(typeof cajaRowHTML==='function' && (p.possession==='tengo' || p.caja)) html += cajaRowHTML(p);   // v11.27: o en qué caja está
   const multi = copyCount(p) > 1;
   const c1 = multi ? ` · ${escapeHTML(t('copy.n').replace('{n}', 1))}` : '';
   // Qué incluye (checklist en fichas táctiles; mismas casillas de siempre)
@@ -719,7 +727,7 @@ async function renderProductDetail(prodId){
   identBody += editableField('text', t('p.language'), p.language, `updateEditionField('${p.id}','language',this.value)`);
   identBody += editableField('text', t('p.catalog_num'), p.catalogNumber, `updateEditionField('${p.id}','catalogNumber',this.value)`);
   identBody += editableField('text', t('p.product_code'), p.productCode, `updateEditionField('${p.id}','productCode',this.value)`);
-  identBody += editableField('text', t('p.barcode'), p.barcode, `updateEditionField('${p.id}','barcode',this.value)`, '', 'inputmode="numeric"');
+  identBody += editableField('text', t('p.barcode'), p.barcode, `updateBarcodeField('${p.id}',this.value)`, '', 'inputmode="numeric"');
   identBody += editableField('text', t('p.exact_date'), p.releaseDateExact, `updateEditionField('${p.id}','releaseDateExact',this.value)`, t('p.date_ph'));
   identBody += `</div>`;
   // v11.11: formato (para su plano y la estantería) y medidas
@@ -736,12 +744,16 @@ async function renderProductDetail(prodId){
   let consBody = `<div class="field-grid">${conservationSelect(t('p.condition_general'), p.conservation.general, `updateConservation('${p.id}','general',this.value)`)}</div>`
     + editableTextarea(t('p.condition_notes'), p.conservation.notas, `updateConservation('${p.id}','notas',this.value)`);
   sections += disclosureHTML('conservacion', t('p.conservation') + c1, consBody, productSectionsOpen, p.conservation.general ? p.conservation.general + '/10' : '');
+  if(typeof gradeoSectionHTML==='function' && (p.possession==='tengo' || p.gradeo)) sections += gradeoSectionHTML(p);   // v11.27
 
   let valBody = `<div class="field-grid">
     ${numberField(t('p.value_bought')+' ('+currencySymbol()+')', p.valuation.valorAdquisicion, `updateValuation('${p.id}','valorAdquisicion',this.value)`)}
     ${numberField(t('p.value_now')+' ('+currencySymbol()+')', p.valuation.valorActual, `updateValuation('${p.id}','valorActual',this.value)`)}
   </div>${p.valuation.fechaActualizacion ? `<div class="section-sub">${t('p.last_updated')}: ${escapeHTML(p.valuation.fechaActualizacion)}</div>` : ``}`;
   sections += disclosureHTML('valoracion', t('p.valuation'), valBody, productSectionsOpen, typeof p.valuation.valorActual==='number' ? fmtMoney(p.valuation.valorActual) : '');
+  // v11.26: la reserva (si está reservada) y lo que te costó de verdad (moneda, gastos, pedido)
+  if(typeof reservaSectionHTML==='function') sections += reservaSectionHTML(p);
+  if(typeof costeSectionHTML==='function') sections += costeSectionHTML(p);
   sections += loanSectionHTML(p);   // v11.19: compra y préstamo
 
   // v11.24: el cuadro de la descripción crece con el texto (1 o 2 párrafos) y al escribir
@@ -749,6 +761,7 @@ async function renderProductDetail(prodId){
   const notasBody = editableTextarea(t('p.summary'), p.summary, `updateProductField('${p.id}','summary',this.value)`, `rows="${sumRows}" oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight + 2, window.innerHeight * 0.7) + 'px'"`)
     + editableTextarea(t('p.notes_field'), p.notes, `updateProductField('${p.id}','notes',this.value)`);
   sections += disclosureHTML('notas', t('p.notes'), notasBody, productSectionsOpen, (p.summary||p.notes) ? t('p.has_text') : '');
+  if(typeof historiaSectionHTML==='function') sections += historiaSectionHTML(p);   // v11.27: la historia de la pieza
 
   const cfBody = customFieldsHTML(p) + `<div class="quick-actions is-flush"><button class="btn btn-sm" onclick="addCustomField('${p.id}')">${icon('plus')} ${plainLabel(t('p.add_custom_field'))}</button></div>`;
   sections += disclosureHTML('general', t('p.custom_fields'), cfBody, productSectionsOpen, (p.customFields||[]).length ? String(p.customFields.length) : '');
@@ -873,6 +886,7 @@ function productMainPhotosHTML(p, anyPhoto){
     <div class="photo-actions">
       <button type="button" class="btn btn-sm btn-ghost" onclick="openPhotoViewer('${p.id}', visiblePhotoSide())">${icon('expand')} ${t('photo.enlarge')}</button>
       ${flippable ? `<button type="button" class="btn btn-sm btn-ghost" onclick="flipCard(document.querySelector('.product-photo .flip-card'))">${icon('flip')} ${t('photo.flip')}</button>` : ''}
+      ${typeof ocrButtonHTML==='function' ? ocrButtonHTML(p) : ''}
     </div>
     <div class="photo-slots" id="photo-slots">${photoSlotHTML(p, 'front')}${photoSlotHTML(p, 'back')}</div>`;
 }
@@ -948,6 +962,9 @@ function inventoryFilteredEditions(stateOverride){
   if(st.filter==='sellado') list = list.filter(p=>p.sealed || shownSealed(p));   // v11.11: también si la mejor copia lo está
   if(st.filter==='repetidas') list = list.filter(p=>copyCount(p) > 1);
   if(st.filter==='prestadas') list = list.filter(isLoaned);   // v11.19
+  if(st.filter==='encamino') list = list.filter(p=> p.possession==='en_camino');   // v11.26
+  if(st.filter==='reservadas') list = list.filter(p=> p.possession==='reservado');   // v11.26
+  if(st.filter==='gradeadas') list = list.filter(p=> typeof gradeoOf==='function' && !!gradeoOf(p));   // v11.27
   if(st.cat) list = list.filter(p=>p.categoryId===st.cat);
   if(st.plat) list = list.filter(p=>p.platformId===st.plat);
   if(st.region==='none') list = list.filter(p=>regionKeysFor(p).length===0);
@@ -996,7 +1013,7 @@ function renderInventarioResults(){
   const selecting = !!invState.sel;
   // v11.2: el número de resultados y, a su derecha, cómo verlos (lista, portadas, muro)
   let html = `<div class="toolbar results-bar"><span class="result-count" role="status">${fmtCount(total,'count.result_one','count.result_many')}</span>
-    <div class="toolbar-right">${invState.filter==='falta' && total>0 ? `<button class="btn btn-sm" onclick="printMissingList()">${icon('printer')} ${t('inv.print_missing')}</button>` : ''}${total && vw!=='wall' ? `<button type="button" class="btn btn-sm${selecting ? ' primary' : ''}" data-fk="inv-pick" aria-pressed="${selecting}" onclick="invPickMode(${selecting ? 'false' : 'true'})">${icon('multi')} ${t(selecting ? 'bulk.done' : 'bulk.pick')}</button>` : ''}${viewToggleHTML(vw, "setInvView('{v}')", true)}</div></div>`;
+    <div class="toolbar-right">${invState.filter==='falta' && total>0 ? `<button class="btn btn-sm" onclick="printMissingList()">${icon('printer')} ${t('inv.print_missing')}</button>` : (total && !selecting && typeof printInventoryChecklist==='function' && (invState.search || invState.filter!=='todos' || advancedFilterCount()) ? `<button type="button" class="btn btn-sm" data-fk="inv-chk" onclick="printInventoryChecklist()" aria-label="${escapeHTML(t('chk.print_these').replace('{n}', total.toLocaleString(numLocale())))}" title="${escapeHTML(t('chk.print_these').replace('{n}', total.toLocaleString(numLocale())))}">${icon('printer')}<span class="ed-btn-label"> ${t('chk.print')}</span></button>` : '')}${total && !selecting && typeof openEdBulk==='function' ? `<button type="button" class="btn btn-sm" data-fk="inv-ed" onclick="invEdOpen()" aria-label="${escapeHTML(t('ed.open_these').replace('{n}', total.toLocaleString(numLocale())))}" title="${escapeHTML(t('ed.open_these').replace('{n}', total.toLocaleString(numLocale())))}">${icon('rows')}<span class="ed-btn-label"> ${t('ed.open')}</span></button>` : ''}${total && vw!=='wall' ? `<button type="button" class="btn btn-sm${selecting ? ' primary' : ''}" data-fk="inv-pick" aria-pressed="${selecting}" onclick="invPickMode(${selecting ? 'false' : 'true'})">${icon('multi')} ${t(selecting ? 'bulk.done' : 'bulk.pick')}</button>` : ''}${viewToggleHTML(vw, "setInvView('{v}')", true)}</div></div>`;
   if(!total){
     const anyFilter = invState.search || invState.filter!=='todos' || advancedFilterCount();
     return html + emptyStateHTML({ icon:'search', title: anyFilter ? t('filter.no_results') : t('inv.empty.title'), text: anyFilter ? t('filter.no_results_text') : t('inv.empty'),
@@ -1067,10 +1084,10 @@ function renderInventario(){
   html += searchbarHTML({ placeholder:t('inv.search.ph_short'), value:invState.search, oninput:'invSearch(this.value)', scan:'icon' });
   html += savedFiltersHTML();   // v11.19: tus filtros guardados
   html += `<div class="chip-scroll" role="group" aria-label="${t('filter.quick')}">
-    ${chip(t('inv.chip.all'),'todos')}${chip(t('inv.chip.have'),'tengo')}${chip(t('inv.chip.missing'),'falta')}${chip(t('inv.chip.unconfirmed'),'sinconfirmar')}${chip(t('inv.chip.sealed'),'sellado')}${invState.filter==='repetidas' || repeatedStats().pieces ? chip(t('inv.chip.dups'),'repetidas') : ''}${invState.filter==='prestadas' || PRODUCTS.some(isLoaned) ? chip(t('inv.chip.loaned'),'prestadas') : ''}
+    ${chip(t('inv.chip.all'),'todos')}${chip(t('inv.chip.have'),'tengo')}${chip(t('inv.chip.missing'),'falta')}${chip(t('inv.chip.unconfirmed'),'sinconfirmar')}${chip(t('inv.chip.sealed'),'sellado')}${invState.filter==='repetidas' || repeatedStats().pieces ? chip(t('inv.chip.dups'),'repetidas') : ''}${invState.filter==='prestadas' || PRODUCTS.some(isLoaned) ? chip(t('inv.chip.loaned'),'prestadas') : ''}${invState.filter==='encamino' || PRODUCTS.some(p=> p.possession==='en_camino') ? chip(t('inv.chip.incoming'),'encamino') : ''}${invState.filter==='reservadas' || PRODUCTS.some(p=> p.possession==='reservado') ? chip(t('inv.chip.reserved'),'reservadas') : ''}${invState.filter==='gradeadas' || (typeof gradeoOf==='function' && PRODUCTS.some(gradeoOf)) ? chip(t('inv.chip.graded'),'gradeadas') : ''}
   </div>`;
   html += `<div class="toolbar inv-toolbar">
-    <span class="inv-toolbar-left"><button type="button" class="btn btn-sm filter-btn" onclick="openFilterSheet()" aria-haspopup="dialog">${icon('filter')} ${t('filter.title')}${nAdv ? ` <span class="count-dot">${nAdv}</span>` : ''}</button>${sfCanSave() ? `<button type="button" class="btn btn-sm" data-fk="sf-save" onclick="sfSave()">${icon('bookmark')} ${t('sf.save')}</button>` : ''}</span>
+    <span class="inv-toolbar-left"><button type="button" class="btn btn-sm filter-btn" onclick="openFilterSheet()" aria-haspopup="dialog">${icon('filter')} ${t('filter.title')}${nAdv ? ` <span class="count-dot">${nAdv}</span>` : ''}</button>${sfCanSave() ? `<button type="button" class="btn btn-sm" data-fk="sf-save" onclick="sfSave()">${icon('bookmark')} ${t('sf.save')}</button>` : ''}${typeof colCanCreate==='function' && colCanCreate() ? `<button type="button" class="btn btn-sm" data-fk="col-make" onclick="colCreate()">${icon('crown')} ${t('col.make')}</button>` : ''}</span>
     <div class="toolbar-right">
       <label class="sr-only" for="invSortSel">${t('sort.label')}</label>
       <select id="invSortSel" class="select-compact" onchange="invSort(this.value)">
@@ -1218,6 +1235,7 @@ function renderEstadisticas(){
   </div>`;
   html += barRowHTML(t('stats.global'), g.have, g.total, g.pct, true);
   html += valueSectionHTML();   // v11.19: el valor y su evolución
+  if(typeof logrosSectionHTML==='function') html += logrosSectionHTML();   // v11.28: tus logros
   // v11.1: por categoría, a la vista (tengo / me falta)
   html += `<section class="vit-section">${sectionTitleHTML(t('stats.by_category'))}<div class="stack-list">${cats.filter(c=>c.total).map(c=>`
     <button type="button" class="stack-row" onclick="goCategory('${c.id}')">
@@ -1243,6 +1261,9 @@ function renderEstadisticas(){
                                   : t('stats.year_peak').replace('{y}', ranked[0][0]).replace('{n}', ranked[0][1]);
     html += `<section class="vit-section">${sectionTitleHTML(t('stats.by_year'), fmtCount(ym.size,'count.year_one','count.year_many'))}${yc}<p class="section-sub">${note}</p></section>`;
   }
+  // v11.28: de dónde son (y dónde las compraste) y cuándo las añadiste
+  if(typeof mapSectionHTML==='function') html += mapSectionHTML();
+  if(typeof calSectionHTML==='function') html += calSectionHTML();
   html += `<div class="stats-more">`;
   html += disclosureHTML('plataforma', t('stats.by_platform'), plats.map(p=>barRowHTML(p.name, p.have, p.total, p.pct)).join(''), statsOpen, String(plats.length));
   html += disclosureHTML('region', t('stats.by_region'), regs.map(r=>barRowHTML(r.name, r.have, r.total, r.pct)).join(''), statsOpen, String(regs.length));
@@ -1252,7 +1273,10 @@ function renderEstadisticas(){
 function renderInvestigacion(){
   const prods = PRODUCTS.filter(p=>p.existence!=='confirmado');
   let html = screenHeadHTML({ kicker:t('research.kicker'), title:t('research.title'), sub: prods.length ? fmtCount(prods.length,'count.item_one','count.item_many') : '' });
+  // v11.25: arriba, la revisión de tus datos (lo que conviene mirar) y «Editar en serie»
+  if(typeof reviewSectionHTML==='function') html += reviewSectionHTML();
   if(prods.length===0){ return html + emptyStateHTML({ icon:'checkCircle', title:t('research.empty'), text:t('research.empty.sub') }); }
+  if(typeof reviewSectionHTML==='function') html += `<h2 class="section-title rev-unconf-title">${escapeHTML(t('rev.unconfirmed'))}</h2>`;
   registerListContext(prods.map(p=>p.id), t('research.title'));
   html += `<div class="item-list">`;
   prods.forEach(p=>{
@@ -1321,6 +1345,11 @@ function renderAyuda(){
     ['fotos','camera', 'ayuda.photos'], ['orden','sortIcon', 'ayuda.order'], ['excluir','toggleIcon', 'ayuda.exclude'],
     ['backup','archive', 'ayuda.backup'], ['cuenta','cloud', 'ayuda.sync'], ['idioma','globe', 'ayuda.language'],
     ['copias','copies', 'ayuda.copies'], ['falta','target', 'ayuda.missing'], ['estanteria','cabinet', 'ayuda.shelf'],
+    ['revisar','rows', 'ayuda.review'],   // v11.25
+    ['compras','box', 'ayuda.buy'],   // v11.26
+    ['donde','archive', 'ayuda.where'],   // v11.27
+    ['disfrutar','crown', 'ayuda.fun'],   // v11.28
+    ['avisos','bell', 'ayuda.avisos'],   // v11.29
   ];
   let html = screenHeadHTML({ kicker:t('ayuda.kicker'), title:t('ayuda.title') });
   html += `<p class="ayuda-intro">${t('ayuda.intro')}</p><div class="ayuda-list">`;
@@ -1571,7 +1600,7 @@ function sfCanSave(){ const s = sfState(); return !sfSame(s, SF_DEFAULT) && !sav
 function sfAutoName(s){
   const parts = [];
   if(s.search) parts.push('«' + s.search + '»');
-  const qf = { tengo:'inv.chip.have', falta:'inv.chip.missing', sinconfirmar:'inv.chip.unconfirmed', sellado:'inv.chip.sealed', repetidas:'inv.chip.dups', prestadas:'inv.chip.loaned' }[s.filter];
+  const qf = { tengo:'inv.chip.have', falta:'inv.chip.missing', sinconfirmar:'inv.chip.unconfirmed', sellado:'inv.chip.sealed', repetidas:'inv.chip.dups', prestadas:'inv.chip.loaned', encamino:'inv.chip.incoming', reservadas:'inv.chip.reserved', gradeadas:'inv.chip.graded' }[s.filter];
   if(qf) parts.push(t(qf));
   if(s.cat){ const c = getAllCategories().find(x=>x.id===s.cat); if(c) parts.push(c.name); }
   if(s.plat){ const pl = getAllPlatforms().find(x=>x.id===s.plat); if(pl) parts.push(pl.name); }
@@ -1696,6 +1725,12 @@ function invBulkBodyHTML(){
     <div class="sheet-group"><div class="field-label">${t('bulk.tags')}</div>
       <div class="bulk-tag-add" data-nosave><label class="sr-only" for="bkTag">${t('bulk.tag_ph')}</label><input id="bkTag" class="input" type="text" maxlength="40" placeholder="${escapeHTML(t('bulk.tag_ph'))}" onkeydown="if(event.key==='Enter'){ event.preventDefault(); invBulkTagAdd(); }"><button type="button" class="btn btn-sm" data-fk="bs-tag" onclick="invBulkTagAdd()">${icon('tag')} ${t('bulk.tag_add')}</button></div>
       ${tags.length ? `<div class="chip-row">${tags.map(tg=>`<button type="button" class="chip chip-remove" onclick="invBulkTagRemove(this.dataset.tag)" data-tag="${escapeHTML(tg)}" aria-label="${escapeHTML(t('bulk.tag_rm').replace('{t}', tg))}">${escapeHTML(tg)}<span class="chip-x">${icon('x')}</span></button>`).join('')}</div>` : ''}</div>
+    <div class="sheet-group"><div class="field-label">${t('ed.title')}</div><p class="section-sub">${t('ed.bulk_sub')}</p>
+      <button type="button" class="btn btn-sm" data-fk="bs-ed" onclick="const ids = invPickedIds(); closeSheet(); openEdBulk({ ids, from:'inv' })">${icon('rows')} ${t('ed.open')}</button></div>
+    <div class="sheet-group"><div class="field-label">${t('box.list_title')}</div><p class="section-sub">${t('box.bulk_sub')}</p>
+      <button type="button" class="btn btn-sm" data-fk="bs-box" onclick="cajaElegir(invPickedIds())">${icon('archive')} ${t('box.put')}</button></div>
+    <div class="sheet-group"><div class="field-label">${t('buy.bulk_title')}</div><p class="section-sub">${t('buy.bulk_sub')}</p>
+      <button type="button" class="btn btn-sm" data-fk="bs-order" onclick="const ids = invPickedIds(); closeSheet(); pedidoCrear(ids)">${icon('box')} ${t('buy.bulk_btn')}</button></div>
     <div class="sheet-group"><div class="field-label">${t('bulk.value')}</div>
       <div class="field-grid" data-nosave>
         <div class="field"><label for="bkValNow">${t('p.value_now')} (${currencySymbol()})</label><input id="bkValNow" type="number" inputmode="decimal" step="0.01" min="0"></div>
@@ -1722,9 +1757,15 @@ async function bulkFinish(ids, snap, extra){
   const n = ids.length;
   showToast((n===1 ? t('bulk.done_n1') : t('bulk.done_n').replace('{n}', n.toLocaleString(numLocale()))) + (extra ? ' ' + extra : ''), { ok:true, replace:true, duration:7000, action:{ label:t('common.undo'), fn: ()=> bulkRestore(snap) } });
 }
+/* v11.25: «Editar en serie» con las piezas que ves en el Inventario (o todas, si no hay filtro) */
+function invEdOpen(){
+  const filtered = !!(invState.search || invState.filter!=='todos' || advancedFilterCount());
+  openEdBulk({ ids: filtered ? _invOrder.map(p=> p.id) : null, from:'inv' });
+}
 function bulkOv(id){ if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {}; return OVERRIDES.products[id]; }
 function setPossessionOv(p, v){
   const o = bulkOv(p.id); o.possession = v;
+  if(typeof histAdd==='function' && p.possession!==v) histAdd(p.id, 'estado', v);   // v11.27
   if(checklistHasTengoKey(p.categoryId)){ o.components = Object.assign({}, p.components || {}, o.components || {}); o.components.tengo = (v==='tengo'); }
 }
 async function invBulkPossession(v){
@@ -1774,7 +1815,7 @@ async function invBulkValue(){
   const snap = bulkSnap(ids, false);
   const hoy = new Date().toISOString().slice(0, 10);
   ids.forEach(id=>{ const p = PRODUCTS_BY_ID[id], o = bulkOv(id); o.valuation = Object.assign({}, p.valuation || {}, o.valuation || {});
-    if(now!==undefined){ o.valuation.valorActual = now; o.valuation.fechaActualizacion = hoy; }
+    if(now!==undefined){ o.valuation.valorActual = now; o.valuation.fechaActualizacion = hoy; if(typeof histAdd==='function') histAdd(id, 'valor', now); }
     if(paid!==undefined) o.valuation.valorAdquisicion = paid; });
   buildProducts(); recordValueHistory();
   await bulkFinish(ids, snap);
@@ -1814,6 +1855,7 @@ async function updateLoan(id, field, value){
   const cur = Object.assign({ a:'', desde:'' }, p.prestamo && typeof p.prestamo==='object' ? p.prestamo : {});
   cur[field] = String(value || '').trim();
   if(field==='a' && cur.a && !cur.desde) cur.desde = new Date().toISOString().slice(0, 10);
+  if(field==='a' && cur.a && typeof histAdd==='function') histAdd(id, 'presta', cur.a);   // v11.27
   const v = cur.a ? { a:cur.a, desde:cur.desde } : null;
   p.prestamo = v; await setProductField(id, 'prestamo', v);
   renderKeepFocus();
@@ -1821,7 +1863,9 @@ async function updateLoan(id, field, value){
 async function loanReturned(id){
   const p = PRODUCTS_BY_ID[id]; if(!p || !isLoaned(p)) return;
   const was = p.prestamo;
-  p.prestamo = null; await setProductField(id, 'prestamo', null);
+  p.prestamo = null;
+  if(typeof histAdd==='function') histAdd(id, 'devuelta');   // v11.27
+  await setProductField(id, 'prestamo', null);
   await renderKeepFocus(`[onchange^="updateLoan('${id}','a'"]`);   // (el botón ya no está: el foco va a «Prestada a»)
   showToast(t('loan.back_done'), { ok:true, replace:true, action:{ label:t('common.undo'), fn: async ()=>{ const q = PRODUCTS_BY_ID[id]; if(!q) return; q.prestamo = was; await setProductField(id, 'prestamo', was); render(); } } });
 }
@@ -1834,6 +1878,7 @@ async function updatePurchase(id, field, value){
   const v = cur.fecha || cur.tienda ? { fecha:cur.fecha, tienda:cur.tienda } : null;
   p.compra = v; await setProductField(id, 'compra', v);
   if(added) showToast(t('stores.added').replace('{s}', cur.tienda), { ok:true, replace:true });
+  if(field==='fecha' && typeof costeFechaCambiada==='function'){ await costeFechaCambiada(id); renderKeepFocus(); }   // v11.26: el cambio de moneda de ese día
 }
 /* Etiquetas en la ficha: añadir y quitar */
 function tagsEditorHTML(p){
@@ -1976,6 +2021,7 @@ async function vbSet(id, field, input){
   input.removeAttribute('aria-invalid');
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
   p.valuation = Object.assign({}, p.valuation || {}); p.valuation[field] = v===null ? null : Math.round(v * 100) / 100;
+  if(field==='valorActual' && v!==null && typeof histAdd==='function') histAdd(id, 'valor', p.valuation[field]);   // v11.27
   await setEditionNested(id, 'valuation', field, p.valuation[field]);
   if(field==='valorActual'){ const hoy = new Date().toISOString().slice(0, 10); p.valuation.fechaActualizacion = hoy; await setEditionNested(id, 'valuation', 'fechaActualizacion', hoy); }
   recordValueHistory(); await persistOverrides();

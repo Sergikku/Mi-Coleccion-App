@@ -171,6 +171,7 @@ async function persistOverrides(){
   showSaveError(!ok);
   if(typeof notifySaved==='function') notifySaved(ok);
   if(typeof syncNoteSaved==='function') syncNoteSaved(ok, json);   // v11.9: sincronización (y otras ventanas abiertas)
+  if(ok && typeof logrosSoon==='function' && !(typeof _lgQuiet!=='undefined' && _lgQuiet)) logrosSoon();   // v11.28: ¿algún logro nuevo?
   return ok;
 }
 function getProductOverride(id){ return OVERRIDES.products[id] || {}; }

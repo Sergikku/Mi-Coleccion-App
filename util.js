@@ -2,7 +2,7 @@
    Utilidades sin estado: escapado de HTML, normalización para búsquedas, orden natural, iconos SVG, slug, fechas y descargas. */
 
 /* Versión visible de la app (esquina y Ajustes). Mantener igual que CACHE_NAME de sw.js. */
-const APP_VERSION = '11.24.0';
+const APP_VERSION = '11.29.0';
 
 /* Iconos propios en línea (nada de emoji) — heredan el color del texto
    que los rodea, así encajan igual en modo claro y oscuro. v11: un único
@@ -108,6 +108,9 @@ const ICON_PATHS = {
   loan: '<path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/>',
   // v11.23: pieza del día
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  // v11.29: avisos y leer la portada
+  bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  read: '<path d="M4 8V5.5a1.5 1.5 0 0 1 1.5-1.5H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9.5h8M8 12.5h8M8 15.5h5"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.4"/>',
   coins: '<ellipse cx="12" cy="6.5" rx="7" ry="3"/><path d="M5 6.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5M5 11.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>',
   next: '<path d="M5 12h13M13 6l6 6-6 6"/>',

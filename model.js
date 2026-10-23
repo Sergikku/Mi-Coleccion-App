@@ -564,6 +564,8 @@ function productSearchText(p){
   // v11.6: también el nombre original (japonés), números de catálogo/producto y el código de barras
   // v11.19: también a quién se la prestaste y dónde la compraste
   const extra = [p.prestamo && typeof p.prestamo==='object' ? p.prestamo.a : '', p.compra && typeof p.compra==='object' ? p.compra.tienda : ''];
+  if(typeof cajaSearchText==='function') extra.push(cajaSearchText(p));   // v11.27: la caja donde está
+  if(p.gradeo && typeof p.gradeo==='object') extra.push([p.gradeo.empresa, p.gradeo.nota, p.gradeo.cert].filter(Boolean).join(' '));
   return normText([p.name, p.nameJp, p.platformName, p.region, regionTxt, (p.tags||[]).join(' '), p.summary, p.notes, p.catalogNumber, p.productCode, p.barcode].concat(extra).join(' '));
 }
 function productMatchesSearch(p, tokens){

@@ -1989,6 +1989,8 @@ function settingsBodyHTML(){
   + group('collection', `<div class="sheet-group"><div class="field-label">${t('settings.currency')}</div><div class="chip-row" role="group" aria-label="${t('settings.currency')}">
       ${curs.map(([c,l])=>`<button type="button" class="chip ${cur===c?'active':''}" aria-pressed="${cur===c}" onclick="setCurrency('${c}')">${escapeHTML(l)}</button>`).join('')}</div>
       <p class="settings-note">${t('settings.currency_note')}</p></div>
+    ${typeof openPedidos==='function' ? row('box', t('buy.settings_row'), t('buy.settings_sub'), "openPedidos()") : ''}
+    ${typeof openAvisos==='function' ? row('bell', t('av.title') + (avisosN() ? ' · ' + avisosN() : ''), t('av.settings_sub'), "openAvisos()") : ''}
     ${row('camera', t('dash.gallery_link'), '', "goPage('gallery')")}
     ${typeof openScanner==='function' ? row('barcode', t('scan.settings_row'), t('scan.settings_sub'), "openScanner()") + row('image', t('scan.photos_link'), t('pcode.settings_sub'), "openPhotoBarcodeSearch()") : ''}`)
   + group('data', (typeof syncSettingsRowHTML==='function' ? syncSettingsRowHTML() : '') + row('archive', t('dash.backup_link'), escapeHTML(lastBackupText()), "goPage('backup')"))
@@ -2140,6 +2142,7 @@ function productBadgesHTML(p, opts){
     ${p.special ? `<span class="badge badge-special">${t('badge.special')}</span>` : ``}
     ${opts.noRegion ? '' : regionBadgesHTML(p)}
     ${p.existence!=='confirmado' ? `<span class="badge badge-unconfirmed">${existenceLabel(p.existence)}</span>` : ``}
+    ${typeof gradeoBadgeHTML==='function' ? gradeoBadgeHTML(p) : ''}
     ${typeof isLoaned==='function' && isLoaned(p) ? `<span class="badge badge-loan" title="${escapeHTML(t('loan.sum').replace('{a}', p.prestamo.a))}">${icon('loan')} ${t('loan.badge')}</span>` : ''}`;
 }
 

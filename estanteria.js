@@ -2312,7 +2312,7 @@ function estImmCtlHTML(m, night){
   const backLabel = EST.view==='balda' ? (m && m.isFloor ? t('est.sala') : t('est.to_mueble')) : (EST.view==='mueble' && EST.fromSala && estSalaOn()) ? t('est.sala') : t('est.imm_exit');
   return `<div class="est-imm-l"><button type="button" class="round-btn est-btn" data-fk="imm-back" onclick="estImmBack()" aria-label="${escapeHTML(backLabel)}" title="${escapeHTML(backLabel)}">${icon('chevronLeft')}</button>
       <div class="est-imm-t"><b>${escapeHTML(title)}</b><small>${escapeHTML(sub)}</small></div></div>
-    <div class="est-ctl-r">${right}<button type="button" class="round-btn est-btn${EST.hl ? ' is-on' : ''}" data-fk="tools" onclick="openEstTools()" aria-label="${escapeHTML(t('estx.tools'))}" title="${escapeHTML(t('estx.tools'))}">${icon('search')}</button>${night}<button type="button" class="btn btn-sm est-edit-btn" data-fk="imm-edit" onclick="estSetMode('editar')">${icon('pencil')}<span> ${t('est.edit')}</span></button></div>${lift}${estHlChipHTML()}`;
+    <div class="est-ctl-r">${right}${typeof visitaStart==='function' ? `<button type="button" class="round-btn est-btn" data-fk="tour" onclick="visitaStart()" aria-label="${escapeHTML(t('tour.start'))}" title="${escapeHTML(t('tour.start'))}">${icon('play')}</button>` : ''}<button type="button" class="round-btn est-btn${EST.hl ? ' is-on' : ''}" data-fk="tools" onclick="openEstTools()" aria-label="${escapeHTML(t('estx.tools'))}" title="${escapeHTML(t('estx.tools'))}">${icon('search')}</button>${night}<button type="button" class="btn btn-sm est-edit-btn" data-fk="imm-edit" onclick="estSetMode('editar')">${icon('pencil')}<span> ${t('est.edit')}</span></button></div>${lift}${estHlChipHTML()}`;
 }
 /* Abajo, dentro de una balda: el nombre de la que tienes delante o, con una
    pieza elegida, sus controles más usados (postura, mover, girar, sacarla);
@@ -2429,7 +2429,7 @@ function estAfterRender(){
   estBindStage();
   estDraw();
   { const pn = document.getElementById('estPanel'); if(pn) estHydratePhotos(pn); }   // v11.14: el lomo con foto en la tarjeta
-  if(imm && !estInspectOpen() && !(typeof isSheetOpen==='function' && isSheetOpen())){ const b = document.querySelector('#estCtl [data-fk="imm-back"]'); if(b && !document.activeElement.closest('#estImm')) b.focus({ preventScroll:true }); }
+  if(imm && !estInspectOpen() && !(typeof isSheetOpen==='function' && isSheetOpen())){ const b = document.querySelector('#estCtl [data-fk="imm-back"]'); if(b && !document.activeElement.closest('#estImm, #tourCard')) b.focus({ preventScroll:true }); }   // (v11.28: en la visita guiada, el foco sigue en su cartela)
   if(EST.view==='balda' && EST.sel) requestAnimationFrame(()=>estScrollToSel(false));
   else if(EST.view==='balda' && EST.focusPid) requestAnimationFrame(estShowFocus);
   if(EST.bookAfter){ const b = EST.bookAfter; EST.bookAfter = null; setTimeout(()=>estOpenBook(b.cid, b.pid), 60); }
