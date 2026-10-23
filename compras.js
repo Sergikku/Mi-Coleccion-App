@@ -25,7 +25,7 @@ const CARRIERS = ['Japan Post / EMS', 'DHL', 'FedEx', 'UPS', 'Correos', 'SEUR', 
 const FX_HOST = 'https://api.frankfurter.dev';
 function localIso(){ return CUR_ISO[currencySymbol()] || 'EUR'; }
 function todayISO(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-function buyAjustes(){ const a = OVERRIDES.compraAjustes && typeof OVERRIDES.compraAjustes==='object' ? OVERRIDES.compraAjustes : {}; return { recargo: typeof a.recargo==='number' && isFinite(a.recargo) ? a.recargo : 0, moneda: BUY_CURRENCIES.includes(a.moneda) ? a.moneda : 'JPY' }; }
+function buyAjustes(){ const a = OVERRIDES.compraAjustes && typeof OVERRIDES.compraAjustes==='object' ? OVERRIDES.compraAjustes : {}; return { recargo: typeof a.recargo==='number' && isFinite(a.recargo) ? a.recargo : 0, moneda: BUY_CURRENCIES.includes(a.moneda) ? a.moneda : 'JPY', iva: typeof a.iva==='number' && isFinite(a.iva) ? a.iva : 21 }; }   // v11.33: iva = % del IVA de importación
 function curSymbol(iso){ return { EUR:'€', JPY:'¥', USD:'$', GBP:'£', CNY:'元', KRW:'₩' }[iso] || iso; }
 function fmtCur(v, iso){
   if(v===null || v===undefined || !isFinite(v)) return '—';
@@ -91,16 +91,18 @@ function costeReal(p){
   const cambio = mon===loc ? 1 : (typeof base.cambio==='number' ? base.cambio : null);
   const factor = cambio===null ? null : cambio * (mon===loc ? 1 : 1 + aj.recargo / 100);
   const precio = typeof c.precio==='number' ? c.precio : null;
-  let gastosMon = 0, aduana = 0;
+  let gastosMon = 0, aduana = 0, envioMon = 0;
   if(o){
     const ps = pedidoPiezas(o), conPrecio = ps.filter(x=> costeOf(x) && typeof x.coste.precio==='number'), suma = conPrecio.reduce((s, x)=> s + x.coste.precio, 0);
     const share = suma > 0 ? (precio || 0) / suma : (ps.length ? 1 / ps.length : 0);
-    gastosMon = ((+o.envio || 0) + (+o.comision || 0)) * share; aduana = (+o.aduana || 0) * share;
-  } else { gastosMon = (+c.envio || 0) + (+c.comision || 0); aduana = +c.aduana || 0; }
+    gastosMon = ((+o.envio || 0) + (+o.comision || 0)) * share; aduana = (+o.aduana || 0) * share; envioMon = (+o.envio || 0) * share;
+  } else { gastosMon = (+c.envio || 0) + (+c.comision || 0); aduana = +c.aduana || 0; envioMon = +c.envio || 0; }
+  const ivaOn = !!base.iva;   // v11.33: «Sumar el IVA de importación» (en la pieza o en su pedido)
   if(precio===null && !gastosMon && !aduana) return null;
   if(factor===null) return { total:null, precioMon:precio, gastosMon, aduana, moneda:mon, falta:true };
   const pr = (precio || 0) * factor, ga = gastosMon * factor;
-  return { total: round2(pr + ga + aduana), precio: round2(pr), gastos: round2(ga), aduana: round2(aduana), precioMon:precio, gastosMon, moneda:mon, cambio, factor, falta:false };
+  const iva = ivaOn ? (pr + envioMon * factor) * aj.iva / 100 : 0;   // 21 % (o el de Ajustes) sobre el precio y el envío
+  return { total: round2(pr + ga + aduana + iva), precio: round2(pr), gastos: round2(ga), aduana: round2(aduana), iva: round2(iva), ivaOn, precioMon:precio, gastosMon, moneda:mon, cambio, factor, falta:false };
 }
 /* «Pagado» sigue al coste real */
 async function costeSyncPaid(ids){
@@ -130,18 +132,25 @@ function costeSectionHTML(p){
   } else {
     body += `<div class="field-grid"><div class="field"><label for="cst_mon_${id}">${t('cst.currency')}</label><select id="cst_mon_${id}" onchange="costeSet('${id}','moneda',this)">${BUY_CURRENCIES.map(k=>`<option value="${k}" ${k===mon ? 'selected' : ''}>${k} · ${escapeHTML(curSymbol(k))}</option>`).join('')}</select></div>
       ${num('precio', t('cst.price') + ' (' + curSymbol(mon) + ')', c.precio)}</div>
-      <div class="field-grid">${num('envio', t('cst.shipping') + ' (' + curSymbol(mon) + ')', c.envio)}${num('comision', t('cst.fee') + ' (' + curSymbol(mon) + ')', c.comision)}${num('aduana', t('cst.customs') + ' (' + curSymbol(loc) + ')', c.aduana)}</div>`;
+      <div class="field-grid">${num('envio', t('cst.shipping') + ' (' + curSymbol(mon) + ')', c.envio)}${num('comision', t('cst.fee') + ' (' + curSymbol(mon) + ')', c.comision)}${num('aduana', t('cst.customs') + ' (' + curSymbol(loc) + ')', c.aduana)}</div>
+      ${costeIvaHTML(`cst_iva_${id}`, !!c.iva, `costeSet('${id}','iva',this)`)}`;
   }
   body += costeCambioHTML(p, base, mon, o);
   if(r && r.total!==null){
     body += `<div class="cst-total" role="status"><span class="cst-total-label">${t('cst.total')}</span><b>${escapeHTML(fmtCur(r.total, loc))}</b>
-      <small>${escapeHTML(t('cst.breakdown').replace('{p}', fmtCur(r.precio, loc)).replace('{g}', fmtCur(r.gastos, loc)).replace('{a}', fmtCur(r.aduana, loc)))}</small>
+      <small>${escapeHTML(t(r.ivaOn ? 'cst.breakdown_iva' : 'cst.breakdown').replace('{p}', fmtCur(r.precio, loc)).replace('{g}', fmtCur(r.gastos, loc)).replace('{a}', fmtCur(r.aduana, loc)).replace('{i}', fmtCur(r.iva, loc)))}</small>
       <small>${escapeHTML(t('cst.to_paid'))}</small></div>`;
   }
   body += `<div class="quick-actions is-flush">${o ? `<button type="button" class="btn btn-sm btn-ghost" data-fk="cst-leave" onclick="pedidoQuitar('${escapeHTML(o.id)}','${id}')">${t('cst.leave_order')}</button>`
     : `<button type="button" class="btn btn-sm" data-fk="cst-add-order" onclick="pedidoElegir('${id}')">${icon('box')} ${t('cst.add_order')}</button>`}</div>`;
   const meta = r && r.total!==null ? fmtCur(r.total, loc) : r && r.falta ? t('cst.pending_short') : '';
   return disclosureHTML('coste', t('cst.title'), body, productSectionsOpen, escapeHTML(meta));
+}
+/* v11.33: la casilla «Sumar el IVA de importación (21 %)» (en la ficha o en el pedido) */
+function costeIvaHTML(fid, on, change){
+  const n = buyAjustes().iva;
+  return `<label class="av-check cst-iva"><input type="checkbox" id="${fid}" ${on ? 'checked' : ''} onchange="${change}"> <span>${escapeHTML(t('cst.iva').replace('{n}', n.toLocaleString(numLocale())))}</span></label>
+    <p class="section-sub">${escapeHTML(t('cst.iva_note'))}</p>`;
 }
 function costeCambioHTML(p, base, mon, o){
   const loc = localIso(), id = escapeHTML(p.id), where = o ? `pedido:${escapeHTML(o.id)}` : `pieza:${id}`;
@@ -173,10 +182,16 @@ async function costeSet(id, f, input){
   const p = PRODUCTS_BY_ID[id]; if(!p) return;
   const c = Object.assign({}, costeOf(p) || {});
   if(f==='moneda'){ c.moneda = input.value; delete c.cambio; delete c.cambioFuente; delete c.cambioFecha; delete c.cambioPara; }
+  else if(f==='iva'){ if(input.checked) c.iva = true; else delete c.iva; }
   else { const v = numOrNull(input.value); if(Number.isNaN(v)){ input.setAttribute('aria-invalid', 'true'); showToast(t('cst.bad_number'), { replace:true }); return; } input.removeAttribute('aria-invalid'); if(v===null) delete c[f]; else c[f] = v; }
   if(!c.moneda) c.moneda = (pedidoOf(id) || {}).moneda || buyAjustes().moneda;
   const empty = c.precio===undefined && c.envio===undefined && c.comision===undefined && c.aduana===undefined;
-  if(empty && !pedidoOf(id)){ p.coste = null; if(OVERRIDES.products[id]) OVERRIDES.products[id].coste = null; await persistOverrides(); return renderKeepFocus(); }
+  if(empty && !pedidoOf(id)){
+    // v11.32: sin importes todavía, se recuerda la moneda que elegiste (antes volvía sola a la habitual y no dejaba cambiarla)
+    const keep = (c.moneda && c.moneda!==buyAjustes().moneda) || c.iva ? Object.assign({ moneda:c.moneda }, c.iva ? { iva:true } : {}) : null;
+    p.coste = keep; if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {}; OVERRIDES.products[id].coste = keep;
+    await persistOverrides(); return renderKeepFocus(f==='moneda' ? '#cst_mon_' + CSS.escape(id) : f==='iva' ? '#cst_iva_' + CSS.escape(id) : null);
+  }
   if(!pedidoOf(id)) await fxEnsure(c, compraFecha(p));
   p.coste = c; if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {}; OVERRIDES.products[id].coste = c;
   const o = pedidoOf(id);
@@ -259,6 +274,7 @@ function pedidoBodyHTML(o){
     <h3 class="ped-h">${t('ped.costs')}</h3>
     <div class="field-grid"><div class="field"><label for="ped_moneda">${t('cst.currency')}</label><select id="ped_moneda" onchange="pedidoSet('moneda',this)">${BUY_CURRENCIES.map(k=>`<option value="${k}" ${k===mon ? 'selected' : ''}>${k} · ${escapeHTML(curSymbol(k))}</option>`).join('')}</select></div>
       ${f('envio', t('cst.shipping') + ' (' + curSymbol(mon) + ')', o.envio, 'inputmode="decimal"')}${f('comision', t('cst.fee') + ' (' + curSymbol(mon) + ')', o.comision, 'inputmode="decimal"')}${f('aduana', t('cst.customs') + ' (' + curSymbol(loc) + ')', o.aduana, 'inputmode="decimal"')}</div>
+    ${costeIvaHTML('ped_iva', !!o.iva, "pedidoSet('iva',this)")}
     ${costeCambioHTML({ id:'' }, o, mon, o)}
     <p class="section-sub">${escapeHTML(t('ped.split_note'))}</p>
     <h3 class="ped-h">${escapeHTML(fmtCount(ps.length, 'ped.pieces1', 'ped.pieces'))}</h3>
@@ -288,6 +304,7 @@ async function pedidoSet(k, input){
   if(['envio', 'comision', 'aduana'].includes(k)){
     const v = numOrNull(input.value); if(Number.isNaN(v)){ input.setAttribute('aria-invalid', 'true'); showToast(t('cst.bad_number'), { replace:true }); return; }
     input.removeAttribute('aria-invalid'); if(v===null) delete o[k]; else o[k] = v;
+  } else if(k==='iva'){ if(input.checked) o.iva = true; else delete o.iva;   // v11.33
   } else if(k==='tienda'){ const v = storeCanonical(input.value); input.value = v; o.tienda = v; if(v && storeRemember(v)) showToast(t('stores.added').replace('{s}', v), { ok:true, replace:true }); }
   else o[k] = String(input.value || '').trim();
   if(k==='moneda'){ delete o.cambio; delete o.cambioFuente; delete o.cambioPara; (o.piezas || []).forEach(id=>{ const p = PRODUCTS_BY_ID[id]; if(!p) return; const c = Object.assign({}, costeOf(p) || {}, { moneda:o.moneda }); p.coste = c; if(!OVERRIDES.products[id]) OVERRIDES.products[id] = {}; OVERRIDES.products[id].coste = c; }); }
@@ -397,7 +414,8 @@ function pedidosBodyHTML(){
     <button type="button" class="btn btn-sm" data-fk="ped-create" onclick="closeSheet(); pedidoCrear([])">${icon('plus')} ${t('ped.new')}</button>
     <h3 class="ped-h">${t('buy.settings')}</h3>
     <div class="field-grid"><div class="field"><label for="buyMon">${t('buy.usual')}</label><select id="buyMon" onchange="buyAjusteSet('moneda', this.value)">${BUY_CURRENCIES.map(k=>`<option value="${k}" ${k===aj.moneda ? 'selected' : ''}>${k} · ${escapeHTML(curSymbol(k))}</option>`).join('')}</select></div>
-      <div class="field"><label for="buyFee">${t('buy.fee')}</label><input id="buyFee" type="text" inputmode="decimal" value="${aj.recargo || ''}" placeholder="0" onchange="buyAjusteSet('recargo', this.value, this)"></div></div>
+      <div class="field"><label for="buyFee">${t('buy.fee')}</label><input id="buyFee" type="text" inputmode="decimal" value="${aj.recargo || ''}" placeholder="0" onchange="buyAjusteSet('recargo', this.value, this)"></div>
+      <div class="field"><label for="buyIva">${t('buy.iva')}</label><input id="buyIva" type="text" inputmode="decimal" value="${aj.iva}" placeholder="21" onchange="buyAjusteSet('iva', this.value, this)"></div></div>
     <p class="section-sub">${escapeHTML(t('buy.fee_note'))}</p>
     <p class="section-sub">${escapeHTML(t('buy.fx_note'))}</p>
     ${pend ? `<button type="button" class="btn btn-sm" data-fk="buy-pend" onclick="comprasPendientes(true)">${icon('refresh')} ${escapeHTML(t('buy.pending_btn').replace('{n}', pend))}</button>` : ''}`;
@@ -408,7 +426,8 @@ function pedidoBarHTML(o){
 }
 async function buyAjusteSet(k, v, input){
   const a = Object.assign({}, OVERRIDES.compraAjustes || {});
-  if(k==='recargo'){ const n = numOrNull(v); if(Number.isNaN(n) || (n!==null && n > 50)){ if(input) input.setAttribute('aria-invalid', 'true'); showToast(t('cst.bad_number'), { replace:true }); return; } if(input) input.removeAttribute('aria-invalid'); a.recargo = n || 0; }
+  if(k==='iva'){ const n = numOrNull(v); if(Number.isNaN(n) || (n!==null && (n < 0 || n > 40))){ if(input) input.setAttribute('aria-invalid', 'true'); showToast(t('cst.bad_number'), { replace:true }); return; } if(input) input.removeAttribute('aria-invalid'); if(n===null) delete a.iva; else a.iva = n; }
+  else if(k==='recargo'){ const n = numOrNull(v); if(Number.isNaN(n) || (n!==null && n > 50)){ if(input) input.setAttribute('aria-invalid', 'true'); showToast(t('cst.bad_number'), { replace:true }); return; } if(input) input.removeAttribute('aria-invalid'); a.recargo = n || 0; }
   else a.moneda = v;
   OVERRIDES.compraAjustes = a;
   // el recargo cambia el coste real de todo lo que está en otra moneda
